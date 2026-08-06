@@ -1,0 +1,16 @@
+{
+"name": "Trasy 2.0",
+"short_name": "Trasy 2.0",
+"start_url": "./index.html",
+"display": "standalone",
+"background_color": "#f4f6f9",
+"theme_color": "#2c3e50",
+"icons": [
+{
+"src": "Tyliszczak.png",
+"sizes": "512x512 762x762 1024x1024",
+"type": "image/png",
+"purpose": "any maskable"
+}
+ ]
+}
