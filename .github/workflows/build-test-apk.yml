@@ -1,0 +1,62 @@
+name: Build test APK
+
+on:
+  push:
+    branches:
+      - agent/portal-kierowcy-layout
+    paths:
+      - .github/workflows/build-test-apk.yml
+      - index.html
+      - style.css
+      - app.js
+      - routes.js
+      - schedule.js
+      - manifest.json
+      - icon.svg
+      - Tyliszczak.png
+      - sw.js
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out test branch
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Prepare Capacitor project
+        run: |
+          npm install --no-save --package-lock=false @capacitor/core@8.5.0 @capacitor/cli@8.5.0 @capacitor/android@8.5.0
+          mkdir -p www
+          cp index.html style.css app.js routes.js schedule.js manifest.json icon.svg Tyliszczak.png sw.js www/
+          printf '%s\n' '{"appId":"pl.tyliszczak.trasy2","appName":"Trasy 2.0 Test","webDir":"www"}' > capacitor.config.json
+          npx cap add android
+          npx cap sync android
+
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug
+
+      - name: Save APK on the test branch
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk Trasy-2.0-test.apk
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add Trasy-2.0-test.apk
+          git commit -m "Build test APK"
+          git push
