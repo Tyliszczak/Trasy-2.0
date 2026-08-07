@@ -1,75 +1,62 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pl">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rozkład Jazdy - Trasy Pracownicze</title>
-    <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="style.css">
-</head>
-<body>
-
-    <header class="app-header">
-        <h1>Rozkład Jazdy Trasa Pracy</h1>
-        <button id="adminToggleBtn" class="admin-icon-btn" title="Panel Administratora">🔒</button>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#123a5a">
+    <meta name="description" content="Rozkłady tras pracowniczych">
+    <link rel="manifest" href="./manifest.json">
+    <link rel="stylesheet" href="./style.css">
+    <title>Trasy 2.0</title>
+  </head>
+  <body>
+    <header class="header">
+      <div>
+        <p class="eyebrow">Portal kierowcy</p>
+        <h1>Trasy 2.0</h1>
+      </div>
+      <span id="connectionStatus" class="status" aria-live="polite">Dane lokalne</span>
     </header>
 
-    <main id="publicView" class="view-container">
-        <section class="selection-card">
-            <h2>Wybierz trasę i godzinę zmiany</h2>
-            
-            <div class="form-group">
-                <label for="routeSelect">Trasa:</label>
-                <select id="routeSelect" class="styled-select">
-                    <option value="">-- Wybierz trasę --</option>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label for="timeSelect">Godzina zmiany:</label>
-                <select id="timeSelect" class="styled-select">
-                    <option value="">-- Wybierz godzinę zmiany --</option>
-                </select>
-            </div>
-
-            <button id="showScheduleBtn" class="primary-btn">Pokaż harmonogram</button>
-        </section>
-
-        <div id="scheduleResult" class="schedule-result-container"></div>
-    </main>
-
-    <div id="loginModal" class="modal-overlay" style="display: none;">
-        <div class="modal-content">
-            <h3>Logowanie Administratora</h3>
-            <p>Wprowadź hasło, aby zarządzać trasami.</p>
-            
-            <input type="password" id="adminPasswordInput" class="styled-input" placeholder="Wpisz hasło...">
-            
-            <div class="modal-buttons">
-                <button id="loginSubmitBtn" class="primary-btn">Zaloguj</button>
-                <button id="loginCancelBtn" class="secondary-btn">Anuluj</button>
-            </div>
-            <p id="loginErrorMsg" class="error-text"></p>
+    <main class="container">
+      <section class="card" aria-labelledby="selectionTitle">
+        <h2 id="selectionTitle">Znajdź rozkład</h2>
+        <p class="hint">Wybierz trasę oraz godzinę rozpoczęcia zmiany.</p>
+        <div class="fields">
+          <label>
+            Trasa
+            <select id="routeSelect">
+              <option value="">Wybierz trasę</option>
+            </select>
+          </label>
+          <label>
+            Godzina zmiany
+            <select id="timeSelect" disabled>
+              <option value="">Najpierw wybierz trasę</option>
+            </select>
+          </label>
         </div>
-    </div>
+        <button id="showSchedule" type="button">Pokaż harmonogram</button>
+        <p id="formMessage" class="message" aria-live="polite"></p>
+      </section>
 
-    <main id="adminView" class="view-container" style="display: none;">
-        <div class="admin-header-bar">
-            <h2>Panel Administratora (Zarządzanie)</h2>
-            <button id="logoutBtn" class="secondary-btn">Wyloguj</button>
+      <section id="schedule" class="card schedule" hidden aria-live="polite">
+        <div class="scheduleHeading">
+          <div>
+            <p class="eyebrow">Rozkład</p>
+            <h2 id="scheduleTitle"></h2>
+          </div>
+          <button id="clearSchedule" class="secondary" type="button">Zmień wybór</button>
         </div>
-
-        <section class="admin-section">
-            <h3>Dane Administratora i Bezpieczeństwo</h3>
-            <button id="openAdminDataBtn" class="secondary-btn">Edytuj hasło i e-maile powiadomień</button>
-        </section>
-
-        <section class="admin-section">
-            <h3>Edycja Tras i Przystanków</h3>
-            <p>Tutaj wkrótce pojawią się opcje dodawania tras, przystanków oraz integracja z mapą Google.</p>
-        </section>
+        <div class="tableWrap">
+          <table>
+            <thead><tr><th>Przystanek</th><th>Godzina</th><th>Mapa</th></tr></thead>
+            <tbody id="scheduleBody"></tbody>
+          </table>
+        </div>
+      </section>
     </main>
-
-    <script src="app.js"></script>
-</body>
+    <footer>Rozkład działa offline po pierwszym otwarciu aplikacji.</footer>
+    <script type="module" src="./app.js"></script>
+  </body>
 </html>
