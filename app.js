@@ -8,6 +8,8 @@ const message = document.querySelector("#formMessage");
 const schedule = document.querySelector("#schedule");
 const scheduleTitle = document.querySelector("#scheduleTitle");
 const scheduleBody = document.querySelector("#scheduleBody");
+const updateNotice = document.querySelector("#updateNotice");
+const updateAppButton = document.querySelector("#updateAppButton");
 
 for (const route of ROUTES) {
   routeSelect.add(new Option(route.name, route.name));
@@ -62,5 +64,33 @@ function createStopRow(stop) {
 }
 
 if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js"));
+  let reloadingForUpdate = false;
+
+  window.addEventListener("load", async () => {
+    const registration = await navigator.serviceWorker.register("./sw.js");
+    const showUpdateNotice = () => {
+      if (registration.waiting) updateNotice.hidden = false;
+    };
+
+    showUpdateNotice();
+    registration.addEventListener("updatefound", () => {
+      const worker = registration.installing;
+      worker?.addEventListener("statechange", () => {
+        if (worker.state === "installed" && navigator.serviceWorker.controller) showUpdateNotice();
+      });
+    });
+
+    updateAppButton.addEventListener("click", () => {
+      registration.waiting?.postMessage({ type: "SKIP_WAITING" });
+    });
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (!reloadingForUpdate) {
+        reloadingForUpdate = true;
+        window.location.reload();
+      }
+    });
+
+    window.addEventListener("focus", () => registration.update());
+    window.setInterval(() => registration.update(), 15 * 60 * 1000);
+  });
 }
