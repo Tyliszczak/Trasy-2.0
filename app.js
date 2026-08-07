@@ -134,12 +134,41 @@ resultContainer.innerHTML = html;
 /* ================================================================= /
 / POBIERANIE DANYCH TRAS (JSON) Z GOOGLE APPS SCRIPT /
 / ================================================================= */
+/* ================================================================= */
+/* POBIERANIE TRAS Z ARKUSZA GOOGLE (AUTOMATYCZNIE W LOCIE)          */
+/* ================================================================= */
 async function loadRoutesData() {
-try {
-const response = await fetch(GAS_API_URL + "?action=getRoutes");
-appData = await response.json();
-console.log("Dane tras wczytane poprawnie:", appData);
-} catch (error) {
-console.error("Nie udało się pobrać danych tras:", error);
-}
+    try {
+        // Wysyłamy zapytanie GET do Twojego serwera w Google Apps Script
+        const response = await fetch(GAS_API_URL);
+        const result = await response.json();
+
+        if (result.status === "success") {
+            // Przypisujemy pobrane dane do globalnej zmiennej, aby aplikacja mogła z nich korzystać
+            appData = result.data; 
+
+            // Pobieramy element listy rozwijanej tras z pliku HTML
+            const routeSelect = document.getElementById("routeSelect");
+            
+            // Czścimy listę na wypadek, gdyby były tam jakieś stare wpisy
+            routeSelect.innerHTML = '<option value="">-- Wybierz trasę --</option>';
+
+            // Kluczowy moment: pobieramy nazwy wszystkich zakładek (kart) z Arkusza Google
+            // Każda zakładka to nowa trasa, więc tworzymy dla niej opcję w liście rozwijanej
+            const routeNames = Object.keys(appData);
+
+            routeNames.forEach(routeName => {
+                const option = document.createElement("option");
+                option.value = routeName;      // Wartość przesyłana po wybraniu
+                option.textContent = routeName;  // Nazwa wyświetlana na ekranie telefonu
+                routeSelect.appendChild(option); // Wrzucamy opcję do listy
+            });
+
+            console.log("Trasy zostały pomyślnie zaciągnięte z Arkusza Google!");
+        } else {
+            console.error("Błąd odczytu danych z serwera:", result.message);
+        }
+    } catch (error) {
+        console.error("Nie udało się połączyć z zapleczem Google:", error);
+    }
 }
