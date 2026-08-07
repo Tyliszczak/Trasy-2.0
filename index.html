@@ -1,19 +1,26 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="pl">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#123a5a">
+    <meta name="theme-color" content="#ccff33">
     <meta name="description" content="Rozkłady tras pracowniczych">
     <link rel="manifest" href="./manifest.json">
     <link rel="stylesheet" href="./style.css">
     <title>Trasy 2.0</title>
   </head>
   <body>
-    <header class="header">
-      <div>
-        <p class="eyebrow">Portal kierowcy</p>
-        <h1>Trasy 2.0</h1>
+    <header class="appHeader">
+      <button id="wakeLockButton" class="wakeLock" type="button" aria-pressed="false" aria-label="Włącz utrzymywanie ekranu">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M9 21h6M10 17h4M8.5 14.5A6 6 0 1 1 15.5 14.5C14.5 15.3 14 16 14 17h-4c0-1-.5-1.7-1.5-2.5Z"/>
+        </svg>
+        <span id="wakeLockStatus">OFF</span>
+        <small>EKRAN</small>
+      </button>
+      <div class="brand">
+        <p>TRASY 2.0</p>
+        <h1>PORTAL KIEROWCY</h1>
       </div>
       <span id="connectionStatus" class="status" aria-live="polite">Dane lokalne</span>
     </header>
@@ -23,44 +30,47 @@
         <span>Nowa wersja aplikacji jest gotowa.</span>
         <button id="updateAppButton" type="button">Odśwież teraz</button>
       </aside>
-      <section class="card" aria-labelledby="selectionTitle">
-        <h2 id="selectionTitle">Znajdź rozkład</h2>
-        <p class="hint">Wybierz trasę oraz godzinę rozpoczęcia zmiany.</p>
+      <section id="selectionPanel" class="selectionPanel" aria-labelledby="selectionTitle">
+        <h2 id="selectionTitle" class="visuallyHidden">Znajdź rozkład</h2>
         <div class="fields">
           <label>
-            Trasa
+            <span class="visuallyHidden">Trasa</span>
             <select id="routeSelect">
-              <option value="">Wybierz trasę</option>
+              <option value="">WYBIERZ TRASĘ...</option>
             </select>
           </label>
           <label>
-            Godzina zmiany
+            <span class="visuallyHidden">Godzina zmiany</span>
             <select id="timeSelect" disabled>
-              <option value="">Najpierw wybierz trasę</option>
+              <option value="">WYBIERZ GODZINĘ...</option>
             </select>
           </label>
         </div>
-        <button id="showSchedule" type="button">Pokaż harmonogram</button>
+        <button id="showSchedule" class="primaryAction" type="button">POKAŻ HARMONOGRAM</button>
         <p id="formMessage" class="message" aria-live="polite"></p>
       </section>
 
-      <section id="schedule" class="card schedule" hidden aria-live="polite">
+      <section id="schedule" class="schedule" hidden aria-live="polite">
         <div class="scheduleHeading">
-          <div>
-            <p class="eyebrow">Rozkład</p>
-            <h2 id="scheduleTitle"></h2>
+          <button id="clearSchedule" class="backButton" type="button" aria-label="Wróć do wyboru trasy">← <span>WRÓĆ</span></button>
+          <div class="scheduleTitleGroup">
+            <h2 id="scheduleTitle">Wybrana trasa</h2>
+            <span id="scheduleTime" class="timeBadge"></span>
           </div>
-          <button id="clearSchedule" class="secondary" type="button">Zmień wybór</button>
+          <div class="clock" role="timer" aria-label="Aktualna godzina">
+            <strong id="currentClock">--:--:--</strong>
+            <span>TERAZ</span>
+          </div>
         </div>
         <div class="tableWrap">
           <table>
-            <thead><tr><th>Przystanek</th><th>Godzina</th><th>Mapa</th></tr></thead>
+            <thead class="visuallyHidden"><tr><th>Przystanek</th><th>Godzina</th><th>Mapa</th></tr></thead>
             <tbody id="scheduleBody"></tbody>
           </table>
         </div>
       </section>
     </main>
-    <footer>Rozkład działa offline po pierwszym otwarciu aplikacji.</footer>
-    <script type="module" src="./app.js?v=5c4b19e"></script>
+    <footer>Dane tras są dostępne offline po pierwszym otwarciu.</footer>
+    <script type="module" src="./app.js?v=portal-layout-1"></script>
   </body>
 </html>
