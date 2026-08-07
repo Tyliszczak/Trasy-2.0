@@ -1,74 +1,75 @@
 <!DOCTYPE html>
 <html lang="pl">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Rozkład Jazdy - Trasy Pracownicze</title>
-<link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rozkład Jazdy - Trasy Pracownicze</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<header class="app-header">
-<h1>Rozkład Jazdy Trasa Pracy</h1>
-<button id="adminToggleBtn" class="admin-icon-btn" title="Panel Administratora">🔒</button>
-</header>
+    <header class="app-header">
+        <h1>Rozkład Jazdy Trasa Pracy</h1>
+        <button id="adminToggleBtn" class="admin-icon-btn" title="Panel Administratora">🔒</button>
+    </header>
 
-<main id="publicView" class="view-container">
-<section class="selection-card">
-<h2>Wybierz trasę i godzinę zmiany</h2>
+    <main id="publicView" class="view-container">
+        <section class="selection-card">
+            <h2>Wybierz trasę i godzinę zmiany</h2>
+            
+            <div class="form-group">
+                <label for="routeSelect">Trasa:</label>
+                <select id="routeSelect" class="styled-select">
+                    <option value="">-- Wybierz trasę --</option>
+                </select>
+            </div>
 
-<div class="form-group">
-    <label for="routeSelect">Trasa:</label>
-    <select id="routeSelect" class="styled-select">
-        <option value="">-- Wybierz trasę --</option>
-    </select>
-</div>
+            <div class="form-group">
+                <label for="timeSelect">Godzina zmiany:</label>
+                <select id="timeSelect" class="styled-select">
+                    <option value="">-- Wybierz godzinę zmiany --</option>
+                </select>
+            </div>
 
-<div class="form-group">
-<label for="timeSelect">Godzina zmiany:</label>
-<select id="timeSelect" class="styled-select">
-<option value="">-- Wybierz godzinę zmiany --</option>
-</select>
-</div>
+            <button id="showScheduleBtn" class="primary-btn">Pokaż harmonogram</button>
+        </section>
 
-<button id="showScheduleBtn" class="primary-btn">Pokaż harmonogram</button>
-</section>
+        <div id="scheduleResult" class="schedule-result-container"></div>
+    </main>
 
-<div id="scheduleResult" class="schedule-result-container"></div>
-</main>
+    <div id="loginModal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <h3>Logowanie Administratora</h3>
+            <p>Wprowadź hasło, aby zarządzać trasami.</p>
+            
+            <input type="password" id="adminPasswordInput" class="styled-input" placeholder="Wpisz hasło...">
+            
+            <div class="modal-buttons">
+                <button id="loginSubmitBtn" class="primary-btn">Zaloguj</button>
+                <button id="loginCancelBtn" class="secondary-btn">Anuluj</button>
+            </div>
+            <p id="loginErrorMsg" class="error-text"></p>
+        </div>
+    </div>
 
-<div id="loginModal" class="modal-overlay" style="display: none;">
-<div class="modal-content">
-<h3>Logowanie Administratora</h3>
-<p>Wprowadź hasło, aby zarządzać trasami.</p>
+    <main id="adminView" class="view-container" style="display: none;">
+        <div class="admin-header-bar">
+            <h2>Panel Administratora (Zarządzanie)</h2>
+            <button id="logoutBtn" class="secondary-btn">Wyloguj</button>
+        </div>
 
-<input type="password" id="adminPasswordInput" class="styled-input" placeholder="Wpisz hasło...">
+        <section class="admin-section">
+            <h3>Dane Administratora i Bezpieczeństwo</h3>
+            <button id="openAdminDataBtn" class="secondary-btn">Edytuj hasło i e-maile powiadomień</button>
+        </section>
 
-<div class="modal-buttons">
-<button id="loginSubmitBtn" class="primary-btn">Zaloguj</button>
-<button id="loginCancelBtn" class="secondary-btn">Anuluj</button>
-</div>
-<p id="loginErrorMsg" class="error-text"></p>
-</div>
-</div>
+        <section class="admin-section">
+            <h3>Edycja Tras i Przystanków</h3>
+            <p>Tutaj wkrótce pojawią się opcje dodawania tras, przystanków oraz integracja z mapą Google.</p>
+        </section>
+    </main>
 
-<main id="adminView" class="view-container" style="display: none;">
-<div class="admin-header-bar">
-<h2>Panel Administratora (Zarządzanie)</h2>
-<button id="logoutBtn" class="secondary-btn">Wyloguj</button>
-</div>
-
-<section class="admin-section">
-<h3>Dane Administratora i Bezpieczeństwo</h3>
-<button id="openAdminDataBtn" class="secondary-btn">Edytuj hasło i e-maile powiadomień</button>
-</section>
-
-<section class="admin-section">
-<h3>Edycja Tras i Przystanków</h3>
-<p>Tutaj wkrótce pojawią się opcje dodawania tras, przystanków oraz integracja z mapą Google.</p>
-</section>
-</main>
-
-<script src="app.js"></script>
+    <script src="app.js"></script>
 </body>
 </html>
