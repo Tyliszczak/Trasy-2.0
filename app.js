@@ -2,7 +2,7 @@
 / ADRES URL DO TWOJEGO SKRYPTU GOOGLE APPS SCRIPT (SEJFU) /
 / ================================================================= */
 // Tutaj wkleisz docelowy adres Web App otrzymany po wdrożeniu skryptu w Google
-const GAS_API_URL = "https://script.google.com/macros/s/TUTAJ_WKLEJ_SWOJ_WEB_APP_URL/exec";
+const GAS_API_URL = "https://script.google.com/macros/s/AKfycbyQcnU6xvvrUZNVUJRhQ293L47hZwlvsc6i3n9s9hiYqhLUAoKSqGbPohe_lSB0apfUcw/exec";
 
 // Zmienna przechowująca pobrane dane tras z serwera
 let appData = null;
