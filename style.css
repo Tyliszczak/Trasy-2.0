@@ -7,10 +7,12 @@ h1 { font-size: clamp(1.5rem, 4vw, 2rem); }
 h2 { font-size: 1.25rem; }
 .eyebrow { margin-bottom: 3px; color: #609ebf; font-size: .78rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
 .header .eyebrow { color: #b9d8e9; }
-.status { padding: 6px 10px; border: 1px solid #78b4d2; border-radius: 999px; color: #d8edf8; font-size: .82rem; }
+.status { padding: 5px 9px; border: 1px solid #78b4d2; border-radius: 999px; color: #d8edf8; font-size: .76rem; white-space: nowrap; }
+.offlineStatus { opacity: .82; }
 .container { width: min(760px, calc(100% - 32px)); margin: 28px auto 48px; }
 .updateNotice { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; padding: 12px 14px; border: 1px solid #8ec5df; border-radius: 12px; background: #e9f7ff; color: #16455f; font-weight: 650; }
 .updateNotice button { min-height: 36px; white-space: nowrap; }
+.staleWarning { margin-bottom: 18px; padding: 13px 15px; border: 1px solid #d99a63; border-radius: 12px; background: #fff3e8; color: #743b12; font-weight: 700; line-height: 1.4; }
 .card { margin-bottom: 18px; padding: clamp(20px, 5vw, 30px); border: 1px solid #d7e3e9; border-radius: 16px; background: #fff; box-shadow: 0 8px 26px rgb(34 75 101 / 8%); }
 .hint { margin-top: 8px; color: #526875; }
 .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 24px 0 18px; }
@@ -32,4 +34,4 @@ th { color: #385468; font-size: .84rem; text-transform: uppercase; letter-spacin
 td:nth-child(2), td:nth-child(3) { white-space: nowrap; }
 td a { color: #05658d; font-weight: 700; }
 footer { padding: 20px; color: #58707c; text-align: center; font-size: .9rem; }
-@media (max-width: 560px) { .fields { grid-template-columns: 1fr; } .header { align-items: flex-start; } .scheduleHeading, .updateNotice { align-items: flex-start; flex-direction: column; } }
+@media (max-width: 560px) { .fields { grid-template-columns: 1fr; } .header { align-items: flex-start; } .scheduleHeading, .updateNotice { align-items: flex-start; flex-direction: column; } .status { max-width: 48%; white-space: normal; text-align: right; } }
