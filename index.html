@@ -11,57 +11,40 @@
 </head>
 <body>
   <header class="header">
-    <div>
-      <div class="brand">TRASY</div>
-      <div class="version">2.0</div>
+    <div><div class="brand">TRASY</div><div class="version">2.0</div></div>
+    <div class="headerActions">
+      <button id="wakeLockButton" class="wakeLockButton" type="button" aria-pressed="false" title="Podtrzymanie ekranu">
+        <span class="bulb" aria-hidden="true">💡</span><span id="wakeLockLabel">EKRAN OFF</span>
+      </button>
+      <span id="connectionStatus" class="status" aria-live="polite">Offline</span>
     </div>
-    <span id="connectionStatus" class="status" aria-live="polite">Offline</span>
   </header>
 
   <main class="container">
-    <aside id="updateNotice" class="notice updateNotice" hidden aria-live="polite">
-      <span>Nowa wersja aplikacji jest gotowa.</span>
-      <button id="updateAppButton" type="button">ODŚWIEŻ</button>
-    </aside>
-    <aside id="staleWarning" class="notice staleWarning" hidden role="alert">
-      Sprawdź działanie programu. Nie masz połączenia z bazą danych od ponad 3 dni.
-    </aside>
+    <aside id="updateNotice" class="notice updateNotice" hidden aria-live="polite"><span>Nowa wersja aplikacji jest gotowa.</span><button id="updateAppButton" type="button">ODŚWIEŻ</button></aside>
+    <aside id="staleWarning" class="notice staleWarning" hidden role="alert">Sprawdź działanie programu. Nie masz połączenia z bazą danych od ponad 3 dni.</aside>
 
     <section class="panel" aria-labelledby="selectionTitle">
       <h1 id="selectionTitle">Wybierz trasę</h1>
       <label for="routeSelect">Trasa</label>
       <select id="routeSelect"><option value="">Wybierz trasę</option></select>
-
       <label for="timeSelect">Godzina zmiany</label>
       <select id="timeSelect" disabled><option value="">Najpierw wybierz trasę</option></select>
-
       <button id="showSchedule" class="primary" type="button">POKAŻ TRASĘ</button>
       <p id="formMessage" class="message" aria-live="polite"></p>
     </section>
 
     <section id="schedule" class="panel schedule" hidden aria-live="polite">
-      <div class="scheduleHeading">
-        <h2 id="scheduleTitle"></h2>
-        <button id="clearSchedule" class="secondary" type="button">ZMIEŃ</button>
-      </div>
-      <div class="tableWrap">
-        <table>
-          <thead><tr><th>Przystanek</th><th>Godzina</th><th>Mapa</th></tr></thead>
-          <tbody id="scheduleBody"></tbody>
-        </table>
-      </div>
+      <div class="scheduleHeading"><h2 id="scheduleTitle"></h2><button id="clearSchedule" class="secondary" type="button">ZMIEŃ</button></div>
+      <div class="tableWrap"><table><thead><tr><th>Przystanek</th><th>Godzina</th><th>Mapa</th></tr></thead><tbody id="scheduleBody"></tbody></table></div>
     </section>
   </main>
 
   <div id="installBanner" class="installBanner" hidden>
     <strong>Chcesz zainstalować aplikację TRASY 2.0?</strong>
     <label class="dontAsk"><input id="dontAskInstall" type="checkbox"> Nie pytaj ponownie</label>
-    <div class="installActions">
-      <button id="installButton" class="installButton" type="button">ZAINSTALUJ</button>
-      <button id="rejectInstall" class="rejectButton" type="button">ODRZUĆ</button>
-    </div>
+    <div class="installActions"><button id="installButton" class="installButton" type="button">ZAINSTALUJ</button><button id="rejectInstall" class="rejectButton" type="button">ODRZUĆ</button></div>
   </div>
-
-  <script type="module" src="./app.js?v=dark-ui-1"></script>
+  <script type="module" src="./app.js?v=wake-lock-1"></script>
 </body>
 </html>
