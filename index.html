@@ -15,13 +15,16 @@
         <p class="eyebrow">Portal kierowcy</p>
         <h1>Trasy 2.0</h1>
       </div>
-      <span id="connectionStatus" class="status" aria-live="polite">Dane lokalne</span>
+      <span id="connectionStatus" class="status offlineStatus" aria-live="polite">Offline</span>
     </header>
 
     <main class="container">
       <aside id="updateNotice" class="updateNotice" hidden aria-live="polite">
         <span>Nowa wersja aplikacji jest gotowa.</span>
         <button id="updateAppButton" type="button">Odśwież teraz</button>
+      </aside>
+      <aside id="staleWarning" class="staleWarning" hidden role="alert">
+        Sprawdź działanie programu. Nie masz połączenia z bazą danych od ponad 3 dni.
       </aside>
       <section class="card" aria-labelledby="selectionTitle">
         <h2 id="selectionTitle">Znajdź rozkład</h2>
@@ -61,6 +64,6 @@
       </section>
     </main>
     <footer>Rozkład działa offline po pierwszym otwarciu aplikacji.</footer>
-    <script type="module" src="./app.js?v=5c4b19e"></script>
+    <script type="module" src="./app.js?v=5184bf8"></script>
   </body>
 </html>
