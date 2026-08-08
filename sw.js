@@ -1,5 +1,5 @@
-const CACHE_NAME = "trasy-2.0-v6";
-const APP_SHELL = ["./", "./index.html", "./style.css", "./app.js", "./routes.js", "./schedule.js", "./manifest.json", "./icon.svg"];
+const CACHE_NAME = "trasy-2.0-v7";
+const APP_SHELL = ["./", "./index.html", "./style.css", "./app.js", "./routes.js", "./schedule.js", "./manifest.json", "./Tyliszczak.png"];
 self.addEventListener("install",event=>event.waitUntil(caches.open(CACHE_NAME).then(cache=>cache.addAll(APP_SHELL))));
 self.addEventListener("activate",event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE_NAME).map(key=>caches.delete(key))))));
 self.addEventListener("message",event=>{if(event.data?.type==="SKIP_WAITING")self.skipWaiting();});
