@@ -3,7 +3,14 @@
   "short_name": "Trasy",
   "start_url": "./",
   "display": "standalone",
-  "background_color": "#eef4f7",
-  "theme_color": "#123a5a",
-  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+  "background_color": "#1a1a1a",
+  "theme_color": "#1a1a1a",
+  "icons": [
+    {
+      "src": "Tyliszczak.png",
+      "sizes": "762x762",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
 }
