@@ -1,4 +1,4 @@
-const CACHE_NAME = "trasy-2.0-v2";
+const CACHE_NAME = "trasy-2.0-v3";
 const APP_SHELL = ["./", "./index.html", "./style.css", "./app.js", "./routes.js", "./schedule.js", "./manifest.json", "./icon.svg"];
 
 self.addEventListener("install", (event) => event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL))));
