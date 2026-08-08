@@ -2,196 +2,51 @@ import { ROUTES as FALLBACK_ROUTES } from "./routes.js";
 import { getRoute, getSchedule, mapUrl } from "./schedule.js";
 
 const API_URL = "https://script.google.com/macros/s/AKfycbyQcnU6xvvrUZNVUJRhQ293L47hZwlvsc6i3n9s9hiYqhLUAoKSqGbPohe_lSB0apfUcw/exec";
-const DATA_KEY = "trasy2.routes";
-const SYNC_KEY = "trasy2.lastSuccessfulSync";
-const FIRST_FAILURE_KEY = "trasy2.firstFailedSync";
-const INSTALL_IGNORE_KEY = "trasy2.ignoreInstall";
+const DATA_KEY = "trasy2.routes", SYNC_KEY = "trasy2.lastSuccessfulSync", FIRST_FAILURE_KEY = "trasy2.firstFailedSync", INSTALL_IGNORE_KEY = "trasy2.ignoreInstall";
 const THREE_DAYS = 72 * 60 * 60 * 1000;
+const routeSelect=document.querySelector("#routeSelect"), timeSelect=document.querySelector("#timeSelect"), showButton=document.querySelector("#showSchedule"), message=document.querySelector("#formMessage"), schedule=document.querySelector("#schedule"), scheduleTitle=document.querySelector("#scheduleTitle"), scheduleBody=document.querySelector("#scheduleBody"), connectionStatus=document.querySelector("#connectionStatus"), staleWarning=document.querySelector("#staleWarning"), updateNotice=document.querySelector("#updateNotice"), updateAppButton=document.querySelector("#updateAppButton"), installBanner=document.querySelector("#installBanner"), installButton=document.querySelector("#installButton"), rejectInstall=document.querySelector("#rejectInstall"), dontAskInstall=document.querySelector("#dontAskInstall"), wakeLockButton=document.querySelector("#wakeLockButton"), wakeLockLabel=document.querySelector("#wakeLockLabel");
+let routes=loadCachedRoutes()??FALLBACK_ROUTES, offlineMode=true, syncing=false, deferredInstallPrompt=null, wakeLock=null, wakeLockWanted=false;
 
-const routeSelect = document.querySelector("#routeSelect");
-const timeSelect = document.querySelector("#timeSelect");
-const showButton = document.querySelector("#showSchedule");
-const message = document.querySelector("#formMessage");
-const schedule = document.querySelector("#schedule");
-const scheduleTitle = document.querySelector("#scheduleTitle");
-const scheduleBody = document.querySelector("#scheduleBody");
-const connectionStatus = document.querySelector("#connectionStatus");
-const staleWarning = document.querySelector("#staleWarning");
-const updateNotice = document.querySelector("#updateNotice");
-const updateAppButton = document.querySelector("#updateAppButton");
-const installBanner = document.querySelector("#installBanner");
-const installButton = document.querySelector("#installButton");
-const rejectInstall = document.querySelector("#rejectInstall");
-const dontAskInstall = document.querySelector("#dontAskInstall");
+renderRouteOptions(); updateConnectionStatus(); syncRoutes(); setInterval(updateConnectionStatus,60000);
+window.addEventListener("online",syncRoutes); window.addEventListener("focus",syncRoutes);
+document.addEventListener("visibilitychange",()=>{ if(!document.hidden){ syncRoutes(); if(wakeLockWanted) requestWakeLock(); } });
 
-let routes = loadCachedRoutes() ?? FALLBACK_ROUTES;
-let offlineMode = true;
-let syncing = false;
-let deferredInstallPrompt = null;
+wakeLockButton.addEventListener("click",async()=>{ if(wakeLockWanted) await disableWakeLock(); else await enableWakeLock(); });
+async function enableWakeLock(){
+  if(!("wakeLock" in navigator)){ message.textContent="To urządzenie lub przeglądarka nie obsługuje podtrzymania ekranu."; return; }
+  wakeLockWanted=true; await requestWakeLock();
+}
+async function requestWakeLock(){
+  if(!wakeLockWanted || document.visibilityState!=="visible") return;
+  try{
+    wakeLock=await navigator.wakeLock.request("screen");
+    wakeLock.addEventListener("release",()=>{ wakeLock=null; if(!wakeLockWanted) renderWakeLock(false); });
+    renderWakeLock(true); message.textContent="";
+  }catch(error){ renderWakeLock(false); console.warn("Nie udało się włączyć podtrzymania ekranu.",error); }
+}
+async function disableWakeLock(){ wakeLockWanted=false; if(wakeLock){ try{ await wakeLock.release(); }catch{} wakeLock=null; } renderWakeLock(false); }
+function renderWakeLock(active){ wakeLockButton.classList.toggle("active",active); wakeLockButton.setAttribute("aria-pressed",String(active)); wakeLockLabel.textContent=active?"EKRAN ON":"EKRAN OFF"; }
 
-renderRouteOptions();
-updateConnectionStatus();
-syncRoutes();
-setInterval(updateConnectionStatus, 60 * 1000);
-window.addEventListener("online", syncRoutes);
-window.addEventListener("focus", syncRoutes);
-document.addEventListener("visibilitychange", () => { if (!document.hidden) syncRoutes(); });
+window.addEventListener("beforeinstallprompt",event=>{ if(localStorage.getItem(INSTALL_IGNORE_KEY)==="true")return; event.preventDefault(); deferredInstallPrompt=event; installBanner.hidden=false; });
+window.addEventListener("appinstalled",()=>{deferredInstallPrompt=null;installBanner.hidden=true;});
+installButton.addEventListener("click",async()=>{if(!deferredInstallPrompt)return;deferredInstallPrompt.prompt();const choice=await deferredInstallPrompt.userChoice;if(choice.outcome==="accepted")installBanner.hidden=true;deferredInstallPrompt=null;});
+rejectInstall.addEventListener("click",()=>{if(dontAskInstall.checked)localStorage.setItem(INSTALL_IGNORE_KEY,"true");installBanner.hidden=true;});
 
-window.addEventListener("beforeinstallprompt", (event) => {
-  if (localStorage.getItem(INSTALL_IGNORE_KEY) === "true") return;
-  event.preventDefault(); deferredInstallPrompt = event; installBanner.hidden = false;
-});
-window.addEventListener("appinstalled", () => { deferredInstallPrompt = null; installBanner.hidden = true; });
-installButton.addEventListener("click", async () => {
-  if (!deferredInstallPrompt) return;
-  deferredInstallPrompt.prompt();
-  const choice = await deferredInstallPrompt.userChoice;
-  if (choice.outcome === "accepted") installBanner.hidden = true;
-  deferredInstallPrompt = null;
-});
-rejectInstall.addEventListener("click", () => {
-  if (dontAskInstall.checked) localStorage.setItem(INSTALL_IGNORE_KEY, "true");
-  installBanner.hidden = true;
-});
+routeSelect.addEventListener("change",()=>{const route=getRoute(routes,routeSelect.value);timeSelect.replaceChildren(new Option(route?"Wybierz godzinę":"Najpierw wybierz trasę",""));timeSelect.disabled=!route;route?.times.forEach(time=>timeSelect.add(new Option(time,time)));schedule.hidden=true;message.textContent="";});
+showButton.addEventListener("click",()=>{const route=getRoute(routes,routeSelect.value),time=timeSelect.value;if(!route||!time){message.textContent="Wybierz trasę i godzinę zmiany.";return;}const stops=getSchedule(route,time);scheduleTitle.textContent=`${route.name} · ${time}`;scheduleBody.replaceChildren(...stops.map(createStopRow));schedule.hidden=false;message.textContent="";schedule.scrollIntoView({behavior:"smooth",block:"start"});});
+document.querySelector("#clearSchedule").addEventListener("click",()=>routeSelect.focus());
 
-routeSelect.addEventListener("change", () => {
-  const route = getRoute(routes, routeSelect.value);
-  timeSelect.replaceChildren(new Option(route ? "Wybierz godzinę" : "Najpierw wybierz trasę", ""));
-  timeSelect.disabled = !route;
-  route?.times.forEach((time) => timeSelect.add(new Option(time, time)));
-  schedule.hidden = true; message.textContent = "";
-});
+async function syncRoutes(){if(syncing)return;if(!navigator.onLine){markSyncFailure();offlineMode=true;updateConnectionStatus();return;}syncing=true;try{const response=await fetch(`${API_URL}?t=${Date.now()}`,{cache:"no-store",redirect:"follow"});if(!response.ok)throw new Error(`HTTP ${response.status}`);const payload=await response.json();const freshRoutes=normalizeApiRoutes(payload?.data??payload);if(!isValidRoutes(freshRoutes))throw new Error("Nieprawidłowa lub pusta baza tras");routes=freshRoutes;localStorage.setItem(DATA_KEY,JSON.stringify(routes));localStorage.setItem(SYNC_KEY,String(Date.now()));localStorage.removeItem(FIRST_FAILURE_KEY);offlineMode=false;renderRouteOptions();}catch(error){markSyncFailure();offlineMode=true;console.warn("Nie udało się odświeżyć bazy tras. Używam kopii lokalnej.",error);}finally{syncing=false;updateConnectionStatus();}}
+function normalizeApiRoutes(data){if(Array.isArray(data))return data.map(value=>normalizeRoute(value)).filter(Boolean);if(!data||typeof data!=="object")return[];return Object.entries(data).map(([name,value])=>normalizeRoute(value,name)).filter(Boolean);}
+function normalizeRoute(value,fallbackName=""){if(!value||typeof value!=="object")return null;const name=String(value.name??value.nazwa??value.route??fallbackName).trim(),rawStops=value.stops??value.przystanki??[];if(!name||!Array.isArray(rawStops))return null;const explicitTimes=Array.isArray(value.times??value.godziny)?(value.times??value.godziny):[],times=[...new Set(explicitTimes.map(String).filter(Boolean))],stops=rawStops.map(stop=>normalizeStop(stop,times)).filter(Boolean);if(!times.length)for(const stop of stops)Object.keys(stop.times).forEach(time=>{if(time&&!times.includes(time))times.push(time);});return{name,times,stops};}
+function normalizeStop(stop,routeTimes){if(Array.isArray(stop)){const[rawName,rawCoordinates,sourceTimes=[]]=stop,times={};if(Array.isArray(sourceTimes))routeTimes.forEach((key,index)=>{times[key]=sourceTimes[index]??null;});else if(sourceTimes&&typeof sourceTimes==="object")Object.entries(sourceTimes).forEach(([key,value])=>{times[String(key)]=value??null;});return rawName?{name:String(rawName).trim(),coordinates:rawCoordinates?String(rawCoordinates):"",times}:null;}if(!stop||typeof stop!=="object")return null;const name=String(stop.name??stop.nazwa??stop.przystanek??"").trim(),coordinates=stop.coordinates??stop.lokalizacja??stop.coords??coordinatesFromLatLng(stop),sourceTimes=stop.times??stop.godziny??{},times={};if(Array.isArray(sourceTimes))routeTimes.forEach((key,index)=>{times[key]=sourceTimes[index]??null;});else if(sourceTimes&&typeof sourceTimes==="object")Object.entries(sourceTimes).forEach(([key,value])=>{times[String(key)]=value??null;});if(!name)return null;return{name,coordinates:coordinates?String(coordinates):"",times};}
+function coordinatesFromLatLng(stop){const lat=stop.lat??stop.latitude??stop.szerokosc,lng=stop.lng??stop.longitude??stop.dlugosc;return lat!=null&&lng!=null?`${lat}, ${lng}`:"";}
+function isValidRoutes(value){return Array.isArray(value)&&value.length>0&&value.every(route=>route?.name&&Array.isArray(route.times)&&route.times.length>0&&Array.isArray(route.stops)&&route.stops.length>0);}
+function loadCachedRoutes(){try{const cached=JSON.parse(localStorage.getItem(DATA_KEY));return isValidRoutes(cached)?cached:null;}catch{return null;}}
+function renderRouteOptions(){const previous=routeSelect.value;routeSelect.replaceChildren(new Option("Wybierz trasę",""));routes.forEach(route=>routeSelect.add(new Option(route.name,route.name)));if(routes.some(route=>route.name===previous))routeSelect.value=previous;}
+function markSyncFailure(){if(!localStorage.getItem(FIRST_FAILURE_KEY))localStorage.setItem(FIRST_FAILURE_KEY,String(Date.now()));}
+function updateConnectionStatus(){const lastSync=Number(localStorage.getItem(SYNC_KEY))||0,firstFailure=Number(localStorage.getItem(FIRST_FAILURE_KEY))||0,reference=lastSync||firstFailure,age=reference?Date.now()-reference:0;if(!offlineMode){connectionStatus.hidden=true;staleWarning.hidden=true;return;}connectionStatus.hidden=false;connectionStatus.textContent=lastSync?`Offline · dane sprzed ${formatAge(Date.now()-lastSync)}`:"Offline · brak świeżej synchronizacji";staleWarning.hidden=!reference||age<THREE_DAYS;}
+function formatAge(ms){const minutes=Math.max(1,Math.floor(ms/60000));if(minutes<60)return`${minutes} min`;const hours=Math.floor(minutes/60);if(hours<24)return`${hours} godz.`;const days=Math.floor(hours/24),remainingHours=hours%24;return remainingHours?`${days} dni ${remainingHours} godz.`:`${days} dni`;}
+function createStopRow(stop){const row=document.createElement("tr"),name=document.createElement("td"),time=document.createElement("td"),map=document.createElement("td");name.textContent=stop.name;time.textContent=stop.time??"Koniec trasy";const url=mapUrl(stop.coordinates);if(url){const link=document.createElement("a");link.href=url;link.target="_blank";link.rel="noopener";link.textContent="MAPA";map.append(link);}else map.textContent="—";row.append(name,time,map);return row;}
 
-showButton.addEventListener("click", () => {
-  const route = getRoute(routes, routeSelect.value), time = timeSelect.value;
-  if (!route || !time) { message.textContent = "Wybierz trasę i godzinę zmiany."; return; }
-  const stops = getSchedule(route, time);
-  scheduleTitle.textContent = `${route.name} · ${time}`;
-  scheduleBody.replaceChildren(...stops.map(createStopRow));
-  schedule.hidden = false; message.textContent = "";
-  schedule.scrollIntoView({ behavior: "smooth", block: "start" });
-});
-document.querySelector("#clearSchedule").addEventListener("click", () => routeSelect.focus());
-
-async function syncRoutes() {
-  if (syncing) return;
-  if (!navigator.onLine) { markSyncFailure(); offlineMode = true; updateConnectionStatus(); return; }
-  syncing = true;
-  try {
-    const response = await fetch(`${API_URL}?t=${Date.now()}`, { cache: "no-store", redirect: "follow" });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const payload = await response.json();
-    const freshRoutes = normalizeApiRoutes(payload?.data ?? payload);
-    if (!isValidRoutes(freshRoutes)) throw new Error("Nieprawidłowa lub pusta baza tras");
-    routes = freshRoutes;
-    localStorage.setItem(DATA_KEY, JSON.stringify(routes));
-    localStorage.setItem(SYNC_KEY, String(Date.now()));
-    localStorage.removeItem(FIRST_FAILURE_KEY);
-    offlineMode = false;
-    renderRouteOptions();
-  } catch (error) {
-    markSyncFailure(); offlineMode = true;
-    console.warn("Nie udało się odświeżyć bazy tras. Używam kopii lokalnej.", error);
-  } finally { syncing = false; updateConnectionStatus(); }
-}
-
-function normalizeApiRoutes(data) {
-  if (Array.isArray(data)) return data.map((value) => normalizeRoute(value)).filter(Boolean);
-  if (!data || typeof data !== "object") return [];
-  return Object.entries(data).map(([name, value]) => normalizeRoute(value, name)).filter(Boolean);
-}
-function normalizeRoute(value, fallbackName = "") {
-  if (!value || typeof value !== "object") return null;
-  const name = String(value.name ?? value.nazwa ?? value.route ?? fallbackName).trim();
-  const rawStops = value.stops ?? value.przystanki ?? [];
-  if (!name || !Array.isArray(rawStops)) return null;
-  const explicitTimes = Array.isArray(value.times ?? value.godziny) ? (value.times ?? value.godziny) : [];
-  const times = [...new Set(explicitTimes.map(String).filter(Boolean))];
-
-  // Apps Script może zwracać przystanki jako obiekty albo tablice [nazwa, lokalizacja, godziny].
-  const stops = rawStops.map((stop) => normalizeStop(stop, times)).filter(Boolean);
-  if (!times.length) {
-    for (const stop of stops) Object.keys(stop.times).forEach((time) => { if (time && !times.includes(time)) times.push(time); });
-  }
-  return { name, times, stops };
-}
-function normalizeStop(stop, routeTimes) {
-  if (Array.isArray(stop)) {
-    const [rawName, rawCoordinates, sourceTimes = []] = stop;
-    const times = {};
-    if (Array.isArray(sourceTimes)) routeTimes.forEach((key, index) => { times[key] = sourceTimes[index] ?? null; });
-    else if (sourceTimes && typeof sourceTimes === "object") Object.entries(sourceTimes).forEach(([key, value]) => { times[String(key)] = value ?? null; });
-    return rawName ? { name: String(rawName).trim(), coordinates: rawCoordinates ? String(rawCoordinates) : "", times } : null;
-  }
-  if (!stop || typeof stop !== "object") return null;
-  const name = String(stop.name ?? stop.nazwa ?? stop.przystanek ?? "").trim();
-  const coordinates = stop.coordinates ?? stop.lokalizacja ?? stop.coords ?? coordinatesFromLatLng(stop);
-  const sourceTimes = stop.times ?? stop.godziny ?? {};
-  const times = {};
-  if (Array.isArray(sourceTimes)) routeTimes.forEach((key, index) => { times[key] = sourceTimes[index] ?? null; });
-  else if (sourceTimes && typeof sourceTimes === "object") Object.entries(sourceTimes).forEach(([key, value]) => { times[String(key)] = value ?? null; });
-  if (!name) return null;
-  return { name, coordinates: coordinates ? String(coordinates) : "", times };
-}
-function coordinatesFromLatLng(stop) {
-  const lat = stop.lat ?? stop.latitude ?? stop.szerokosc, lng = stop.lng ?? stop.longitude ?? stop.dlugosc;
-  return lat != null && lng != null ? `${lat}, ${lng}` : "";
-}
-function isValidRoutes(value) {
-  return Array.isArray(value) && value.length > 0 && value.every((route) =>
-    route?.name && Array.isArray(route.times) && route.times.length > 0 && Array.isArray(route.stops) && route.stops.length > 0
-  );
-}
-function loadCachedRoutes() {
-  try { const cached = JSON.parse(localStorage.getItem(DATA_KEY)); return isValidRoutes(cached) ? cached : null; }
-  catch { return null; }
-}
-function renderRouteOptions() {
-  const previous = routeSelect.value;
-  routeSelect.replaceChildren(new Option("Wybierz trasę", ""));
-  routes.forEach((route) => routeSelect.add(new Option(route.name, route.name)));
-  if (routes.some((route) => route.name === previous)) routeSelect.value = previous;
-}
-function markSyncFailure() {
-  if (!localStorage.getItem(FIRST_FAILURE_KEY)) localStorage.setItem(FIRST_FAILURE_KEY, String(Date.now()));
-}
-function updateConnectionStatus() {
-  const lastSync = Number(localStorage.getItem(SYNC_KEY)) || 0;
-  const firstFailure = Number(localStorage.getItem(FIRST_FAILURE_KEY)) || 0;
-  const reference = lastSync || firstFailure;
-  const age = reference ? Date.now() - reference : 0;
-  if (!offlineMode) { connectionStatus.hidden = true; staleWarning.hidden = true; return; }
-  connectionStatus.hidden = false;
-  connectionStatus.textContent = lastSync ? `Offline · dane sprzed ${formatAge(Date.now() - lastSync)}` : "Offline · brak świeżej synchronizacji";
-  staleWarning.hidden = !reference || age < THREE_DAYS;
-}
-function formatAge(ms) {
-  const minutes = Math.max(1, Math.floor(ms / 60000));
-  if (minutes < 60) return `${minutes} min`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} godz.`;
-  const days = Math.floor(hours / 24), remainingHours = hours % 24;
-  return remainingHours ? `${days} dni ${remainingHours} godz.` : `${days} dni`;
-}
-function createStopRow(stop) {
-  const row = document.createElement("tr"), name = document.createElement("td"), time = document.createElement("td"), map = document.createElement("td");
-  name.textContent = stop.name; time.textContent = stop.time ?? "Koniec trasy";
-  const url = mapUrl(stop.coordinates);
-  if (url) { const link = document.createElement("a"); link.href = url; link.target = "_blank"; link.rel = "noopener"; link.textContent = "MAPA"; map.append(link); }
-  else map.textContent = "—";
-  row.append(name, time, map); return row;
-}
-
-if ("serviceWorker" in navigator) {
-  let reloadingForUpdate = false;
-  window.addEventListener("load", async () => {
-    const registration = await navigator.serviceWorker.register("./sw.js");
-    const showUpdateNotice = () => { if (registration.waiting) updateNotice.hidden = false; };
-    showUpdateNotice();
-    registration.addEventListener("updatefound", () => { const worker = registration.installing; worker?.addEventListener("statechange", () => { if (worker.state === "installed" && navigator.serviceWorker.controller) showUpdateNotice(); }); });
-    updateAppButton.addEventListener("click", () => registration.waiting?.postMessage({ type: "SKIP_WAITING" }));
-    navigator.serviceWorker.addEventListener("controllerchange", () => { if (!reloadingForUpdate) { reloadingForUpdate = true; window.location.reload(); } });
-    window.addEventListener("focus", () => registration.update());
-    window.setInterval(() => registration.update(), 15 * 60 * 1000);
-  });
-}
+if("serviceWorker" in navigator){let reloadingForUpdate=false;window.addEventListener("load",async()=>{const registration=await navigator.serviceWorker.register("./sw.js"),showUpdateNotice=()=>{if(registration.waiting)updateNotice.hidden=false;};showUpdateNotice();registration.addEventListener("updatefound",()=>{const worker=registration.installing;worker?.addEventListener("statechange",()=>{if(worker.state==="installed"&&navigator.serviceWorker.controller)showUpdateNotice();});});updateAppButton.addEventListener("click",()=>registration.waiting?.postMessage({type:"SKIP_WAITING"}));navigator.serviceWorker.addEventListener("controllerchange",()=>{if(!reloadingForUpdate){reloadingForUpdate=true;window.location.reload();}});window.addEventListener("focus",()=>registration.update());window.setInterval(()=>registration.update(),15*60*1000);});}
