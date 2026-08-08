@@ -1,6 +1,6 @@
-// Dane przepisane z BAZA_TRAS.xlsx. Godziny bez wartości oznaczają punkt końcowy trasy.
+// Dane zapasowe/offline. Docelowo aplikacja pobiera świeże dane z Apps Script.
 export const ROUTES = [
-  { name: "SAS Sul", times: ["04:40", "06:40", "10:37", "12:37", "14:37", "16:37"], stops: [
+  { name: "SAS Sulechów", times: ["04:40", "06:40", "10:37", "12:37", "14:37", "16:37"], stops: [
     ["Sobkowiaka - przystanek Trasa Północna", "51.96162552459449, 15.499076950842706", ["04:40", "06:40", "10:37", "12:37", "14:37", "16:37"]],
     ["Plastyk - Batorego", "51.94899459715549, 15.501168258220444", ["04:42", "06:42", "10:39", "12:39", "14:39", "16:39"]],
     ["Zielona Góra CENTRUM", "51.94291321702766, 15.507791861770839", ["04:45", "06:45", "10:44", "12:44", "14:44", "16:44"]],
