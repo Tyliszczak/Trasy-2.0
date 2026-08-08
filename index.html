@@ -1,69 +1,67 @@
 <!doctype html>
 <html lang="pl">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#123a5a">
-    <meta name="description" content="Rozkłady tras pracowniczych">
-    <link rel="manifest" href="./manifest.json">
-    <link rel="stylesheet" href="./style.css">
-    <title>Trasy 2.0</title>
-  </head>
-  <body>
-    <header class="header">
-      <div>
-        <p class="eyebrow">Portal kierowcy</p>
-        <h1>Trasy 2.0</h1>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="theme-color" content="#1a1a1a">
+  <meta name="description" content="Rozkłady tras pracowniczych">
+  <link rel="manifest" href="./manifest.json">
+  <link rel="stylesheet" href="./style.css">
+  <title>Trasy 2.0</title>
+</head>
+<body>
+  <header class="header">
+    <div>
+      <div class="brand">TRASY</div>
+      <div class="version">2.0</div>
+    </div>
+    <span id="connectionStatus" class="status" aria-live="polite">Offline</span>
+  </header>
+
+  <main class="container">
+    <aside id="updateNotice" class="notice updateNotice" hidden aria-live="polite">
+      <span>Nowa wersja aplikacji jest gotowa.</span>
+      <button id="updateAppButton" type="button">ODŚWIEŻ</button>
+    </aside>
+    <aside id="staleWarning" class="notice staleWarning" hidden role="alert">
+      Sprawdź działanie programu. Nie masz połączenia z bazą danych od ponad 3 dni.
+    </aside>
+
+    <section class="panel" aria-labelledby="selectionTitle">
+      <h1 id="selectionTitle">Wybierz trasę</h1>
+      <label for="routeSelect">Trasa</label>
+      <select id="routeSelect"><option value="">Wybierz trasę</option></select>
+
+      <label for="timeSelect">Godzina zmiany</label>
+      <select id="timeSelect" disabled><option value="">Najpierw wybierz trasę</option></select>
+
+      <button id="showSchedule" class="primary" type="button">POKAŻ TRASĘ</button>
+      <p id="formMessage" class="message" aria-live="polite"></p>
+    </section>
+
+    <section id="schedule" class="panel schedule" hidden aria-live="polite">
+      <div class="scheduleHeading">
+        <h2 id="scheduleTitle"></h2>
+        <button id="clearSchedule" class="secondary" type="button">ZMIEŃ</button>
       </div>
-      <span id="connectionStatus" class="status offlineStatus" aria-live="polite">Offline</span>
-    </header>
+      <div class="tableWrap">
+        <table>
+          <thead><tr><th>Przystanek</th><th>Godzina</th><th>Mapa</th></tr></thead>
+          <tbody id="scheduleBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
 
-    <main class="container">
-      <aside id="updateNotice" class="updateNotice" hidden aria-live="polite">
-        <span>Nowa wersja aplikacji jest gotowa.</span>
-        <button id="updateAppButton" type="button">Odśwież teraz</button>
-      </aside>
-      <aside id="staleWarning" class="staleWarning" hidden role="alert">
-        Sprawdź działanie programu. Nie masz połączenia z bazą danych od ponad 3 dni.
-      </aside>
-      <section class="card" aria-labelledby="selectionTitle">
-        <h2 id="selectionTitle">Znajdź rozkład</h2>
-        <p class="hint">Wybierz trasę oraz godzinę rozpoczęcia zmiany.</p>
-        <div class="fields">
-          <label>
-            Trasa
-            <select id="routeSelect">
-              <option value="">Wybierz trasę</option>
-            </select>
-          </label>
-          <label>
-            Godzina zmiany
-            <select id="timeSelect" disabled>
-              <option value="">Najpierw wybierz trasę</option>
-            </select>
-          </label>
-        </div>
-        <button id="showSchedule" type="button">Pokaż harmonogram</button>
-        <p id="formMessage" class="message" aria-live="polite"></p>
-      </section>
+  <div id="installBanner" class="installBanner" hidden>
+    <strong>Chcesz zainstalować aplikację TRASY 2.0?</strong>
+    <label class="dontAsk"><input id="dontAskInstall" type="checkbox"> Nie pytaj ponownie</label>
+    <div class="installActions">
+      <button id="installButton" class="installButton" type="button">ZAINSTALUJ</button>
+      <button id="rejectInstall" class="rejectButton" type="button">ODRZUĆ</button>
+    </div>
+  </div>
 
-      <section id="schedule" class="card schedule" hidden aria-live="polite">
-        <div class="scheduleHeading">
-          <div>
-            <p class="eyebrow">Rozkład</p>
-            <h2 id="scheduleTitle"></h2>
-          </div>
-          <button id="clearSchedule" class="secondary" type="button">Zmień wybór</button>
-        </div>
-        <div class="tableWrap">
-          <table>
-            <thead><tr><th>Przystanek</th><th>Godzina</th><th>Mapa</th></tr></thead>
-            <tbody id="scheduleBody"></tbody>
-          </table>
-        </div>
-      </section>
-    </main>
-    <footer>Rozkład działa offline po pierwszym otwarciu aplikacji.</footer>
-    <script type="module" src="./app.js?v=5184bf8"></script>
-  </body>
+  <script type="module" src="./app.js?v=dark-ui-1"></script>
+</body>
 </html>
