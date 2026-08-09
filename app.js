@@ -1,5 +1,5 @@
 import { ROUTES as FALLBACK_ROUTES } from './routes.js'; import { getRoute,getSchedule,mapUrl } from './schedule.js';
-const API_URL='https://script.google.com/macros/s/AKfycbyQcnU6xvvrUZNVUJRhQ293L47hZwlvsc6i3n9s9hiYqhLUAoKSqGbPohe_lSB0apfUcw/exec',DATA_KEY='trasy2.routes',SYNC_KEY='trasy2.lastSuccessfulSync',FAIL_KEY='trasy2.firstFailedSync',THREE_DAYS=259200000;
+const API_URL='https://script.google.com/macros/s/AKfycbzdG_ARbbPgMdlPteqFLakZHR5EEkT4Lb3YFDbXW_I_OyrDKo8l0_KrQLjnncxj_M9q/exec',DATA_KEY='trasy2.routes',SYNC_KEY='trasy2.lastSuccessfulSync',FAIL_KEY='trasy2.firstFailedSync',THREE_DAYS=259200000;
 const $=s=>document.querySelector(s),routeSelect=$('#routeSelect'),timeSelect=$('#timeSelect'),message=$('#formMessage'),connectionStatus=$('#connectionStatus'),staleWarning=$('#staleWarning'); let routes=loadCached()??FALLBACK_ROUTES,syncing=false,offline=true,wakeLock=null,wakeWanted=false,currentAdminRoute=null;
 const views=['#selectionView','#scheduleView','#adminView','#adminEditView']; function showView(id){views.forEach(v=>$(v).hidden=v!==id);scrollTo(0,0)}
 renderRoutes();syncRoutes();setInterval(updateStatus,60000);window.addEventListener('online',syncRoutes);window.addEventListener('focus',syncRoutes);
