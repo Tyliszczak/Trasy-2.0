@@ -1,0 +1,1 @@
+(()=>{const button=document.getElementById('wakeLockButton');const label=document.getElementById('wakeLockLabel');if(!button||!label)return;const update=()=>button.classList.toggle('wakeActive',label.textContent.trim()==='EKRAN ON');update();new MutationObserver(update).observe(label,{childList:true,characterData:true,subtree:true});})();
