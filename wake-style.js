@@ -2,20 +2,54 @@
   const button=document.getElementById('wakeLockButton');
   const label=document.getElementById('wakeLockLabel');
   const scheduleBody=document.getElementById('scheduleBody');
+  const scheduleClock=document.getElementById('scheduleClock');
+  const scheduleTimeSelect=document.getElementById('scheduleTimeSelect');
   if(!button||!label)return;
+
+  const bulb=button.querySelector('.wakeBulb');
+  const screenLabel=document.createElement('span');
+  screenLabel.className='wakeScreenLabel';
+  screenLabel.textContent='EKRAN';
+  const topRow=document.createElement('span');
+  topRow.className='wakeTopRow';
+  if(bulb)topRow.append(bulb);
+  label.textContent='OFF';
+  topRow.append(label);
+  button.replaceChildren(topRow,screenLabel);
 
   let wakeLock=null;
   let wakeWanted=false;
 
+  const style=document.createElement('style');
+  style.textContent=`
+    #wakeLockButton.wakeLockButton{display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;gap:0!important;width:auto!important;min-width:62px!important;min-height:58px!important;padding:0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;color:inherit!important}
+    #wakeLockButton .wakeTopRow{display:flex;align-items:center;justify-content:center;gap:7px;line-height:1}
+    #wakeLockButton .wakeBulb{font-size:1.9rem!important;line-height:1!important;filter:grayscale(1);opacity:.58;transition:filter .2s,opacity .2s,text-shadow .2s}
+    #wakeLockLabel{min-width:28px;color:#888;font-size:.86rem;font-weight:900;text-align:left;transition:color .2s,text-shadow .2s}
+    #wakeLockButton .wakeScreenLabel{display:block;margin-top:3px;color:#fff!important;font-size:.72rem;font-weight:900;letter-spacing:.08em;line-height:1;text-align:center;text-shadow:none!important}
+    #wakeLockButton.wakeActive .wakeBulb{filter:none;opacity:1;text-shadow:0 0 7px #ffd900,0 0 15px #ffd900}
+    #wakeLockButton.wakeActive #wakeLockLabel{color:#ffd900;text-shadow:0 0 7px #ffd900,0 0 13px #ffd900}
+    #scheduleClock.scheduleClock{color:#ccff33!important;font-size:1.34rem!important;font-weight:900!important;font-variant-numeric:tabular-nums;letter-spacing:.025em}
+    #scheduleTimeSelect.scheduleTimeSelect{cursor:pointer}
+    #scheduleBody tr.isActiveStop{background:rgba(204,255,51,.13);box-shadow:inset 4px 0 #ccff33}
+    #scheduleBody tr.isActiveStop td:first-child{font-weight:900;color:#ccff33}
+    #scheduleBody td:last-child{white-space:nowrap}
+    #scheduleBody .routeLink{margin-left:8px;color:#ccff33;font-weight:900;text-decoration:none}
+    @media(max-width:520px){#wakeLockButton.wakeLockButton{min-width:58px!important}#wakeLockButton .wakeBulb{font-size:1.75rem!important}#scheduleClock.scheduleClock{font-size:1.22rem!important}}
+  `;
+  document.head.append(style);
+
   function setWakeState(active){
     button.classList.toggle('wakeActive',active);
-    label.textContent=active?'EKRAN ON':'EKRAN OFF';
+    label.textContent=active?'ON':'OFF';
     button.setAttribute('aria-pressed',String(active));
   }
 
   async function releaseWakeLock(){
-    if(!wakeLock)return;
-    try{await wakeLock.release()}catch{}
+    wakeWanted=false;
+    if(wakeLock){
+      try{await wakeLock.release()}catch{}
+    }
     wakeLock=null;
     setWakeState(false);
   }
@@ -43,9 +77,11 @@
   button.addEventListener('click',async event=>{
     event.preventDefault();
     event.stopImmediatePropagation();
-    wakeWanted=!wakeWanted;
-    if(wakeWanted)await requestWakeLock();
-    else await releaseWakeLock();
+    if(wakeWanted)await releaseWakeLock();
+    else{
+      wakeWanted=true;
+      await requestWakeLock();
+    }
   },true);
 
   document.addEventListener('visibilitychange',()=>{
@@ -54,16 +90,28 @@
 
   setWakeState(false);
 
-  if(!scheduleBody)return;
+  function renderClock(){
+    if(!scheduleClock)return;
+    const now=new Date();
+    scheduleClock.textContent=`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+  }
+  if(scheduleClock){
+    const clockObserver=new MutationObserver(()=>{
+      if(scheduleClock.textContent.includes('🕒')||!/^\d{2}:\d{2}:\d{2}$/.test(scheduleClock.textContent.trim()))renderClock();
+    });
+    clockObserver.observe(scheduleClock,{childList:true,characterData:true,subtree:true});
+    renderClock();
+    setInterval(renderClock,1000);
+  }
 
-  const style=document.createElement('style');
-  style.textContent=`
-    #scheduleBody tr.isActiveStop{background:rgba(204,255,51,.13);box-shadow:inset 4px 0 #ccff33}
-    #scheduleBody tr.isActiveStop td:first-child{font-weight:900;color:#ccff33}
-    #scheduleBody td:last-child{white-space:nowrap}
-    #scheduleBody .routeLink{margin-left:8px;color:#ccff33;font-weight:900;text-decoration:none}
-  `;
-  document.head.append(style);
+  if(scheduleTimeSelect){
+    scheduleTimeSelect.setAttribute('title','Wybierz godzinę kursu');
+    scheduleTimeSelect.addEventListener('change',()=>{
+      scheduleTimeSelect.blur();
+    });
+  }
+
+  if(!scheduleBody)return;
 
   function minutes(value){
     const m=String(value||'').match(/^(\d{1,2}):(\d{2})$/);
