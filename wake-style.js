@@ -35,6 +35,10 @@
     #scheduleBody tr.isActiveStop td:first-child{font-weight:900;color:#ccff33}
     #scheduleBody td:last-child{white-space:nowrap}
     #scheduleBody .routeLink{margin-left:8px;color:#ccff33;font-weight:900;text-decoration:none}
+    #scheduleBody .stopMapButton{display:inline-flex;align-items:center;gap:7px;width:auto;max-width:100%;min-height:38px;padding:7px 10px;border:1px solid #626262;border-radius:5px;background:#333;color:#fff;font-weight:900;text-decoration:none;line-height:1.2}
+    #scheduleBody .stopMapButton:hover,#scheduleBody .stopMapButton:focus{border-color:#ccff33;outline:none;box-shadow:0 0 0 1px #ccff33}
+    #scheduleBody .stopMapPin{flex:0 0 auto;font-size:1.1rem;line-height:1}
+    #scheduleBody tr.isActiveStop .stopMapButton{color:#ccff33}
     @media(max-width:520px){#wakeLockButton.wakeLockButton{min-width:58px!important}#wakeLockButton .wakeBulb{font-size:1.75rem!important}#scheduleClock.scheduleClock{font-size:1.22rem!important}}
   `;
   document.head.append(style);
@@ -139,6 +143,27 @@
     return url.toString();
   }
 
+  function makeStopMapButton(row){
+    const nameCell=row.querySelector('td:first-child');
+    const mapLink=row.querySelector('td:last-child a');
+    if(!nameCell||!mapLink||nameCell.querySelector('.stopMapButton'))return;
+    const stopName=nameCell.textContent.trim();
+    if(!stopName)return;
+    const a=document.createElement('a');
+    a.href=mapLink.href;
+    a.target='_blank';
+    a.rel='noopener';
+    a.className='stopMapButton';
+    a.setAttribute('aria-label',`Otwórz ${stopName} na mapie`);
+    const pin=document.createElement('span');
+    pin.className='stopMapPin';
+    pin.textContent='📍';
+    const text=document.createElement('span');
+    text.textContent=stopName;
+    a.append(pin,text);
+    nameCell.replaceChildren(a);
+  }
+
   function enhanceSchedule(){
     const rows=[...scheduleBody.querySelectorAll('tr')];
     if(!rows.length)return;
@@ -154,6 +179,7 @@
     rows.forEach((row,index)=>row.classList.toggle('isActiveStop',index===activeIndex));
 
     rows.forEach((row,index)=>{
+      makeStopMapButton(row);
       const mapCell=row.querySelector('td:last-child');
       if(!mapCell||mapCell.querySelector('.routeLink'))return;
       const href=directionsUrl(rows,index);
