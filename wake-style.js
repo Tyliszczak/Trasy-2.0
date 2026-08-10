@@ -37,9 +37,9 @@
     #scheduleBody .routeLink{display:inline-flex;align-items:center;justify-content:center;margin-left:8px;width:42px;height:38px;color:#ccff33;text-decoration:none;vertical-align:middle}
     #scheduleBody .routeLink svg{width:31px;height:31px;display:block;overflow:visible}
     #scheduleBody .routeLink:hover,#scheduleBody .routeLink:focus{outline:none;filter:drop-shadow(0 0 5px #ccff33)}
-    #scheduleBody .stopMapButton{display:inline-flex;align-items:center;gap:7px;width:auto;max-width:100%;min-height:38px;padding:7px 10px;border:1px solid #626262;border-radius:5px;background:#333;color:#fff;font-weight:900;text-decoration:none;line-height:1.2}
-    #scheduleBody .stopMapButton:hover,#scheduleBody .stopMapButton:focus{border-color:#ccff33;outline:none;box-shadow:0 0 0 1px #ccff33}
-    #scheduleBody .stopMapPin{flex:0 0 auto;font-size:1.1rem;line-height:1}
+    #scheduleBody .stopMapButton{display:inline-flex;align-items:center;gap:8px;width:auto;max-width:100%;min-height:38px;padding:7px 10px;border:1px solid #626262;border-radius:5px;background:#333;color:#fff;font-weight:900;text-decoration:none;line-height:1.2}
+    #scheduleBody .stopMapButton:hover,#scheduleBody .stopMapButton:focus{border-color:#2f9bff;outline:none;box-shadow:0 0 0 1px #2f9bff}
+    #scheduleBody .stopMapPin{flex:0 0 auto;width:20px;height:24px;display:block;filter:drop-shadow(0 0 3px rgba(47,155,255,.35))}
     #scheduleBody tr.isActiveStop .stopMapButton{color:#ccff33}
     @media(max-width:520px){#wakeLockButton.wakeLockButton{min-width:58px!important}#wakeLockButton .wakeBulb{font-size:1.75rem!important}#scheduleClock.scheduleClock{font-size:1.22rem!important}}
   `;
@@ -96,12 +96,19 @@
     if(coordinates.length>1)url.searchParams.set('waypoints',coordinates.slice(0,-1).join('|'));return url.toString();
   }
 
+  function stopMarkerIcon(){
+    const ns='http://www.w3.org/2000/svg',svg=document.createElementNS(ns,'svg');
+    svg.setAttribute('viewBox','0 0 24 30');svg.setAttribute('aria-hidden','true');svg.classList.add('stopMapPin');
+    svg.innerHTML='<path d="M12 1.5C6.5 1.5 2 6 2 11.5c0 7.1 10 17 10 17s10-9.9 10-17C22 6 17.5 1.5 12 1.5Z" fill="#2f9bff"/><circle cx="12" cy="11.5" r="4" fill="#dff1ff"/>';
+    return svg;
+  }
+
   function makeStopMapButton(row){
     const nameCell=row.querySelector('td:first-child'),mapLink=row.querySelector('td:last-child a');
     if(!nameCell||!mapLink||nameCell.querySelector('.stopMapButton'))return;
     const stopName=nameCell.textContent.trim();if(!stopName)return;
     const a=document.createElement('a');a.href=mapLink.href;a.target='_blank';a.rel='noopener';a.className='stopMapButton';a.setAttribute('aria-label',`Otwórz ${stopName} na mapie`);
-    const pin=document.createElement('span');pin.className='stopMapPin';pin.textContent='📍';const text=document.createElement('span');text.textContent=stopName;a.append(pin,text);nameCell.replaceChildren(a);
+    const text=document.createElement('span');text.textContent=stopName;a.append(stopMarkerIcon(),text);nameCell.replaceChildren(a);
   }
 
   function routeIcon(){
