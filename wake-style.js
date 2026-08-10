@@ -28,6 +28,22 @@
   function routeIcon(){const ns='http://www.w3.org/2000/svg',s=document.createElementNS(ns,'svg');s.setAttribute('viewBox','0 0 44 44');s.setAttribute('aria-hidden','true');s.innerHTML='<path d="M8 8c0-4 3.2-7 7-7s7 3 7 7c0 5-7 12-7 12S8 13 8 8Z" fill="currentColor"/><circle cx="15" cy="8" r="2.5" fill="#222"/><path d="M17 20c10 0 15 1 15 6 0 4-5 4-10 4-6 0-8 2-8 5" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 35c0-4 3-7 7-7s7 3 7 7c0 5-7 9-7 9s-7-4-7-9Z" fill="currentColor"/><circle cx="14" cy="35" r="2.5" fill="#222"/>';return s}
   function coordinateFromMapLink(a){if(!a)return null;try{return new URL(a.href).searchParams.get('query')}catch{return null}}
   function directionsUrl(coords,start){const c=coords.slice(start).filter(Boolean);if(!c.length)return null;const u=new URL('https://www.google.com/maps/dir/');u.searchParams.set('api','1');u.searchParams.set('destination',c.at(-1));u.searchParams.set('travelmode','driving');if(c.length>1)u.searchParams.set('waypoints',c.slice(0,-1).join('|'));return u.toString()}
-  function enhanceSchedule(){const rows=[...scheduleBody.querySelectorAll('tr')];if(!rows.length)return;const now=new Date(),current=now.getHours()*60+now.getMinutes();let active=rows.findIndex(r=>{const t=minutes(r.children[1]?.textContent.trim());return t!==null&&t>=current});if(active<0)active=rows.length-1;rows.forEach((r,i)=>r.classList.toggle('isActiveStop',i===active));const coords=rows.map(r=>{const mapCell=r.children[2],a=mapCell?.querySelector('a');return coordinateFromMapLink(a)});rows.forEach((r,i)=>{const name=r.children[0],mapCell=r.children[2];if(!name||!mapCell)return;const mapLink=mapCell.querySelector('a');if(mapLink&&!name.querySelector('.stopMapButton')){const stopName=name.textContent.trim(),a=document.createElement('a');a.href=mapLink.href;a.target='_blank';a.rel='noopener';a.className='stopMapButton';a.setAttribute('aria-label',`Otwórz ${stopName} na mapie`);const text=document.createElement('span');text.textContent=stopName;a.append(stopMarkerIcon(),text);name.replaceChildren(a)}mapCell.replaceChildren();mapCell.className='routeCell';const href=directionsUrl(coords,i);if(href){const a=document.createElement('a');a.href=href;a.target='_blank';a.rel='noopener';a.className='routeLink';a.setAttribute('aria-label','Nawiguj przez pozostałe przystanki');a.append(routeIcon());mapCell.append(a)}})}
+  let enhancing=false;
+  function enhanceSchedule(){
+    if(enhancing)return;enhancing=true;
+    try{
+      const rows=[...scheduleBody.querySelectorAll('tr')];if(!rows.length)return;
+      const now=new Date(),current=now.getHours()*60+now.getMinutes();let active=rows.findIndex(r=>{const t=minutes(r.children[1]?.textContent.trim());return t!==null&&t>=current});if(active<0)active=rows.length-1;rows.forEach((r,i)=>r.classList.toggle('isActiveStop',i===active));
+      rows.forEach(r=>{if(r.dataset.coordinate)return;const mapCell=r.children[2],mapLink=mapCell?.querySelector('a');const coord=coordinateFromMapLink(mapLink);if(coord)r.dataset.coordinate=coord});
+      const coords=rows.map(r=>r.dataset.coordinate||null);
+      rows.forEach((r,i)=>{
+        const name=r.children[0],mapCell=r.children[2];if(!name||!mapCell)return;
+        const originalMapLink=mapCell.querySelector('a:not(.routeLink)');
+        if(originalMapLink&&!name.querySelector('.stopMapButton')){const stopName=name.textContent.trim(),a=document.createElement('a');a.href=originalMapLink.href;a.target='_blank';a.rel='noopener';a.className='stopMapButton';a.setAttribute('aria-label',`Otwórz ${stopName} na mapie`);const text=document.createElement('span');text.textContent=stopName;a.append(stopMarkerIcon(),text);name.replaceChildren(a)}
+        mapCell.className='routeCell';const href=directionsUrl(coords,i);let routeLink=mapCell.querySelector('.routeLink');
+        if(href){if(!routeLink){mapCell.replaceChildren();routeLink=document.createElement('a');routeLink.target='_blank';routeLink.rel='noopener';routeLink.className='routeLink';routeLink.setAttribute('aria-label','Utwórz trasę od tego przystanku');routeLink.append(routeIcon());mapCell.append(routeLink)}routeLink.href=href}else mapCell.replaceChildren();
+      })
+    }finally{enhancing=false}
+  }
   new MutationObserver(enhanceSchedule).observe(scheduleBody,{childList:true,subtree:true});setInterval(enhanceSchedule,30000);enhanceSchedule();
 })();
