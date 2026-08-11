@@ -1,19 +1,5 @@
 (()=>{
-  const API_URL='https://script.google.com/macros/s/AKfycbzdG_ARbbPgMdlPteqFLakZHR5EEkT4Lb3YFDbXW_I_OyrDKo8l0_KrQLjnncxj_M9q/exec';
   const $=s=>document.querySelector(s);
-  let editingOriginalName='',editingOriginalRow=null;
-
-  function sleep(ms){return new Promise(r=>setTimeout(r,ms))}
-  function routeName(){return ($('#adminEditTitle')?.textContent||'').replace(/^Edycja:\s*/,'').trim()}
-  function password(){return $('#adminPassword')?.value||''}
-
-  async function api(action,data={}){
-    const res=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action,password:password(),...data}),cache:'no-store'});
-    if(!res.ok)throw Error('Błąd połączenia.');
-    const out=await res.json();
-    if(out.status==='error')throw Error(out.message||'Nie udało się zapisać.');
-    return out;
-  }
 
   function ensureDialog(){
     let root=$('#adminChoiceDialog');
@@ -63,7 +49,7 @@
       removeCourse.dataset.choiceBound='1';removeCourse.__adminOriginalOnclick=removeCourse.onclick;
       removeCourse.onclick=async e=>{
         e?.preventDefault();
-        const times=[...$('#routeEditHead')?.querySelectorAll('th')||[]].map(x=>x.textContent.trim()).filter(x=>/^\d{1,2}:\d{2}$/.test(x));
+        const times=[...($('#routeEditHead')?.querySelectorAll('th')||[])].map(x=>x.textContent.trim()).filter(x=>/^\d{1,2}:\d{2}$/.test(x));
         if(!times.length){$('#adminEditMessage').textContent='Ta trasa nie ma jeszcze kursów.';return}
         const html=`<p class="adminChoiceHint">Wybierz kurs do usunięcia.</p><select id="choiceCourse">${times.map(t=>`<option value="${t}">${t}</option>`).join('')}</select>`;
         const v=await dialog('Usuń kurs',html,b=>b.querySelector('#choiceCourse').value,'USUŃ');
@@ -82,36 +68,6 @@
 
   document.addEventListener('click',async e=>{
     const btn=e.target.closest?.('button');if(!btn)return;
-    if(btn.id==='addStop'){editingOriginalName='';editingOriginalRow=null;return}
-    if(btn.classList.contains('stopNameButton')||btn.classList.contains('locationButton')){
-      const tr=btn.closest('tr');if(tr){editingOriginalName=tr.querySelector('.stopNameButton')?.textContent.trim()||'';editingOriginalRow=[...tr.parentElement.children].indexOf(tr)+2}return;
-    }
-    if(btn.id==='applyStopEdit'){
-      e.preventDefault();e.stopImmediatePropagation();
-      const name=$('#stopEditName').value.trim(),msg=$('#stopEditMessage');
-      if(!name){msg.textContent='Wpisz nazwę przystanku.';return}
-      let coordinates=$('#stopEditCoordinates').textContent.trim();if(coordinates==='Brak lokalizacji')coordinates='';
-      const times={};
-      $('#stopEditTimes').querySelectorAll('.timeEditRow').forEach(row=>{const t=row.querySelector('label')?.textContent.trim(),v=row.querySelector('button')?.textContent.trim();if(t)times[t]=v==='--:--'?'':v});
-      const r=routeName();if(!r){msg.textContent='Nie udało się ustalić nazwy trasy.';return}
-      try{
-        btn.disabled=true;msg.textContent='Zapisywanie przystanku…';
-        if(editingOriginalName)await api('updateStop',{route:r,row:editingOriginalRow,originalName:editingOriginalName,name,coordinates,times});
-        else await api('addStop',{route:r,name,coordinates,times});
-        msg.textContent='Przystanek zapisany w arkuszu.';
-        await sleep(250);
-        $('#cancelStopEdit')?.click();
-        window.dispatchEvent(new Event('focus'));
-        await sleep(1200);
-        window.dispatchEvent(new Event('focus'));
-        await sleep(700);
-        const login=$('#adminLoginButton');if(login)login.click();
-        await sleep(700);
-        const card=[...document.querySelectorAll('#adminRouteList .adminCard')].find(c=>c.querySelector('.adminCardTitle')?.textContent.trim()===r);
-        card?.querySelector('.editButton')?.click();
-      }catch(err){msg.textContent=err.message||'Nie udało się zapisać przystanku.'}finally{btn.disabled=false}
-      return;
-    }
     const isRouteDelete=btn.classList.contains('danger')&&btn.closest('#adminRouteList');
     const isStopDelete=btn.classList.contains('danger')&&btn.closest('#routeEditBody');
     if((isRouteDelete||isStopDelete)&&!btn.dataset.confirmPass){
@@ -122,6 +78,6 @@
     }
   },true);
 
-  const apply=$('#applyStopEdit');if(apply)apply.textContent='ZAPISZ PRZYSTANEK';
+  const apply=$('#applyStopEdit');if(apply)apply.textContent='ZASTOSUJ W TABELI';
   const timer=setInterval(installButtonDialogs,100);setTimeout(()=>clearInterval(timer),10000);installButtonDialogs();
 })();
