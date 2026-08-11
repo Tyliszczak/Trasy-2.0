@@ -25,7 +25,7 @@ function updateScheduleClock(){
   const el=$('#scheduleClock');
   if(!el)return;
   const now=new Date();
-  el.textContent=`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+  el.textContent=`🕒 ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
 }
 updateScheduleClock();
 setInterval(updateScheduleClock,1000);
@@ -167,17 +167,20 @@ function updateStatus(){
 
 function stopRow(s){
   const tr=document.createElement('tr');
-  const name=document.createElement('td');
-  const u=mapUrl(s.coordinates);
+  for(const v of [s.name,s.time??'Koniec trasy']){
+    const td=document.createElement('td');
+    td.textContent=v;
+    tr.append(td);
+  }
+  const td=document.createElement('td'),u=mapUrl(s.coordinates);
   if(u){
     const a=document.createElement('a');
-    a.href=u;a.target='_blank';a.rel='noopener';a.className='stopMapLink';
-    a.textContent=s.name;
-    name.append(a);
-  }else name.textContent=s.name;
-  const time=document.createElement('td');time.textContent=s.time??'Koniec trasy';
-  const route=document.createElement('td');route.textContent='';
-  tr.append(name,time,route);
+    a.href=u;
+    a.target='_blank';
+    a.textContent='MAPA';
+    td.append(a);
+  }
+  tr.append(td);
   return tr;
 }
 
