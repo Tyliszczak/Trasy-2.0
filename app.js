@@ -1,17 +1,207 @@
-import { ROUTES as FALLBACK_ROUTES } from './routes.js'; import { getRoute,getSchedule,mapUrl } from './schedule.js';
-const API_URL='https://script.google.com/macros/s/AKfycbzdG_ARbbPgMdlPteqFLakZHR5EEkT4Lb3YFDbXW_I_OyrDKo8l0_KrQLjnncxj_M9q/exec',DATA_KEY='trasy2.routes',SYNC_KEY='trasy2.lastSuccessfulSync',FAIL_KEY='trasy2.firstFailedSync',THREE_DAYS=259200000;
-const $=s=>document.querySelector(s),routeSelect=$('#routeSelect'),timeSelect=$('#timeSelect'),message=$('#formMessage'),connectionStatus=$('#connectionStatus'),staleWarning=$('#staleWarning');let routes=[],syncing=false,offline=true,wakeLock=null,wakeWanted=false,currentAdminRoute=null,adminPassword='',draftStops=[],editingIndex=-1,pendingCoordinates='',wheelCallback=null;
-const views=['#selectionView','#scheduleView','#adminLoginView','#adminResetView','#adminView','#adminChangePasswordView','#adminEditView','#stopEditView','#mapEditView'];function showView(id){views.forEach(v=>$(v).hidden=v!==id);scrollTo(0,0)}
-function makeWheelButton(value,onSet){const b=document.createElement('button');b.type='button';b.className='timeWheelButton';b.textContent=normalizeTime(value)||'--:--';b.onclick=()=>openTimeWheel(b.textContent,onSet,b);return b}function fillWheel(el,max){el.replaceChildren(...Array.from({length:max},(_,i)=>{const d=document.createElement('div');d.className='wheelItem';d.textContent=String(i).padStart(2,'0');return d}))}fillWheel($('#hourWheel'),24);fillWheel($('#minuteWheel'),60);function wheelValue(el){return Math.max(0,Math.min(el.children.length-1,Math.round(el.scrollTop/50)))}function scrollWheel(el,v){requestAnimationFrame(()=>el.scrollTo({top:v*50,behavior:'instant'}))}function openTimeWheel(value,cb,button){const t=normalizeTime(value)||'00:00',[h,m]=t.split(':').map(Number);wheelCallback={cb,button};$('#wheelTimeModal').hidden=false;scrollWheel($('#hourWheel'),h);scrollWheel($('#minuteWheel'),m)}$('#wheelCancel').onclick=()=>{$('#wheelTimeModal').hidden=true;wheelCallback=null};$('#wheelOk').onclick=()=>{const v=`${String(wheelValue($('#hourWheel'))).padStart(2,'0')}:${String(wheelValue($('#minuteWheel'))).padStart(2,'0')}`;if(wheelCallback){wheelCallback.cb(v);wheelCallback.button.textContent=v}$('#wheelTimeModal').hidden=true;wheelCallback=null};$('#wheelTimeModal').onclick=e=>{if(e.target===$('#wheelTimeModal'))$('#wheelCancel').click()};
-function updateScheduleClock(){const el=$('#scheduleClock');if(!el)return;const now=new Date();el.textContent=`🕒 ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`}updateScheduleClock();setInterval(updateScheduleClock,1000);function renderSchedule(r,t){if(!r||!t)return;$('#scheduleRouteName').textContent=r.name;const sel=$('#scheduleTimeSelect');sel.replaceChildren(...r.times.map(x=>new Option(x,x)));sel.value=t;$('#scheduleBody').replaceChildren(...getSchedule(r,t).map(stopRow));updateScheduleClock()}$('#scheduleTimeSelect').onchange=()=>{const r=getRoute(routes,routeSelect.value),t=$('#scheduleTimeSelect').value;if(!r||!t)return;timeSelect.value=t;renderSchedule(r,t)};
-async function startApp(){routeSelect.disabled=true;timeSelect.disabled=true;message.textContent='Pobieranie aktualnych danych…';const ok=await syncRoutes();if(!ok){routes=loadCached()??FALLBACK_ROUTES;renderRoutes();message.textContent='Nie udało się pobrać świeżych danych. Używam zapisanej kopii.'}else message.textContent='';routeSelect.disabled=false}startApp();setInterval(updateStatus,60000);window.addEventListener('online',syncRoutes);window.addEventListener('focus',syncRoutes);routeSelect.onchange=()=>{const r=getRoute(routes,routeSelect.value);timeSelect.replaceChildren(new Option(r?'Wybierz godzinę':'Najpierw wybierz trasę',''));timeSelect.disabled=!r;r?.times.forEach(t=>timeSelect.add(new Option(t,t)))};$('#showSchedule').onclick=()=>{const r=getRoute(routes,routeSelect.value),t=timeSelect.value;if(!r||!t){message.textContent='Wybierz trasę i godzinę zmiany.';return}renderSchedule(r,t);showView('#scheduleView')};$('#backFromSchedule').onclick=()=>showView('#selectionView');
-async function apiPost(data){const res=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(data),cache:'no-store'});if(!res.ok)throw Error('Błąd połączenia.');const r=await res.json();if(r.status==='error'){const m=String(r.message||'');if(data.action==='updateStop'&&m.includes('DIAGNOSTYKA updateStop')){const saved=(m.match(/zapisano=([^|]+)/)||[])[1]?.trim()||data.coordinates||'';return{status:'success',message:'Zapis potwierdzony.',coordinates:saved}}throw Error(m||'Błąd API.')}return r}async function adminAction(action,data={}){if(!adminPassword)throw Error('Zaloguj się ponownie.');return apiPost({action,password:adminPassword,...data})}
-$('#adminLock').onclick=()=>showView('#adminLoginView');$('#backFromLogin').onclick=()=>showView('#selectionView');$('#backFromAdmin').onclick=()=>showView('#selectionView');$('#backToAdmin').onclick=()=>showView('#adminView');async function login(){const p=$('#adminPassword').value,m=$('#adminLoginMessage');try{await apiPost({action:'login',password:p});adminPassword=p;m.textContent='';renderAdminRoutes();showView('#adminView')}catch(e){m.textContent=e.message}}$('#adminLoginButton').onclick=login;$('#adminPassword').onkeydown=e=>{if(e.key==='Enter')login()};$('#forgotPasswordButton').onclick=()=>showView('#adminResetView');$('#backFromReset').onclick=()=>showView('#adminLoginView');$('#sendResetCodeButton').onclick=async()=>{try{const r=await apiPost({action:'forgotPassword'});$('#adminResetMessage').textContent=r.message||'Kod wysłany.'}catch(e){$('#adminResetMessage').textContent=e.message}};$('#resetPasswordButton').onclick=async()=>{try{await apiPost({action:'resetPassword',code:$('#adminResetCode').value,newPassword:$('#adminNewPassword').value});showView('#adminLoginView')}catch(e){$('#adminResetMessage').textContent=e.message}};$('#changePasswordButton').onclick=()=>showView('#adminChangePasswordView');$('#backFromChangePassword').onclick=()=>showView('#adminLoginView');$('#saveChangedPassword').onclick=async()=>{const old=$('#adminOldPassword').value,p=$('#adminChangePassword').value,r=$('#adminChangePasswordRepeat').value,m=$('#adminChangePasswordMessage');if(p!==r){m.textContent='Nowe hasła nie są takie same.';return}try{await apiPost({action:'login',password:old});await apiPost({action:'updateAdminData',password:old,newPassword:p});m.textContent='Hasło zmienione.';setTimeout(()=>showView('#adminLoginView'),700)}catch(e){m.textContent=e.message}};
-function renderAdminRoutes(){$('#adminRouteList').replaceChildren(...routes.map(r=>{const c=document.createElement('div');c.className='adminCard';c.innerHTML='<div class="adminCardTitle"></div><div class="cardActions"><button class="editButton">EDYTUJ TRASĘ</button><button class="danger">USUŃ TRASĘ</button></div>';c.querySelector('.adminCardTitle').textContent=r.name;c.querySelector('.editButton').onclick=()=>openRouteEditor(r);c.querySelector('.danger').onclick=async()=>{if(confirm(`Usunąć trasę „${r.name}”?`))await runEdit(()=>adminAction('deleteRoute',{route:r.name}),$('#adminMessage'))};return c}))}function cloneStops(r){return r.stops.map((s,i)=>({name:s.name,originalName:s.name,coordinates:s.coordinates||'',times:Object.fromEntries(r.times.map(t=>[t,normalizeTime(s.times?.[t])])),originalRow:i+2,isNew:false}))}function openRouteEditor(r){currentAdminRoute=r;draftStops=cloneStops(r);$('#adminEditTitle').textContent=`Edycja: ${r.name}`;renderRouteTable();showView('#adminEditView')}
-function renderRouteTable(){const head=$('#routeEditHead'),body=$('#routeEditBody'),hr=document.createElement('tr');['Przystanek','📍',...currentAdminRoute.times,'Usuń'].forEach(x=>{const th=document.createElement('th');th.textContent=x;hr.append(th)});head.replaceChildren(hr);body.replaceChildren(...draftStops.map((s,i)=>{const tr=document.createElement('tr'),n=document.createElement('td'),nb=document.createElement('button');nb.className='stopNameButton';nb.textContent=s.name||'Nowy przystanek';nb.onclick=()=>openStopEditor(i);n.append(nb);const l=document.createElement('td'),lb=document.createElement('button');lb.className='locationButton';lb.textContent=s.coordinates?'📍':'＋';lb.onclick=()=>openStopEditor(i,true);l.append(lb);tr.append(n,l);currentAdminRoute.times.forEach(t=>{const td=document.createElement('td');td.append(makeWheelButton(s.times[t],v=>s.times[t]=v));tr.append(td)});const del=document.createElement('td'),db=document.createElement('button');db.className='danger';db.textContent='USUŃ';db.onclick=()=>{if(confirm(`Usunąć przystanek „${s.name||'Nowy przystanek'}”?`)){draftStops.splice(i,1);renderRouteTable();$('#adminEditMessage').textContent='Przystanek oznaczony do usunięcia. Kliknij ZAPISZ ZMIANY.'}};del.append(db);tr.append(del);return tr}))}
-function openStopEditor(i,openMap=false){editingIndex=i;const s=draftStops[i];pendingCoordinates=s.coordinates||'';$('#stopEditorTitle').textContent=s.name?'Dane przystanku':'Dodaj przystanek';$('#stopEditName').value=s.name;$('#stopEditCoordinates').textContent=pendingCoordinates||'Brak lokalizacji';$('#stopEditTimes').replaceChildren(...currentAdminRoute.times.map(t=>{const d=document.createElement('div'),l=document.createElement('label');d.className='timeEditRow';l.textContent=t;d.append(l,makeWheelButton(s.times[t],v=>s.times[t]=v));return d}));showView('#stopEditView');if(openMap)setTimeout(()=>$('#stopEditLocation').click(),0)}function applyStop(){const s=draftStops[editingIndex],name=$('#stopEditName').value.trim();if(!name){$('#stopEditMessage').textContent='Wpisz nazwę przystanku.';return}s.name=name;s.coordinates=pendingCoordinates;sortDraft();renderRouteTable();showView('#adminEditView')}function sortDraft(){const first=currentAdminRoute.times[0];draftStops.sort((a,b)=>minutes(a.times[first])-minutes(b.times[first]))}function minutes(t){const m=normalizeTime(t).split(':').map(Number);return m.length===2?m[0]*60+m[1]:99999}function normalizeTime(v){const s=String(v??'');const iso=s.match(/T(\d{2}):(\d{2})/);if(iso)return `${iso[1]}:${iso[2]}`;const m=s.match(/(?:^|\s)(\d{1,2}):(\d{2})(?:$|:\d{2}|\s)/);return m?`${m[1].padStart(2,'0')}:${m[2]}`:''}
-$('#addStop').onclick=()=>{draftStops.push({name:'',originalName:'',coordinates:'',times:Object.fromEntries(currentAdminRoute.times.map(t=>[t,''])),originalRow:null,isNew:true});openStopEditor(draftStops.length-1)};$('#cancelStopEditTop').onclick=$('#cancelStopEdit').onclick=()=>{if(!draftStops[editingIndex]?.name)draftStops.splice(editingIndex,1);renderRouteTable();showView('#adminEditView')};$('#applyStopEdit').onclick=applyStop;$('#stopEditLocation').onclick=()=>{const [a,b]=parseCoords(pendingCoordinates);setMap(a,b);showView('#mapEditView');setTimeout(()=>window.trasyInitGoogleMap?.(),50)};$('#cancelMapEdit').onclick=()=>showView('#stopEditView');function parseCoords(s){const m=String(s||'').match(/(-?\d+(?:[.,]\d+)?)\s*[,; ]\s*(-?\d+(?:[.,]\d+)?)/);return m?[+m[1].replace(',','.'),+m[2].replace(',','.')]:[52,19]}function setMap(a,b){$('#mapLat').value=a.toFixed(6);$('#mapLng').value=b.toFixed(6)}$('#useDeviceLocation').onclick=()=>navigator.geolocation?.getCurrentPosition(p=>{setMap(p.coords.latitude,p.coords.longitude);window.trasyInitGoogleMap?.()});$('#saveMapLocation').onclick=()=>{const a=parseFloat($('#mapLat').value.replace(',','.')),b=parseFloat($('#mapLng').value.replace(',','.'));if(!Number.isFinite(a)||!Number.isFinite(b))return;pendingCoordinates=`${a.toFixed(6)},${b.toFixed(6)}`;$('#stopEditCoordinates').textContent=pendingCoordinates;showView('#stopEditView')};
-function normalizedCoordinates(value){return String(value||'').replace(/\s/g,'')}function verifySavedRoute(fresh,expectedStops){if(!fresh)return false;return expectedStops.every(expected=>{const saved=fresh.stops.find(stop=>stop.name===expected.name);return saved&&normalizedCoordinates(saved.coordinates)===normalizedCoordinates(expected.coordinates)})}
-$('#saveRouteTable').onclick=async()=>{const msg=$('#adminEditMessage');msg.textContent='Zapisywanie całej trasy…';try{const routeName=currentAdminRoute.name,expectedStops=draftStops.map(s=>({name:s.name,coordinates:s.coordinates||''})),keptRows=new Set(draftStops.filter(s=>!s.isNew&&s.originalRow).map(s=>s.originalRow));const deleted=currentAdminRoute.stops.map((s,i)=>({s,row:i+2})).filter(x=>!keptRows.has(x.row)).sort((a,b)=>b.row-a.row);for(const x of deleted)await adminAction('deleteStop',{route:routeName,row:x.row,name:x.s.name});for(const s of draftStops){if(s.isNew)await adminAction('addStop',{route:routeName,name:s.name,coordinates:s.coordinates,times:s.times});else await adminAction('updateStop',{route:routeName,row:s.originalRow,originalName:s.originalName,name:s.name,coordinates:s.coordinates,times:s.times})}msg.textContent='Sprawdzanie zapisu…';const synced=await syncRoutes();if(!synced)throw Error('Zmiany wysłano, ale nie udało się ponownie pobrać danych z arkusza. Spróbuj odświeżyć.');const fresh=getRoute(routes,routeName);if(!verifySavedRoute(fresh,expectedStops))throw Error('Zmiany wysłano, ale dane odczytane z arkusza nie potwierdzają zapisu lokalizacji.');msg.textContent='Zapisano.';openRouteEditor(fresh)}catch(e){msg.textContent=e.message||'Nie udało się zapisać.'}};$('#addCourse').onclick=async()=>{const t=prompt('Godzina rozpoczęcia nowego kursu, np. 06:00:');if(t?.trim())await runEdit(()=>adminAction('addCourse',{route:currentAdminRoute.name,time:t.trim()}),$('#adminEditMessage'),currentAdminRoute.name)};$('#removeCourse').onclick=async()=>{const t=prompt('Godzina kursu do usunięcia:',currentAdminRoute.times[0]||'');if(t?.trim()&&confirm(`Usunąć kurs ${t}?`))await runEdit(()=>adminAction('deleteCourse',{route:currentAdminRoute.name,time:t.trim()}),$('#adminEditMessage'),currentAdminRoute.name)};$('#addRoute').onclick=async()=>{const n=prompt('Nazwa nowej trasy:');if(n?.trim())await runEdit(()=>adminAction('addRoute',{route:n.trim()}),$('#adminMessage'))};async function runEdit(fn,msg,routeName){try{msg.textContent='Zapisywanie…';await fn();msg.textContent='Zapisano.';await syncRoutes();if(routeName){const r=getRoute(routes,routeName);if(r)openRouteEditor(r)}else renderAdminRoutes()}catch(e){msg.textContent=e.message}}
-const wakeBtn=$('#wakeLockButton'),wakeLabel=$('#wakeLockLabel');wakeBtn.onclick=async()=>{wakeWanted=!wakeWanted;if(wakeWanted&&'wakeLock'in navigator){try{wakeLock=await navigator.wakeLock.request('screen')}catch{}}else if(wakeLock){try{await wakeLock.release()}catch{}wakeLock=null}wakeLabel.textContent=wakeWanted?'EKRAN ON':'EKRAN OFF'};
-function normalize(data){if(!data||typeof data!=='object')return[];if(!Array.isArray(data)){const sheetRoutes=Object.entries(data).map(([name,rows])=>{if(!Array.isArray(rows)||!Array.isArray(rows[0]))return null;const headers=rows[0].map(v=>String(v??'').trim());const courseCols=[];for(let c=3;c<headers.length;c++){const t=normalizeTime(headers[c]);if(t)courseCols.push([c,t])}const times=courseCols.map(x=>x[1]);const stops=rows.slice(1).map(row=>{const stopName=String(row?.[0]??'').trim();if(!stopName)return null;const stopTimes={};courseCols.forEach(([c,t])=>{const v=normalizeTime(row?.[c]);if(v)stopTimes[t]=v});return{name:stopName,coordinates:String(row?.[1]??'').trim(),times:stopTimes}}).filter(Boolean);return{name:String(name).trim(),times,stops}}).filter(r=>r?.name);if(sheetRoutes.length)return sheetRoutes}const arr=Array.isArray(data)?data:Object.entries(data).map(([name,v])=>({...v,name:v.name??name}));return arr.map(v=>{const name=String(v.name??v.nazwa??'').trim(),raw=v.stops??v.przystanki??[],times=[...new Set((v.times??v.godziny??[]).map(String).filter(Boolean))];const stops=raw.map(s=>{const o={},src=s.times??s.godziny??{};if(Array.isArray(src))times.forEach((t,i)=>o[t]=src[i]??null);else Object.entries(src).forEach(([k,val])=>o[String(k)]=val??null);return{name:String(s.name??s.nazwa??s.przystanek??s[0]??''),coordinates:String(s.coordinates??s.lokalizacja??s.coords??s[1]??''),times:o}}).filter(s=>s.name);return{name,times,stops}}).filter(r=>r?.name)}function valid(r){return r?.name&&r.times?.length&&r.stops?.length}async function syncRoutes(){if(syncing)return false;syncing=true;try{const res=await fetch(`${API_URL}?t=${Date.now()}`,{cache:'no-store'});if(!res.ok)throw Error(`HTTP ${res.status}`);const p=await res.json(),fresh=normalize(p?.data??p);if(!fresh.length)throw Error('Brak poprawnych tras w odpowiedzi API');routes=fresh;localStorage.setItem(DATA_KEY,JSON.stringify(routes));localStorage.setItem(SYNC_KEY,Date.now());localStorage.removeItem(FAIL_KEY);offline=false;renderRoutes();return true}catch(e){console.error('Synchronizacja tras:',e);offline=true;if(!localStorage.getItem(FAIL_KEY))localStorage.setItem(FAIL_KEY,Date.now());return false}finally{syncing=false;updateStatus()}}function loadCached(){try{return JSON.parse(localStorage.getItem(DATA_KEY))}catch{return null}}function renderRoutes(){const old=routeSelect.value;routeSelect.replaceChildren(new Option('Wybierz trasę',''));routes.filter(valid).forEach(r=>routeSelect.add(new Option(r.name,r.name)));if(routes.some(r=>valid(r)&&r.name===old))routeSelect.value=old}function updateStatus(){connectionStatus.hidden=!offline;connectionStatus.textContent='Offline';const ref=+localStorage.getItem(SYNC_KEY)||+localStorage.getItem(FAIL_KEY)||0;staleWarning.hidden=!offline||!ref||Date.now()-ref<THREE_DAYS}function stopRow(s){const tr=document.createElement('tr');for(const v of [s.name,s.time??'Koniec trasy']){const td=document.createElement('td');td.textContent=v;tr.append(td)}const td=document.createElement('td'),u=mapUrl(s.coordinates);if(u){const a=document.createElement('a');a.href=u;a.target='_blank';a.textContent='MAPA';td.append(a)}tr.append(td);return tr}let promptInstall=null;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();promptInstall=e;$('#installBanner').hidden=false});$('#installButton').onclick=async()=>{if(promptInstall){promptInstall.prompt();$('#installBanner').hidden=true}};$('#rejectInstall').onclick=()=>$('#installBanner').hidden=true;if('serviceWorker'in navigator)window.addEventListener('load',async()=>{const reg=await navigator.serviceWorker.register('./sw.js');reg.update();$('#updateAppButton').onclick=()=>reg.waiting?.postMessage({type:'SKIP_WAITING'});navigator.serviceWorker.addEventListener('controllerchange',()=>location.reload())});
+import { ROUTES as FALLBACK_ROUTES } from './routes.js';
+import { getRoute,getSchedule,mapUrl } from './schedule.js';
+
+const API_URL='https://script.google.com/macros/s/AKfycbzdG_ARbbPgMdlPteqFLakZHR5EEkT4Lb3YFDbXW_I_OyrDKo8l0_KrQLjnncxj_M9q/exec';
+const DATA_KEY='trasy2.routes',SYNC_KEY='trasy2.lastSuccessfulSync',FAIL_KEY='trasy2.firstFailedSync',THREE_DAYS=259200000;
+const $=s=>document.querySelector(s);
+const routeSelect=$('#routeSelect'),timeSelect=$('#timeSelect'),message=$('#formMessage'),connectionStatus=$('#connectionStatus'),staleWarning=$('#staleWarning');
+let routes=[],syncing=false,offline=true,wakeLock=null,wakeWanted=false;
+
+function showView(id){
+  $('#selectionView').hidden=id!=='#selectionView';
+  $('#scheduleView').hidden=id!=='#scheduleView';
+  scrollTo(0,0);
+}
+
+function normalizeTime(v){
+  const s=String(v??'');
+  const iso=s.match(/T(\d{2}):(\d{2})/);
+  if(iso)return `${iso[1]}:${iso[2]}`;
+  const m=s.match(/(?:^|\s)(\d{1,2}):(\d{2})(?:$|:\d{2}|\s)/);
+  return m?`${m[1].padStart(2,'0')}:${m[2]}`:'';
+}
+
+function updateScheduleClock(){
+  const el=$('#scheduleClock');
+  if(!el)return;
+  const now=new Date();
+  el.textContent=`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+}
+updateScheduleClock();
+setInterval(updateScheduleClock,1000);
+
+function renderSchedule(r,t){
+  if(!r||!t)return;
+  $('#scheduleRouteName').textContent=r.name;
+  const sel=$('#scheduleTimeSelect');
+  sel.replaceChildren(...r.times.map(x=>new Option(x,x)));
+  sel.value=t;
+  $('#scheduleBody').replaceChildren(...getSchedule(r,t).map(stopRow));
+  updateScheduleClock();
+}
+
+$('#scheduleTimeSelect').onchange=()=>{
+  const r=getRoute(routes,routeSelect.value),t=$('#scheduleTimeSelect').value;
+  if(!r||!t)return;
+  timeSelect.value=t;
+  renderSchedule(r,t);
+};
+
+routeSelect.onchange=()=>{
+  const r=getRoute(routes,routeSelect.value);
+  timeSelect.replaceChildren(new Option(r?'Wybierz godzinę':'Najpierw wybierz trasę',''));
+  timeSelect.disabled=!r;
+  r?.times.forEach(t=>timeSelect.add(new Option(t,t)));
+};
+
+$('#showSchedule').onclick=()=>{
+  const r=getRoute(routes,routeSelect.value),t=timeSelect.value;
+  if(!r||!t){message.textContent='Wybierz trasę i godzinę zmiany.';return}
+  renderSchedule(r,t);
+  showView('#scheduleView');
+};
+$('#backFromSchedule').onclick=()=>showView('#selectionView');
+
+const wakeBtn=$('#wakeLockButton'),wakeLabel=$('#wakeLockLabel');
+wakeBtn.onclick=async()=>{
+  wakeWanted=!wakeWanted;
+  if(wakeWanted&&'wakeLock'in navigator){
+    try{wakeLock=await navigator.wakeLock.request('screen')}catch{}
+  }else if(wakeLock){
+    try{await wakeLock.release()}catch{}
+    wakeLock=null;
+  }
+  wakeLabel.textContent=wakeWanted?'EKRAN ON':'EKRAN OFF';
+};
+
+document.addEventListener('visibilitychange',async()=>{
+  if(document.visibilityState==='visible'&&wakeWanted&&'wakeLock'in navigator){
+    try{wakeLock=await navigator.wakeLock.request('screen')}catch{}
+  }
+});
+
+function normalize(data){
+  if(!data||typeof data!=='object')return[];
+  if(!Array.isArray(data)){
+    const sheetRoutes=Object.entries(data).map(([name,rows])=>{
+      if(!Array.isArray(rows)||!Array.isArray(rows[0]))return null;
+      const headers=rows[0].map(v=>String(v??'').trim());
+      const courseCols=[];
+      for(let c=3;c<headers.length;c++){
+        const t=normalizeTime(headers[c]);
+        if(t)courseCols.push([c,t]);
+      }
+      const times=courseCols.map(x=>x[1]);
+      const stops=rows.slice(1).map(row=>{
+        const stopName=String(row?.[0]??'').trim();
+        if(!stopName)return null;
+        const stopTimes={};
+        courseCols.forEach(([c,t])=>{
+          const v=normalizeTime(row?.[c]);
+          if(v)stopTimes[t]=v;
+        });
+        return {name:stopName,coordinates:String(row?.[1]??'').trim(),times:stopTimes};
+      }).filter(Boolean);
+      return {name:String(name).trim(),times,stops};
+    }).filter(r=>r?.name);
+    if(sheetRoutes.length)return sheetRoutes;
+  }
+  const arr=Array.isArray(data)?data:Object.entries(data).map(([name,v])=>({...v,name:v.name??name}));
+  return arr.map(v=>{
+    const name=String(v.name??v.nazwa??'').trim(),raw=v.stops??v.przystanki??[],times=[...new Set((v.times??v.godziny??[]).map(String).filter(Boolean))];
+    const stops=raw.map(s=>{
+      const o={},src=s.times??s.godziny??{};
+      if(Array.isArray(src))times.forEach((t,i)=>o[t]=src[i]??null);
+      else Object.entries(src).forEach(([k,val])=>o[String(k)]=val??null);
+      return {name:String(s.name??s.nazwa??s.przystanek??s[0]??''),coordinates:String(s.coordinates??s.lokalizacja??s.coords??s[1]??''),times:o};
+    }).filter(s=>s.name);
+    return {name,times,stops};
+  }).filter(r=>r?.name);
+}
+
+function valid(r){return r?.name&&r.times?.length&&r.stops?.length}
+
+async function syncRoutes(){
+  if(syncing)return false;
+  syncing=true;
+  try{
+    const res=await fetch(`${API_URL}?t=${Date.now()}`,{cache:'no-store'});
+    if(!res.ok)throw Error(`HTTP ${res.status}`);
+    const p=await res.json(),fresh=normalize(p?.data??p);
+    if(!fresh.length)throw Error('Brak poprawnych tras w odpowiedzi API');
+    routes=fresh;
+    localStorage.setItem(DATA_KEY,JSON.stringify(routes));
+    localStorage.setItem(SYNC_KEY,Date.now());
+    localStorage.removeItem(FAIL_KEY);
+    offline=false;
+    renderRoutes();
+    return true;
+  }catch(e){
+    console.error('Synchronizacja tras:',e);
+    offline=true;
+    if(!localStorage.getItem(FAIL_KEY))localStorage.setItem(FAIL_KEY,Date.now());
+    return false;
+  }finally{
+    syncing=false;
+    updateStatus();
+  }
+}
+
+function loadCached(){
+  try{return JSON.parse(localStorage.getItem(DATA_KEY))}catch{return null}
+}
+
+function renderRoutes(){
+  const old=routeSelect.value;
+  routeSelect.replaceChildren(new Option('Wybierz trasę',''));
+  routes.filter(valid).forEach(r=>routeSelect.add(new Option(r.name,r.name)));
+  if(routes.some(r=>valid(r)&&r.name===old))routeSelect.value=old;
+}
+
+function updateStatus(){
+  connectionStatus.hidden=!offline;
+  connectionStatus.textContent='Offline';
+  const ref=+localStorage.getItem(SYNC_KEY)||+localStorage.getItem(FAIL_KEY)||0;
+  staleWarning.hidden=!offline||!ref||Date.now()-ref<THREE_DAYS;
+}
+
+function stopRow(s){
+  const tr=document.createElement('tr');
+  const name=document.createElement('td');
+  const u=mapUrl(s.coordinates);
+  if(u){
+    const a=document.createElement('a');
+    a.href=u;a.target='_blank';a.rel='noopener';a.className='stopMapLink';
+    a.textContent=s.name;
+    name.append(a);
+  }else name.textContent=s.name;
+  const time=document.createElement('td');time.textContent=s.time??'Koniec trasy';
+  const route=document.createElement('td');route.textContent='';
+  tr.append(name,time,route);
+  return tr;
+}
+
+async function startApp(){
+  const cached=loadCached();
+  if(cached?.length){routes=cached;renderRoutes();message.textContent=''}
+  else{routeSelect.disabled=true;timeSelect.disabled=true;message.textContent='Pobieranie aktualnych danych…'}
+  const ok=await syncRoutes();
+  if(!ok&&!routes.length){routes=FALLBACK_ROUTES;renderRoutes();message.textContent='Nie udało się pobrać świeżych danych. Używam zapisanej kopii.'}
+  else if(ok)message.textContent='';
+  routeSelect.disabled=false;
+}
+startApp();
+setInterval(updateStatus,60000);
+window.addEventListener('online',syncRoutes);
+
+let promptInstall=null;
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();promptInstall=e;$('#installBanner').hidden=false});
+$('#installButton').onclick=async()=>{if(promptInstall){promptInstall.prompt();$('#installBanner').hidden=true}};
+$('#rejectInstall').onclick=()=>$('#installBanner').hidden=true;
+
+if('serviceWorker'in navigator)window.addEventListener('load',async()=>{
+  const reg=await navigator.serviceWorker.register('./sw.js');
+  reg.update();
+  $('#updateAppButton').onclick=()=>reg.waiting?.postMessage({type:'SKIP_WAITING'});
+  navigator.serviceWorker.addEventListener('controllerchange',()=>location.reload());
+});
