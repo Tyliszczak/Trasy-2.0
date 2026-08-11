@@ -1,5 +1,5 @@
-const CACHE_NAME='trasy-2.0-v21';
-const APP_SHELL=['./','./index.html','./style.css','./app.js','./admin-live-refresh.js','./map-picker.js','./wake-style.js','./nav-map.js','./routes.js','./schedule.js','./manifest.json','./Tyliszczak.png'];
+const CACHE_NAME='trasy-2.0-v22';
+const APP_SHELL=['./','./index.html','./style.css','./app.js','./admin-live-refresh.js','./admin-controls.js','./map-picker.js','./wake-style.js','./nav-map.js','./routes.js','./schedule.js','./manifest.json','./Tyliszczak.png'];
 self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(CACHE_NAME).then(c=>c.addAll(APP_SHELL.map(u=>new Request(u,{cache:'reload'})))))});
 self.addEventListener('activate',e=>e.waitUntil((async()=>{const keys=await caches.keys();await Promise.all(keys.filter(k=>k!==CACHE_NAME).map(k=>caches.delete(k)));await self.clients.claim()})()));
 self.addEventListener('message',e=>{if(e.data?.type==='SKIP_WAITING')self.skipWaiting()});
