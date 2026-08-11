@@ -89,4 +89,11 @@
     wrapped.__liveRefreshWrapped=true;
     addButton.onclick=wrapped;
   },100);
+
+  if(!document.querySelector('script[data-admin-controls]')){
+    const s=document.createElement('script');
+    s.src='./admin-controls.js?v=1';
+    s.dataset.adminControls='1';
+    document.body.appendChild(s);
+  }
 })();
