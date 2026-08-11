@@ -4,7 +4,7 @@ import { getRoute,getSchedule,mapUrl } from './schedule.js';
 const API_URL='https://script.google.com/macros/s/AKfycbzdG_ARbbPgMdlPteqFLakZHR5EEkT4Lb3YFDbXW_I_OyrDKo8l0_KrQLjnncxj_M9q/exec';
 const DATA_KEY='trasy2.routes',SYNC_KEY='trasy2.lastSuccessfulSync',FAIL_KEY='trasy2.firstFailedSync',THREE_DAYS=259200000;
 const $=s=>document.querySelector(s);
-const routeSelect=$('#routeSelect'),timeSelect=$('#timeSelect'),message=$('#formMessage'),connectionStatus=$('#connectionStatus'),staleWarning=$('#staleWarning');
+const routeSelect=$('#routeSelect'),message=$('#formMessage'),connectionStatus=$('#connectionStatus'),staleWarning=$('#staleWarning');
 let routes=[],syncing=false,offline=true,wakeLock=null,wakeWanted=false;
 
 function showView(id){
@@ -22,9 +22,9 @@ function nextCourseTime(r){
 function updateScheduleClock(){const el=$('#scheduleClock');if(!el)return;const now=new Date();el.textContent=`🕒 ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`}
 updateScheduleClock();setInterval(updateScheduleClock,1000);
 function renderSchedule(r,t){if(!r||!t)return;$('#scheduleRouteName').textContent=r.name;const sel=$('#scheduleTimeSelect');sel.replaceChildren(...r.times.map(x=>new Option(x,x)));sel.value=t;$('#scheduleBody').replaceChildren(...getSchedule(r,t).map(stopRow));updateScheduleClock()}
-$('#scheduleTimeSelect').onchange=()=>{const r=getRoute(routes,routeSelect.value),t=$('#scheduleTimeSelect').value;if(!r||!t)return;timeSelect.value=t;renderSchedule(r,t)};
-routeSelect.onchange=()=>{const r=getRoute(routes,routeSelect.value);timeSelect.replaceChildren(new Option(r?'Wybierz godzinę':'Najpierw wybierz trasę',''));timeSelect.disabled=!r;r?.times.forEach(t=>timeSelect.add(new Option(t,t)))};
-$('#showSchedule').onclick=()=>{const r=getRoute(routes,routeSelect.value);if(!r){message.textContent='Wybierz trasę.';return}const t=timeSelect.value||nextCourseTime(r);if(!t){message.textContent='Ta trasa nie ma dostępnych godzin.';return}timeSelect.value=t;renderSchedule(r,t);showView('#scheduleView')};
+$('#scheduleTimeSelect').onchange=()=>{const r=getRoute(routes,routeSelect.value),t=$('#scheduleTimeSelect').value;if(!r||!t)return;renderSchedule(r,t)};
+routeSelect.onchange=()=>{message.textContent=''};
+$('#showSchedule').onclick=()=>{const r=getRoute(routes,routeSelect.value);if(!r){message.textContent='Wybierz trasę.';return}const t=nextCourseTime(r);if(!t){message.textContent='Ta trasa nie ma dostępnych godzin.';return}renderSchedule(r,t);showView('#scheduleView')};
 $('#backFromSchedule').onclick=()=>showView('#selectionView');
 const wakeBtn=$('#wakeLockButton'),wakeLabel=$('#wakeLockLabel');wakeBtn.onclick=async()=>{wakeWanted=!wakeWanted;if(wakeWanted&&'wakeLock'in navigator){try{wakeLock=await navigator.wakeLock.request('screen')}catch{}}else if(wakeLock){try{await wakeLock.release()}catch{}wakeLock=null}wakeLabel.textContent=wakeWanted?'EKRAN ON':'EKRAN OFF'};
 document.addEventListener('visibilitychange',async()=>{if(document.visibilityState==='visible'&&wakeWanted&&'wakeLock'in navigator){try{wakeLock=await navigator.wakeLock.request('screen')}catch{}}});
@@ -35,7 +35,7 @@ function loadCached(){try{return JSON.parse(localStorage.getItem(DATA_KEY))}catc
 function renderRoutes(){const old=routeSelect.value;routeSelect.replaceChildren(new Option('Wybierz trasę',''));routes.filter(valid).forEach(r=>routeSelect.add(new Option(r.name,r.name)));if(routes.some(r=>valid(r)&&r.name===old))routeSelect.value=old}
 function updateStatus(){connectionStatus.hidden=!offline;connectionStatus.textContent='Offline';const ref=+localStorage.getItem(SYNC_KEY)||+localStorage.getItem(FAIL_KEY)||0;staleWarning.hidden=!offline||!ref||Date.now()-ref<THREE_DAYS}
 function stopRow(s){const tr=document.createElement('tr');for(const v of [s.name,s.time??'Koniec trasy']){const td=document.createElement('td');td.textContent=v;tr.append(td)}const td=document.createElement('td'),u=mapUrl(s.coordinates);if(u){const a=document.createElement('a');a.href=u;a.target='_blank';a.textContent='MAPA';td.append(a)}tr.append(td);return tr}
-async function startApp(){const cached=loadCached();if(cached?.length){routes=cached;renderRoutes();message.textContent=''}else{routeSelect.disabled=true;timeSelect.disabled=true;message.textContent='Pobieranie aktualnych danych…'}const ok=await syncRoutes();if(!ok&&!routes.length){routes=FALLBACK_ROUTES;renderRoutes();message.textContent='Nie udało się pobrać świeżych danych. Używam zapisanej kopii.'}else if(ok)message.textContent='';routeSelect.disabled=false}
+async function startApp(){const cached=loadCached();if(cached?.length){routes=cached;renderRoutes();message.textContent=''}else{routeSelect.disabled=true;message.textContent='Pobieranie aktualnych danych…'}const ok=await syncRoutes();if(!ok&&!routes.length){routes=FALLBACK_ROUTES;renderRoutes();message.textContent='Nie udało się pobrać świeżych danych. Używam zapisanej kopii.'}else if(ok)message.textContent='';routeSelect.disabled=false}
 startApp();setInterval(updateStatus,60000);window.addEventListener('online',syncRoutes);
 let promptInstall=null;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();promptInstall=e;$('#installBanner').hidden=false});$('#installButton').onclick=async()=>{if(promptInstall){promptInstall.prompt();$('#installBanner').hidden=true}};$('#rejectInstall').onclick=()=>$('#installBanner').hidden=true;
 if('serviceWorker'in navigator)window.addEventListener('load',async()=>{const reg=await navigator.serviceWorker.register('./sw.js');reg.update();$('#updateAppButton').onclick=()=>reg.waiting?.postMessage({type:'SKIP_WAITING'});navigator.serviceWorker.addEventListener('controllerchange',()=>location.reload())});
