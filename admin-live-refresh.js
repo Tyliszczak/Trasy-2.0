@@ -3,13 +3,31 @@
   const addButton=document.getElementById('addRoute');
   const list=document.getElementById('adminRouteList');
   const loginButton=document.getElementById('adminLoginButton');
-  if(!addButton||!list||!loginButton)return;
+  const routeSelect=document.getElementById('routeSelect');
+  if(!addButton||!list||!loginButton||!routeSelect)return;
 
-  function hasRoute(name){
+  function cachedRoutes(){
     try{
       const data=JSON.parse(localStorage.getItem(DATA_KEY)||'[]');
-      return Array.isArray(data)&&data.some(r=>String(r?.name||'').trim()===name);
-    }catch{return false}
+      return Array.isArray(data)?data:[];
+    }catch{return []}
+  }
+
+  function hasRoute(name){
+    return cachedRoutes().some(r=>String(r?.name||'').trim()===name);
+  }
+
+  function refreshDriverRouteList(){
+    const data=cachedRoutes();
+    const current=routeSelect.value;
+    const existing=new Set([...routeSelect.options].map(o=>o.value));
+    for(const route of data){
+      const name=String(route?.name||'').trim();
+      if(!name||existing.has(name))continue;
+      routeSelect.add(new Option(name,name));
+      existing.add(name);
+    }
+    if(current&&existing.has(current))routeSelect.value=current;
   }
 
   function addPlaceholder(name){
@@ -26,16 +44,25 @@
     const started=Date.now();
     const timer=setInterval(()=>{
       window.dispatchEvent(new Event('focus'));
+      refreshDriverRouteList();
       if(hasRoute(name)){
         clearInterval(timer);
         const pending=list.querySelector(`[data-pending-route="${CSS.escape(name)}"]`);
         pending?.remove();
         loginButton.click();
+        refreshDriverRouteList();
       }else if(Date.now()-started>15000){
         clearInterval(timer);
       }
     },800);
   }
+
+  const routeObserver=new MutationObserver(()=>setTimeout(refreshDriverRouteList,0));
+  routeObserver.observe(routeSelect,{childList:true});
+  window.addEventListener('focus',()=>setTimeout(refreshDriverRouteList,250));
+  window.addEventListener('storage',e=>{if(e.key===DATA_KEY)refreshDriverRouteList()});
+  setInterval(refreshDriverRouteList,1500);
+  refreshDriverRouteList();
 
   const hook=setInterval(()=>{
     const original=addButton.onclick;
