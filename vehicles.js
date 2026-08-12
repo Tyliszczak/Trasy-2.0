@@ -1,7 +1,7 @@
 (()=>{
   const API_URL='https://script.google.com/macros/s/AKfycbzdG_ARbbPgMdlPteqFLakZHR5EEkT4Lb3YFDbXW_I_OyrDKo8l0_KrQLjnncxj_M9q/exec';
-  const CACHE_KEY='trasy2.vehicles';
-  const SELECTED_KEY='trasy2.selectedVehicle';
+  const CACHE_KEY='trasy2.vehicles.v2';
+  const SELECTED_KEY='trasy2.selectedVehicle.v2';
   let vehicles=[];
   let bypassNextClick=false;
 
@@ -15,19 +15,30 @@
     if(!Array.isArray(rows)||rows.length<2)return[];
     return rows.slice(1).map((row,index)=>{
       const name=String(row?.[0]??'').trim();
-      if(!name)return null;
+      const registration=String(row?.[1]??'').trim();
+      if(!name&&!registration)return null;
       return {
         id:String(index+2),
         name,
-        type:String(row?.[1]??'').trim(),
-        height:num(row?.[2]),
-        width:num(row?.[3]),
-        length:num(row?.[4]),
-        weight:num(row?.[5]),
-        axleLoad:num(row?.[6]),
-        notes:String(row?.[7]??'').trim()
+        registration,
+        type:String(row?.[2]??'').trim(),
+        height:num(row?.[3]),
+        width:num(row?.[4]),
+        length:num(row?.[5]),
+        weight:num(row?.[6]),
+        axleLoad:num(row?.[7]),
+        notes:String(row?.[8]??'').trim()
       };
     }).filter(Boolean);
+  }
+
+  function vehicleKey(v){
+    return `${v.name}|${v.registration}`;
+  }
+
+  function vehicleLabel(v){
+    if(v.name&&v.registration)return `${v.name} — ${v.registration}`;
+    return v.name||v.registration||'Pojazd';
   }
 
   function saveCache(){
@@ -43,8 +54,7 @@
       const res=await fetch(`${API_URL}?t=${Date.now()}`,{cache:'no-store'});
       if(!res.ok)throw Error(`HTTP ${res.status}`);
       const payload=await res.json();
-      const fresh=parseVehicles(payload?.data??payload);
-      vehicles=fresh;
+      vehicles=parseVehicles(payload?.data??payload);
       saveCache();
       window.__trasyVehicles=vehicles;
       document.dispatchEvent(new CustomEvent('trasy:vehicles-updated',{detail:vehicles}));
@@ -55,17 +65,6 @@
       window.__trasyVehicles=vehicles;
       return false;
     }
-  }
-
-  function spec(v){
-    const parts=[];
-    if(v.type)parts.push(v.type);
-    if(v.height!=null)parts.push(`wys. ${v.height} m`);
-    if(v.width!=null)parts.push(`szer. ${v.width} m`);
-    if(v.length!=null)parts.push(`dł. ${v.length} m`);
-    if(v.weight!=null)parts.push(`DMC ${v.weight} t`);
-    if(v.axleLoad!=null)parts.push(`oś ${v.axleLoad} t`);
-    return parts.join(' • ');
   }
 
   function ensureDialog(){
@@ -101,20 +100,31 @@
         vehicles.forEach(v=>{
           const btn=document.createElement('button');
           btn.type='button';
-          btn.style.cssText=`text-align:left;padding:13px;border-radius:11px;border:2px solid ${v.name===previous?'#ccff33':'#444'};background:#242424;color:#fff`;
-          btn.innerHTML=`<strong style="display:block;font-size:17px">${escapeHtml(v.name)}</strong><span style="display:block;margin-top:3px;font-size:13px;color:#ccc">${escapeHtml(spec(v)||'Brak wpisanych gabarytów')}</span>`;
-          btn.onclick=()=>{localStorage.setItem(SELECTED_KEY,v.name);window.__selectedVehicle=v;dlg.close('selected');resolve(v)};
+          const key=vehicleKey(v);
+          btn.style.cssText=`text-align:left;padding:13px;border-radius:11px;border:2px solid ${key===previous?'#ccff33':'#444'};background:#242424;color:#fff`;
+          btn.innerHTML=`<strong style="display:block;font-size:17px">${escapeHtml(vehicleLabel(v))}</strong>`;
+          btn.onclick=()=>{
+            localStorage.setItem(SELECTED_KEY,key);
+            window.__selectedVehicle=v;
+            dlg.close('selected');
+            resolve(v);
+          };
           box.append(btn);
         });
       }
 
-      const onClose=()=>{dlg.removeEventListener('close',onClose);if(dlg.returnValue!=='selected')resolve(null)};
+      const onClose=()=>{
+        dlg.removeEventListener('close',onClose);
+        if(dlg.returnValue!=='selected')resolve(null);
+      };
       dlg.addEventListener('close',onClose);
       dlg.showModal();
     });
   }
 
-  function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
 
   document.addEventListener('click',async e=>{
     const link=e.target.closest?.('.routeLink');
@@ -130,8 +140,8 @@
 
   vehicles=loadCache();
   window.__trasyVehicles=vehicles;
-  const lastName=localStorage.getItem(SELECTED_KEY)||'';
-  window.__selectedVehicle=vehicles.find(v=>v.name===lastName)||null;
+  const lastKey=localStorage.getItem(SELECTED_KEY)||'';
+  window.__selectedVehicle=vehicles.find(v=>vehicleKey(v)===lastKey)||null;
   syncVehicles();
   window.addEventListener('online',syncVehicles);
 })();
