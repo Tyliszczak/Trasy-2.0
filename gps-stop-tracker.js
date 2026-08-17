@@ -170,14 +170,6 @@
   }
 
 
-  /*
-   * Przed godziną pierwszego przystanku
-   * pierwszy przystanek jest chroniony.
-   *
-   * Dzięki temu przejazd np. obok
-   * Strumykowej przed startem TopPoint
-   * nie przesunie kursu w środek trasy.
-   */
   function firstStopProtected(){
     const rs=rows();
 
@@ -206,14 +198,6 @@
   }
 
 
-  /*
-   * Gdy aplikacja zostanie uruchomiona
-   * już w trakcie kursu:
-   *
-   * pozycja + kierunek + czas
-   * wspólnie wybierają najbardziej
-   * prawdopodobny następny przystanek.
-   */
   function initialIndex(here){
     const rs=rows();
 
@@ -257,10 +241,6 @@
             plan.getTime()
           )/60000;
 
-        /*
-         * Czas pomaga, ale nie jest
-         * ważniejszy od rzeczywistego GPS.
-         */
         score+=
           Math.min(
             diffMinutes,
@@ -290,18 +270,11 @@
       currentIndex=null;
     }
 
-    /*
-     * Przed planowym startem:
-     * ZAWSZE pierwszy przystanek.
-     */
     if(firstStopProtected()){
       currentIndex=0;
       return 0;
     }
 
-    /*
-     * Pierwsze uruchomienie w środku trasy.
-     */
     if(currentIndex===null){
       currentIndex=initialIndex(here);
 
@@ -374,13 +347,6 @@
       }
     }
 
-    /*
-     * Nigdy nie przesuwamy do tyłu.
-     *
-     * Następny punkt uznajemy dopiero,
-     * gdy są mocne dowody, że obecny
-     * został faktycznie obsłużony.
-     */
     if(next){
 
       const headingToNext=
@@ -405,11 +371,6 @@
         dn+80<dc &&
         movingToNext;
 
-      /*
-       * Jeśli byliśmy przy przystanku
-       * ZA WCZEŚNIE, nie przechodzimy
-       * dalej przed jego godziną.
-       */
       const plan=rowTime(currentRow);
 
       const stillTooEarly=
@@ -443,6 +404,15 @@
       !rs[idx]
     )return;
 
+    const previousIndex=
+      Number(
+        body.dataset.gpsNextStop
+      );
+
+    const reallyChanged=
+      !Number.isInteger(previousIndex) ||
+      previousIndex!==idx;
+
     applying=true;
 
     try{
@@ -462,26 +432,29 @@
           );
         });
 
-      const target=rs[idx];
+      const target=
+        rs[idx];
 
       body.dataset.gpsNextStop=
         String(idx);
 
-      body.dispatchEvent(
-        new CustomEvent(
-          'gps-next-stop-change',
-          {
-            bubbles:true,
-            detail:{
-              index:idx,
-              name:
-                target.children[0]
-                  ?.innerText
-                  .trim()||''
+      if(reallyChanged){
+        body.dispatchEvent(
+          new CustomEvent(
+            'gps-next-stop-change',
+            {
+              bubbles:true,
+              detail:{
+                index:idx,
+                name:
+                  target.children[0]
+                    ?.innerText
+                    .trim()||''
+              }
             }
-          }
-        )
-      );
+          )
+        );
+      }
 
     }finally{
       applying=false;
@@ -526,9 +499,6 @@
   }
 
 
-  /*
-   * NIE ODJEDŻAJ ZA WCZEŚNIE
-   */
   function updateStopGuard(){
     const rs=rows();
 
@@ -578,9 +548,6 @@
     let state='';
     let message='';
 
-    /*
-     * Stoimy przy przystanku za wcześnie.
-     */
     if(
       seconds>0 &&
       d<=70
@@ -591,10 +558,6 @@
         `NIE ODJEDŻAJ • ${formatCountdown(seconds)} • plan ${String(row.children[1]?.firstChild?.textContent||row.children[1]?.textContent||'').trim()}`;
     }
 
-    /*
-     * Byliśmy przy nim przed czasem
-     * i zaczęliśmy odjeżdżać.
-     */
     if(
       seconds>0 &&
       reachedBeforeTime &&
@@ -606,9 +569,6 @@
         `ZA WCZEŚNIE — ZATRZYMAJ SIĘ • ${formatCountdown(seconds)}`;
     }
 
-    /*
-     * Wybiła planowa godzina.
-     */
     if(
       seconds<=0 &&
       reachedCurrent &&
