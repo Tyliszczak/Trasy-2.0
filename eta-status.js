@@ -1,16 +1,460 @@
 (()=>{
-  const body=document.getElementById('scheduleBody'),view=document.getElementById('scheduleView');
+  const body=document.getElementById('scheduleBody');
+  const view=document.getElementById('scheduleView');
+
   if(!body||!view||!navigator.geolocation)return;
-  const TOLERANCE_SECONDS=30,ROUTE_REFRESH_MS=12000,MAX_GPS_ACCURACY=120;
-  let pos=null,watch=null,lastRouteAt=0,lastTarget=null,etaSeconds=null,requesting=false;
-  const style=document.createElement('style');style.textContent=`#scheduleBody .punctualityLamp{display:none!important}#scheduleBody .etaPunctuality{display:inline-flex;align-items:center;justify-content:center;margin-left:8px;padding:4px 7px;border-radius:999px;font-size:.67rem;font-weight:1000;letter-spacing:.04em;white-space:nowrap;color:#111}#scheduleBody .etaPunctuality.onTime{background:#55ef61;box-shadow:0 0 7px #55ef61,0 0 15px #55ef61}#scheduleBody .etaPunctuality.early{background:#ffd83d;box-shadow:0 0 7px #ffd83d,0 0 15px #ffd83d}#scheduleBody .etaPunctuality.late{background:#ff4d4d;color:#fff;box-shadow:0 0 7px #ff4d4d,0 0 15px #ff4d4d}`;document.head.append(style);
-  function coord(v){const m=String(v||'').match(/(-?\d+(?:\.\d+)?)\s*[,; ]\s*(-?\d+(?:\.\d+)?)/);return m?[+m[1],+m[2]]:null}
-  function schedSeconds(row){const m=String(row?.children[1]?.firstChild?.textContent||row?.children[1]?.textContent||'').trim().match(/^(\d{1,2}):(\d{2})/);if(!m)return null;const n=new Date(),d=new Date(n);d.setHours(+m[1],+m[2],0,0);return (d-n)/1000}
-  function meters(a,b){const R=6371000,p=Math.PI/180,dLat=(b[0]-a[0])*p,dLng=(b[1]-a[1])*p,x=Math.sin(dLat/2)**2+Math.cos(a[0]*p)*Math.cos(b[0]*p)*Math.sin(dLng/2)**2;return 2*R*Math.asin(Math.sqrt(x))}
-  function targetRow(){if(!pos)return null;const rows=[...body.querySelectorAll('tr')],here=[pos.lat,pos.lng];let best=null,bestScore=Infinity;for(const r of rows){const c=coord(r.dataset.coordinate),s=schedSeconds(r);if(!c||s===null||s < -1800 || s > 3600)continue;const d=meters(here,c);const score=d+Math.abs(s)*2;if(score<bestScore){bestScore=score;best={row:r,c,d,s}}}return best}
-  async function refreshEta(target){if(requesting||!target||!pos)return;if(Date.now()-lastRouteAt<ROUTE_REFRESH_MS&&lastTarget===target.row)return;requesting=true;lastRouteAt=Date.now();lastTarget=target.row;try{const u=`https://router.project-osrm.org/route/v1/driving/${pos.lng},${pos.lat};${target.c[1]},${target.c[0]}?overview=false&steps=false`;const r=await fetch(u,{cache:'no-store'});const j=await r.json();etaSeconds=j?.routes?.[0]?.duration??null}catch{etaSeconds=null}finally{requesting=false}}
-  function fullMinutesLabel(diff){const full=Math.floor(Math.abs(diff)/60);return diff<0?`+${full} min`:`−${full} min`}
-  function render(){if(view.hidden)return;document.querySelectorAll('#scheduleBody .etaPunctuality').forEach(x=>x.remove());const t=targetRow();if(!t||etaSeconds===null)return;refreshEta(t);const scheduleLeft=schedSeconds(t.row);if(scheduleLeft===null)return;const diff=etaSeconds-scheduleLeft;const lamp=document.createElement('span');lamp.className='etaPunctuality';if(diff>TOLERANCE_SECONDS){lamp.classList.add('late');lamp.textContent=`${fullMinutesLabel(diff)} • SPÓŹNIENIE`}else if(diff<-TOLERANCE_SECONDS){lamp.classList.add('early');lamp.textContent=`${fullMinutesLabel(diff)} • ZA WCZEŚNIE`}else{lamp.classList.add('onTime');lamp.textContent='0 min • O CZASIE'}t.row.children[1]?.append(lamp)}
-  function start(){if(watch!==null)return;watch=navigator.geolocation.watchPosition(p=>{pos={lat:p.coords.latitude,lng:p.coords.longitude,accuracy:p.coords.accuracy||999};if(pos.accuracy<=MAX_GPS_ACCURACY){const t=targetRow();refreshEta(t).then(render)}},{},{enableHighAccuracy:true,maximumAge:1000,timeout:15000})}
-  start();setInterval(()=>{if(!view.hidden&&pos?.accuracy<=MAX_GPS_ACCURACY){const t=targetRow();refreshEta(t);render()}},1000);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')start()});
+
+  const TOLERANCE_SECONDS=30;
+  const ROUTE_REFRESH_MS=180000;
+  const MAX_GPS_ACCURACY=120;
+
+  let pos=null;
+  let watch=null;
+
+  let lastRouteAt=0;
+  let lastTarget=null;
+
+  let etaAt=0;
+  let etaSeconds=null;
+
+  let requesting=false;
+
+
+  const style=document.createElement('style');
+
+  style.textContent=`
+    #scheduleBody .punctualityLamp{
+      display:none!important
+    }
+
+    #scheduleBody .etaPunctuality{
+      display:block;
+      margin-top:4px;
+      font-size:12px;
+      line-height:1.15;
+      font-weight:1000;
+      white-space:nowrap
+    }
+
+    #scheduleBody .etaPunctuality.onTime{
+      color:#34c759
+    }
+
+    #scheduleBody .etaPunctuality.early{
+      color:#d6a900
+    }
+
+    #scheduleBody .etaPunctuality.late{
+      color:#ff3b30
+    }
+
+    #scheduleBody .etaPunctuality.neutral{
+      color:#aaa
+    }
+  `;
+
+  document.head.append(style);
+
+
+  function coord(v){
+    const m=String(v||'').match(
+      /(-?\d+(?:\.\d+)?)\s*[,; ]\s*(-?\d+(?:\.\d+)?)/
+    );
+
+    return m?[+m[1],+m[2]]:null;
+  }
+
+
+  function activeRow(){
+    return(
+      body.querySelector(
+        'tr.gpsNextStop'
+      )
+      ||
+      null
+    );
+  }
+
+
+  function planSeconds(row){
+    const text=String(
+      row?.children[1]?.firstChild?.textContent||
+      row?.children[1]?.textContent||
+      ''
+    ).trim();
+
+    const m=text.match(
+      /^(\d{1,2}):(\d{2})/
+    );
+
+    if(!m)return null;
+
+    const n=new Date();
+    const d=new Date(n);
+
+    d.setHours(
+      +m[1],
+      +m[2],
+      0,
+      0
+    );
+
+    return(
+      d.getTime()-
+      n.getTime()
+    )/1000;
+  }
+
+
+  function liveEtaSeconds(){
+    if(
+      etaSeconds===null ||
+      !etaAt
+    )return null;
+
+    return Math.max(
+      0,
+      etaSeconds-
+      (
+        Date.now()-
+        etaAt
+      )/1000
+    );
+  }
+
+
+  function formatDelta(diff){
+    if(
+      Math.abs(diff)<=
+      TOLERANCE_SECONDS
+    ){
+      return '0 min';
+    }
+
+    const full=
+      Math.floor(
+        Math.abs(diff)/60
+      );
+
+    /*
+     * + = zapas / wcześniej
+     * - = strata / później
+     */
+    return diff<0
+      ?`+${full} min`
+      :`−${full} min`;
+  }
+
+
+  function formatArrivalMinutes(seconds){
+    return Math.max(
+      0,
+      Math.ceil(seconds/60)
+    );
+  }
+
+
+  async function refreshEta(force=false){
+    const row=activeRow();
+
+    if(
+      requesting ||
+      !row ||
+      !pos
+    )return;
+
+    const c=
+      coord(
+        row.dataset.coordinate
+      );
+
+    if(!c)return;
+
+    const changed=
+      lastTarget!==row;
+
+    if(
+      !force &&
+      !changed &&
+      Date.now()-lastRouteAt<
+      ROUTE_REFRESH_MS
+    ){
+      return;
+    }
+
+    /*
+     * Jeżeli otwarta jest pełna nawigacja,
+     * nie wysyłamy drugiego równoległego
+     * zapytania. nav-map.js poda nam ETA.
+     */
+    const nav=
+      document.getElementById(
+        'routeMapNav'
+      );
+
+    if(
+      nav &&
+      !nav.hidden
+    ){
+      return;
+    }
+
+    requesting=true;
+
+    lastRouteAt=Date.now();
+    lastTarget=row;
+
+    try{
+      const u=
+        `https://router.project-osrm.org/route/v1/driving/${pos.lng},${pos.lat};${c[1]},${c[0]}?overview=false&steps=false`;
+
+      const r=
+        await fetch(
+          u,
+          {cache:'no-store'}
+        );
+
+      const j=
+        await r.json();
+
+      const value=
+        j?.routes?.[0]?.duration;
+
+      if(
+        Number.isFinite(value)
+      ){
+        etaSeconds=value;
+        etaAt=Date.now();
+      }
+
+    }catch(e){
+      console.warn(
+        'Nie udało się odświeżyć ETA:',
+        e
+      );
+
+    }finally{
+      requesting=false;
+    }
+  }
+
+
+  function render(){
+    if(view.hidden)return;
+
+    document
+      .querySelectorAll(
+        '#scheduleBody .etaPunctuality'
+      )
+      .forEach(x=>x.remove());
+
+    const row=activeRow();
+
+    if(!row)return;
+
+    const eta=
+      liveEtaSeconds();
+
+    if(eta===null)return;
+
+    const plan=
+      planSeconds(row);
+
+    const info=
+      document.createElement('div');
+
+    info.className=
+      'etaPunctuality';
+
+    const etaMin=
+      formatArrivalMinutes(
+        eta
+      );
+
+    /*
+     * POWRÓT:
+     * pośrednie przystanki nie mają
+     * godzin, więc pokazujemy samo ETA.
+     */
+    if(plan===null){
+      info.classList.add(
+        'neutral'
+      );
+
+      info.textContent=
+        `dojazd za ${etaMin} min`;
+
+      row
+        .querySelector('td:first-child')
+        ?.appendChild(info);
+
+      return;
+    }
+
+    const diff=
+      eta-plan;
+
+    let kind=
+      'onTime';
+
+    if(
+      diff>
+      TOLERANCE_SECONDS
+    ){
+      kind='late';
+
+    }else if(
+      diff<
+      -TOLERANCE_SECONDS
+    ){
+      kind='early';
+    }
+
+    const color=
+      kind==='late'
+        ?'#ff3b30'
+        :kind==='early'
+          ?'#ffd60a'
+          :'#34c759';
+
+    row.style.setProperty(
+      '--gps-status-color',
+      color
+    );
+
+    info.classList.add(kind);
+
+    info.textContent=
+      `dojazd za ${etaMin} min • ${formatDelta(diff)}`;
+
+    row
+      .querySelector('td:first-child')
+      ?.appendChild(info);
+
+    body.dataset.etaKind=kind;
+    body.dataset.etaDiffSeconds=
+      String(diff);
+    body.dataset.etaSeconds=
+      String(eta);
+
+    body.dispatchEvent(
+      new CustomEvent(
+        'eta-status-change',
+        {
+          bubbles:true,
+          detail:{
+            kind,
+            diffSeconds:diff,
+            etaSeconds:eta
+          }
+        }
+      )
+    );
+  }
+
+
+  /*
+   * ETA z pełnej nawigacji.
+   * Dzięki temu nie płacimy za
+   * drugie równoległe zapytanie.
+   */
+  body.addEventListener(
+    'nav-eta-update',
+    e=>{
+      const seconds=
+        Number(
+          e.detail?.etaSeconds
+        );
+
+      if(
+        Number.isFinite(seconds)
+      ){
+        etaSeconds=seconds;
+        etaAt=Date.now();
+
+        render();
+      }
+    }
+  );
+
+
+  body.addEventListener(
+    'gps-next-stop-change',
+    ()=>{
+      lastTarget=null;
+      etaSeconds=null;
+      etaAt=0;
+
+      refreshEta(true)
+        .then(render);
+    }
+  );
+
+
+  function start(){
+    if(watch!==null)return;
+
+    watch=
+      navigator.geolocation
+        .watchPosition(
+          p=>{
+            pos={
+              lat:p.coords.latitude,
+              lng:p.coords.longitude,
+              accuracy:
+                p.coords.accuracy||999
+            };
+
+            if(
+              pos.accuracy<=
+              MAX_GPS_ACCURACY
+            ){
+              refreshEta()
+                .then(render);
+            }
+          },
+          ()=>{},
+          {
+            enableHighAccuracy:true,
+            maximumAge:1000,
+            timeout:15000
+          }
+        );
+  }
+
+
+  start();
+
+
+  /*
+   * Co sekundę zmniejszamy ETA lokalnie.
+   * Google nie jest odpytywany co sekundę.
+   */
+  setInterval(
+    ()=>{
+      if(
+        !view.hidden &&
+        pos?.accuracy<=
+        MAX_GPS_ACCURACY
+      ){
+        refreshEta();
+        render();
+      }
+    },
+    1000
+  );
+
+
+  document.addEventListener(
+    'visibilitychange',
+    ()=>{
+      if(
+        document.visibilityState===
+        'visible'
+      ){
+        start();
+      }
+    }
+  );
+
 })();
