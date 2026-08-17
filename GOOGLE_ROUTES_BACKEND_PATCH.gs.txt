@@ -1,0 +1,91 @@
+/*
+ * TRASY 2.0 — Google Routes API (TRAFFIC_AWARE)
+ *
+ * 1. W Script Properties ustaw GOOGLE_MAPS_API_KEY.
+ * 2. W Google Cloud dla tego klucza włącz Routes API.
+ * 3. W doPost(e), ZANIM rozpocznie się autoryzacja administratora,
+ *    dodaj:
+ *
+ *    if (action === 'computeGoogleRoute') {
+ *      return computeGoogleRoute_(postData);
+ *    }
+ *
+ * Następnie wklej poniższe funkcje do projektu Apps Script i utwórz nowe wdrożenie.
+ */
+
+function computeGoogleRoute_(p) {
+  var props = PropertiesService.getScriptProperties();
+  var apiKey = props.getProperty('GOOGLE_MAPS_API_KEY') || '';
+  if (!apiKey) {
+    return createJsonResponse({status:'error', message:'Brak GOOGLE_MAPS_API_KEY.'});
+  }
+
+  var coords = Array.isArray(p.coordinates) ? p.coordinates : [];
+  if (coords.length < 2 || coords.length > 12) {
+    return createJsonResponse({status:'error', message:'Nieprawidłowa liczba punktów trasy.'});
+  }
+
+  function waypoint_(c) {
+    var lat = Number(c.latitude), lng = Number(c.longitude);
+    if (!isFinite(lat) || !isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      throw new Error('Nieprawidłowe współrzędne.');
+    }
+    return {location:{latLng:{latitude:lat,longitude:lng}}};
+  }
+
+  try {
+    var body = {
+      origin: waypoint_(coords[0]),
+      destination: waypoint_(coords[coords.length - 1]),
+      intermediates: coords.slice(1, -1).map(waypoint_),
+      travelMode: 'DRIVE',
+      routingPreference: 'TRAFFIC_AWARE',
+      polylineQuality: 'HIGH_QUALITY',
+      languageCode: 'pl-PL',
+      units: 'METRIC'
+    };
+
+    var fieldMask = [
+      'routes.distanceMeters',
+      'routes.duration',
+      'routes.polyline.encodedPolyline',
+      'routes.legs.distanceMeters',
+      'routes.legs.duration',
+      'routes.legs.polyline.encodedPolyline',
+      'routes.legs.steps.distanceMeters',
+      'routes.legs.steps.staticDuration',
+      'routes.legs.steps.polyline.encodedPolyline',
+      'routes.legs.steps.startLocation',
+      'routes.legs.steps.endLocation',
+      'routes.legs.steps.navigationInstruction'
+    ].join(',');
+
+    var resp = UrlFetchApp.fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify(body),
+      headers: {
+        'X-Goog-Api-Key': apiKey,
+        'X-Goog-FieldMask': fieldMask
+      },
+      muteHttpExceptions: true
+    });
+
+    var code = resp.getResponseCode();
+    var text = resp.getContentText();
+    var data;
+    try { data = JSON.parse(text || '{}'); } catch (_) { data = {}; }
+
+    if (code < 200 || code >= 300 || !data.routes || !data.routes.length) {
+      return createJsonResponse({
+        status:'error',
+        message:(data.error && data.error.message) || ('Google Routes HTTP ' + code)
+      });
+    }
+
+    return createJsonResponse({status:'success', provider:'google-routes-traffic', google:data});
+
+  } catch (err) {
+    return createJsonResponse({status:'error', message:String(err)});
+  }
+}
