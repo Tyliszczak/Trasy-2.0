@@ -23,9 +23,10 @@
   function resolveOutboundCourse(){
     const now=new Date(),current=now.getHours()*60+now.getMinutes();
     const times=[...forwardTimeSelect.options].map(o=>o.value).filter(Boolean).map(t=>({t,m:minutesOf(t)})).filter(x=>x.m!==null).sort((a,b)=>a.m-b.m);
+    if(!times.length)return forwardCourseTime||forwardTimeSelect.value||'';
     const elapsed=times.filter(x=>x.m<=current);
     if(elapsed.length)return elapsed[elapsed.length-1].t;
-    return forwardCourseTime||forwardTimeSelect.value||times[0]?.t||'';
+    return times[0].t;
   }
   function jsonpGet(){return new Promise((resolve,reject)=>{const cb=`__trasyReturn_${Date.now()}_${Math.random().toString(36).slice(2)}`,script=document.createElement('script');let done=false;const clean=()=>{delete window[cb];script.remove()};const timer=setTimeout(()=>{if(done)return;done=true;clean();reject(Error('timeout'))},12000);window[cb]=d=>{if(done)return;done=true;clearTimeout(timer);clean();resolve(d)};script.onerror=()=>{if(done)return;done=true;clearTimeout(timer);clean();reject(Error('jsonp'))};script.src=`${API_URL}?callback=${encodeURIComponent(cb)}&t=${Date.now()}`;document.head.append(script)})}
   async function loadRaw(){if(rawData)return rawData;if(loading)return loading;loading=(async()=>{try{const r=await fetch(`${API_URL}?t=${Date.now()}`,{cache:'no-store',redirect:'follow'});if(!r.ok)throw Error();rawData=await r.json()}catch{rawData=await jsonpGet()}return rawData?.data??rawData})().finally(()=>loading=null);return loading}
