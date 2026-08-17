@@ -108,14 +108,31 @@ window.__routeMode='google';
 }
 
   window.fetch=async function(input,init){
-    const url=typeof input==='string'?input:input?.url||'';
-    if(url.includes('router.project-osrm.org/route/v1/driving/')){
-      const coords=parseOsrmCoordinates(url);
-      if(coords?.length>=2){
-        try{return await googleRoute(coords)}
-        catch(err){console.warn('Google Routes niedostępne, używam OSRM:',err);window.__routeProvider='osrm-fallback'}
+  const url=typeof input==='string'?input:input?.url||'';
+
+  if(url.includes('router.project-osrm.org/route/v1/driving/')){
+
+    const coords=parseOsrmCoordinates(url);
+
+    if(
+      window.__routeMode!=='osrm' &&
+      coords?.length>=2
+    ){
+      try{
+        return await googleRoute(coords);
+      }catch(err){
+        console.warn(
+          'Google Routes niedostępne, używam OSRM:',
+          err
+        );
+
+        window.__routeProvider='osrm-fallback';
       }
     }
-    return nativeFetch(input,init);
-  };
+
+    window.__routeProvider='osrm';
+  }
+
+  return nativeFetch(input,init);
+};
 })();
