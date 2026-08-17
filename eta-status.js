@@ -14,11 +14,10 @@
   let lastRouteAt=0;
   let lastTarget=null;
 
-  let etaAt=0;
   let etaSeconds=null;
+  let etaMeasuredAt=0;
 
   let requesting=false;
-
 
   const style=document.createElement('style');
 
@@ -55,7 +54,6 @@
 
   document.head.append(style);
 
-
   function coord(v){
     const m=String(v||'').match(
       /(-?\d+(?:\.\d+)?)\s*[,; ]\s*(-?\d+(?:\.\d+)?)/
@@ -64,17 +62,9 @@
     return m?[+m[1],+m[2]]:null;
   }
 
-
   function activeRow(){
-    return(
-      body.querySelector(
-        'tr.gpsNextStop'
-      )
-      ||
-      null
-    );
+    return body.querySelector('tr.gpsNextStop');
   }
-
 
   function planSeconds(row){
     const text=String(
@@ -83,230 +73,165 @@
       ''
     ).trim();
 
-    const m=text.match(
-      /^(\d{1,2}):(\d{2})/
-    );
-
+    const m=text.match(/^(\d{1,2}):(\d{2})/);
     if(!m)return null;
 
-    const n=new Date();
-    const d=new Date(n);
+    const now=new Date();
+    const plan=new Date(now);
 
-    d.setHours(
-      +m[1],
-      +m[2],
-      0,
-      0
-    );
+    plan.setHours(+m[1],+m[2],0,0);
 
     return(
-      d.getTime()-
-      n.getTime()
+      plan.getTime()-
+      now.getTime()
     )/1000;
   }
 
-
-  function liveEtaSeconds(){
+  function liveEta(){
     if(
-      etaSeconds===null ||
-      !etaAt
+      etaSeconds===null||
+      !etaMeasuredAt
     )return null;
+
+    const elapsed=
+      (Date.now()-etaMeasuredAt)/1000;
 
     return Math.max(
       0,
-      etaSeconds-
-      (
-        Date.now()-
-        etaAt
-      )/1000
+      etaSeconds-elapsed
     );
   }
 
-
-  function formatDelta(diff){
-    if(
-      Math.abs(diff)<=
-      TOLERANCE_SECONDS
-    ){
+  function fullMinutesLabel(diff){
+    if(Math.abs(diff)<=TOLERANCE_SECONDS){
       return '0 min';
     }
 
-    const full=
-      Math.floor(
-        Math.abs(diff)/60
-      );
+    const full=Math.max(
+      1,
+      Math.floor(Math.abs(diff)/60)
+    );
 
     /*
      * + = zapas / wcześniej
-     * - = strata / później
+     * − = strata / później
      */
     return diff<0
       ?`+${full} min`
       :`−${full} min`;
   }
 
-
-  function formatArrivalMinutes(seconds){
-    return Math.max(
-      0,
-      Math.ceil(seconds/60)
-    );
-  }
-
-
   async function refreshEta(force=false){
     const row=activeRow();
 
     if(
-      requesting ||
-      !row ||
+      requesting||
+      !row||
       !pos
     )return;
 
-    const c=
-      coord(
-        row.dataset.coordinate
-      );
-
+    const c=coord(row.dataset.coordinate);
     if(!c)return;
 
-    const changed=
-      lastTarget!==row;
+    const changed=lastTarget!==row;
 
     if(
-      !force &&
-      !changed &&
-      Date.now()-lastRouteAt<
-      ROUTE_REFRESH_MS
+      !force&&
+      !changed&&
+      Date.now()-lastRouteAt<ROUTE_REFRESH_MS
     ){
       return;
     }
 
     /*
-     * Jeżeli otwarta jest pełna nawigacja,
-     * nie wysyłamy drugiego równoległego
-     * zapytania. nav-map.js poda nam ETA.
+     * Jeśli pełna nawigacja jest otwarta,
+     * ETA dostajemy z nav-map.js.
      */
-    const nav=
-      document.getElementById(
-        'routeMapNav'
-      );
+    const nav=document.getElementById('routeMapNav');
 
-    if(
-      nav &&
-      !nav.hidden
-    ){
+    if(nav&&!nav.hidden){
       return;
     }
 
     requesting=true;
-
     lastRouteAt=Date.now();
     lastTarget=row;
 
     try{
-      const u=
-        `https://router.project-osrm.org/route/v1/driving/${pos.lng},${pos.lat};${c[1]},${c[0]}?overview=false&steps=false`;
+      /*
+       * Ten adres jest przechwytywany przez
+       * google-routes-provider.js.
+       *
+       * GOOGLE -> Google Routes
+       * OSRM -> OSRM
+       */
+      const url=
+        `https://router.project-osrm.org/route/v1/driving/`+
+        `${pos.lng},${pos.lat};${c[1]},${c[0]}`+
+        `?overview=false&steps=false`;
 
-      const r=
-        await fetch(
-          u,
-          {cache:'no-store'}
-        );
+      const res=await fetch(url,{cache:'no-store'});
+      const data=await res.json();
 
-      const j=
-        await r.json();
+      const value=data?.routes?.[0]?.duration;
 
-      const value=
-        j?.routes?.[0]?.duration;
-
-      if(
-        Number.isFinite(value)
-      ){
+      if(Number.isFinite(value)){
         etaSeconds=value;
-        etaAt=Date.now();
+        etaMeasuredAt=Date.now();
       }
 
-    }catch(e){
-      console.warn(
-        'Nie udało się odświeżyć ETA:',
-        e
-      );
+    }catch(err){
+      console.warn('ETA:',err);
 
     }finally{
       requesting=false;
     }
   }
 
-
   function render(){
     if(view.hidden)return;
 
-    document
-      .querySelectorAll(
-        '#scheduleBody .etaPunctuality'
-      )
-      .forEach(x=>x.remove());
+    document.querySelectorAll(
+      '#scheduleBody .etaPunctuality'
+    ).forEach(x=>x.remove());
 
     const row=activeRow();
-
     if(!row)return;
 
-    const eta=
-      liveEtaSeconds();
-
+    const eta=liveEta();
     if(eta===null)return;
 
-    const plan=
-      planSeconds(row);
+    const info=document.createElement('div');
+    info.className='etaPunctuality';
 
-    const info=
-      document.createElement('div');
+    const etaMin=Math.max(
+      0,
+      Math.ceil(eta/60)
+    );
 
-    info.className=
-      'etaPunctuality';
-
-    const etaMin=
-      formatArrivalMinutes(
-        eta
-      );
+    const plan=planSeconds(row);
 
     /*
-     * POWRÓT:
-     * pośrednie przystanki nie mają
-     * godzin, więc pokazujemy samo ETA.
+     * Powrót może nie mieć godzin
+     * na przystankach pośrednich.
      */
     if(plan===null){
-      info.classList.add(
-        'neutral'
-      );
+      info.classList.add('neutral');
+      info.textContent=`dojazd za ${etaMin} min`;
 
-      info.textContent=
-        `dojazd za ${etaMin} min`;
-
-      row
-        .querySelector('td:first-child')
+      row.querySelector('td:first-child')
         ?.appendChild(info);
 
       return;
     }
 
-    const diff=
-      eta-plan;
+    const diff=eta-plan;
 
-    let kind=
-      'onTime';
+    let kind='onTime';
 
-    if(
-      diff>
-      TOLERANCE_SECONDS
-    ){
+    if(diff>TOLERANCE_SECONDS){
       kind='late';
-
-    }else if(
-      diff<
-      -TOLERANCE_SECONDS
-    ){
+    }else if(diff<-TOLERANCE_SECONDS){
       kind='early';
     }
 
@@ -325,136 +250,102 @@
     info.classList.add(kind);
 
     info.textContent=
-      `dojazd za ${etaMin} min • ${formatDelta(diff)}`;
+      `dojazd za ${etaMin} min • ${fullMinutesLabel(diff)}`;
 
-    row
-      .querySelector('td:first-child')
+    row.querySelector('td:first-child')
       ?.appendChild(info);
 
     body.dataset.etaKind=kind;
-    body.dataset.etaDiffSeconds=
-      String(diff);
-    body.dataset.etaSeconds=
-      String(eta);
+    body.dataset.etaDiffSeconds=String(diff);
+    body.dataset.etaSeconds=String(eta);
 
     body.dispatchEvent(
-      new CustomEvent(
-        'eta-status-change',
-        {
-          bubbles:true,
-          detail:{
-            kind,
-            diffSeconds:diff,
-            etaSeconds:eta
-          }
+      new CustomEvent('eta-status-change',{
+        bubbles:true,
+        detail:{
+          kind,
+          diffSeconds:diff,
+          etaSeconds:eta
         }
-      )
+      })
     );
   }
 
-
   /*
    * ETA z pełnej nawigacji.
-   * Dzięki temu nie płacimy za
-   * drugie równoległe zapytanie.
    */
   body.addEventListener(
     'nav-eta-update',
     e=>{
-      const seconds=
-        Number(
-          e.detail?.etaSeconds
-        );
+      const seconds=Number(
+        e.detail?.etaSeconds
+      );
 
-      if(
-        Number.isFinite(seconds)
-      ){
+      if(Number.isFinite(seconds)){
         etaSeconds=seconds;
-        etaAt=Date.now();
-
+        etaMeasuredAt=Date.now();
         render();
       }
     }
   );
-
 
   body.addEventListener(
     'gps-next-stop-change',
     ()=>{
       lastTarget=null;
       etaSeconds=null;
-      etaAt=0;
+      etaMeasuredAt=0;
 
-      refreshEta(true)
-        .then(render);
+      refreshEta(true).then(render);
     }
   );
-
 
   function start(){
     if(watch!==null)return;
 
-    watch=
-      navigator.geolocation
-        .watchPosition(
-          p=>{
-            pos={
-              lat:p.coords.latitude,
-              lng:p.coords.longitude,
-              accuracy:
-                p.coords.accuracy||999
-            };
+    watch=navigator.geolocation.watchPosition(
+      p=>{
+        pos={
+          lat:p.coords.latitude,
+          lng:p.coords.longitude,
+          accuracy:p.coords.accuracy||999
+        };
 
-            if(
-              pos.accuracy<=
-              MAX_GPS_ACCURACY
-            ){
-              refreshEta()
-                .then(render);
-            }
-          },
-          ()=>{},
-          {
-            enableHighAccuracy:true,
-            maximumAge:1000,
-            timeout:15000
-          }
-        );
+        if(pos.accuracy<=MAX_GPS_ACCURACY){
+          refreshEta().then(render);
+        }
+      },
+      ()=>{},
+      {
+        enableHighAccuracy:true,
+        maximumAge:1000,
+        timeout:15000
+      }
+    );
   }
-
 
   start();
 
-
   /*
-   * Co sekundę zmniejszamy ETA lokalnie.
-   * Google nie jest odpytywany co sekundę.
+   * Odliczanie lokalne co sekundę.
+   * Nie jest to nowe zapytanie Google.
    */
-  setInterval(
-    ()=>{
-      if(
-        !view.hidden &&
-        pos?.accuracy<=
-        MAX_GPS_ACCURACY
-      ){
-        refreshEta();
-        render();
-      }
-    },
-    1000
-  );
-
+  setInterval(()=>{
+    if(
+      !view.hidden&&
+      pos?.accuracy<=MAX_GPS_ACCURACY
+    ){
+      refreshEta();
+      render();
+    }
+  },1000);
 
   document.addEventListener(
     'visibilitychange',
     ()=>{
-      if(
-        document.visibilityState===
-        'visible'
-      ){
+      if(document.visibilityState==='visible'){
         start();
       }
     }
   );
-
 })();
