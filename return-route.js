@@ -21,11 +21,10 @@
   function add15(t){const m=String(t||'').match(/^(\d{1,2}):(\d{2})$/);if(!m)return'';let x=(+m[1]*60 + +m[2]+15)%(24*60);return`${String(Math.floor(x/60)).padStart(2,'0')}:${String(x%60).padStart(2,'0')}`}
   function minutesOf(t){const m=String(t||'').match(/^(\d{1,2}):(\d{2})$/);return m?+m[1]*60 + +m[2]:null}
   function resolveOutboundCourse(){
-    const now=new Date(),current=now.getHours()*60+now.getMinutes();
-    const times=[...forwardTimeSelect.options].map(o=>o.value).filter(Boolean).map(t=>({t,m:minutesOf(t)})).filter(x=>x.m!==null).sort((a,b)=>a.m-b.m);
+    const now=new Date(),current=now.getHours()*60+now.getMinutes()+now.getSeconds()/60;
+    const times=[...forwardTimeSelect.options].map(o=>o.value).filter(Boolean).map(t=>({t,m:minutesOf(t)})).filter(x=>x.m!==null);
     if(!times.length)return forwardCourseTime||forwardTimeSelect.value||'';
-    const elapsed=times.filter(x=>x.m<=current);
-    if(elapsed.length)return elapsed[elapsed.length-1].t;
+    times.sort((a,b)=>Math.abs(a.m-current)-Math.abs(b.m-current)||a.m-b.m);
     return times[0].t;
   }
   function jsonpGet(){return new Promise((resolve,reject)=>{const cb=`__trasyReturn_${Date.now()}_${Math.random().toString(36).slice(2)}`,script=document.createElement('script');let done=false;const clean=()=>{delete window[cb];script.remove()};const timer=setTimeout(()=>{if(done)return;done=true;clean();reject(Error('timeout'))},12000);window[cb]=d=>{if(done)return;done=true;clearTimeout(timer);clean();resolve(d)};script.onerror=()=>{if(done)return;done=true;clearTimeout(timer);clean();reject(Error('jsonp'))};script.src=`${API_URL}?callback=${encodeURIComponent(cb)}&t=${Date.now()}`;document.head.append(script)})}
