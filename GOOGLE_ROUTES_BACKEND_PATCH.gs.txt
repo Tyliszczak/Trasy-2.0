@@ -51,6 +51,8 @@ function computeGoogleRoute_(p) {
       'routes.polyline.encodedPolyline',
       'routes.legs.distanceMeters',
       'routes.legs.duration',
+      'routes.legs.startLocation',
+      'routes.legs.endLocation',
       'routes.legs.polyline.encodedPolyline',
       'routes.legs.steps.distanceMeters',
       'routes.legs.steps.staticDuration',
