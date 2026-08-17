@@ -2,9 +2,11 @@
   const body=document.getElementById('scheduleBody');
   const controls=document.querySelector('#scheduleView .scheduleControls');
   const routeNameEl=document.getElementById('scheduleRouteName');
+  const forwardTimeSelect=document.getElementById('scheduleTimeSelect');
   if(!body||!controls||!routeNameEl)return;
 
   const API_URL='https://script.google.com/macros/s/AKfycbzdG_ARbbPgMdlPteqFLakZHR5EEkT4Lb3YFDbXW_I_OyrDKo8l0_KrQLjnncxj_M9q/exec';
+  const RETURN_STARTS=['06:15','14:15','22:15'];
   let rawData=null,direction='forward',loading=null,applying=false;
 
   const select=document.createElement('select');
@@ -14,17 +16,30 @@
   select.innerHTML='<option value="forward">PRZÓD</option><option value="return">POWRÓT</option>';
   controls.prepend(select);
 
+  const returnTimeSelect=document.createElement('select');
+  returnTimeSelect.id='returnStartSelect';
+  returnTimeSelect.className='scheduleTimeSelect';
+  returnTimeSelect.setAttribute('aria-label','Godzina startu powrotu');
+  RETURN_STARTS.forEach(t=>returnTimeSelect.add(new Option(t,t)));
+  returnTimeSelect.hidden=true;
+  select.after(returnTimeSelect);
+
   const style=document.createElement('style');
-  style.textContent='#routeDirectionSelect{min-width:112px;font-weight:900}';
+  style.textContent='#routeDirectionSelect{min-width:112px;font-weight:900}#returnStartSelect{min-width:92px;font-weight:900}';
   document.head.append(style);
 
-  function normalizeTime(v){const s=String(v??'').trim();const m=s.match(/(?:^|\s)(\d{1,2}):(\d{2})(?:$|:\d{2}|\s)/);return m?`${m[1].padStart(2,'0')}:${m[2]}`:''}
+  function chooseReturnStart(){
+    const n=new Date(),now=n.getHours()*60+n.getMinutes();
+    const parsed=RETURN_STARTS.map(t=>({t,m:+t.slice(0,2)*60 + +t.slice(3)}));
+    return (parsed.find(x=>x.m>=now-30)||parsed[0]).t;
+  }
+  returnTimeSelect.value=chooseReturnStart();
+
   function jsonpGet(){return new Promise((resolve,reject)=>{const cb=`__trasyReturn_${Date.now()}_${Math.random().toString(36).slice(2)}`,script=document.createElement('script');let done=false;const clean=()=>{delete window[cb];script.remove()};const timer=setTimeout(()=>{if(done)return;done=true;clean();reject(Error('timeout'))},12000);window[cb]=d=>{if(done)return;done=true;clearTimeout(timer);clean();resolve(d)};script.onerror=()=>{if(done)return;done=true;clearTimeout(timer);clean();reject(Error('jsonp'))};script.src=`${API_URL}?callback=${encodeURIComponent(cb)}&t=${Date.now()}`;document.head.append(script)})}
   async function loadRaw(){if(rawData)return rawData;if(loading)return loading;loading=(async()=>{try{const r=await fetch(`${API_URL}?t=${Date.now()}`,{cache:'no-store',redirect:'follow'});if(!r.ok)throw Error(`HTTP ${r.status}`);rawData=await r.json()}catch{rawData=await jsonpGet()}return rawData?.data??rawData})().finally(()=>loading=null);return loading}
 
   function tableForRoute(data,name){
-    if(!data||!name)return null;
-    if(Array.isArray(data))return null;
+    if(!data||!name||Array.isArray(data))return null;
     const exact=data[name];if(Array.isArray(exact)&&Array.isArray(exact[0]))return exact;
     const key=Object.keys(data).find(k=>String(k).trim().toLowerCase()===String(name).trim().toLowerCase());
     return key&&Array.isArray(data[key])&&Array.isArray(data[key][0])?data[key]:null;
@@ -40,11 +55,14 @@
     return map;
   }
   function rowName(row){return row.querySelector('td:first-child .stopMapButton span:last-child')?.textContent.trim()||row.querySelector('td:first-child')?.innerText.trim()||''}
+  function timeCell(row){return row.children[1]||null}
+  function rememberForwardTime(row){const c=timeCell(row);if(!c)return;if(row.dataset.forwardTime==null)row.dataset.forwardTime=(c.firstChild?.textContent||c.textContent||'').trim()}
+  function setPlainTime(row,text){const c=timeCell(row);if(!c)return;c.querySelectorAll('.punctualityLamp,.etaPunctuality').forEach(x=>x.remove());c.textContent=text}
 
   async function enrichRows(){
     if(applying)return;
     const rows=[...body.querySelectorAll('tr')];if(!rows.length)return;
-    rows.forEach((r,i)=>{if(r.dataset.routeOrder==null)r.dataset.routeOrder=String(i);if(!r.dataset.forwardCoordinate)r.dataset.forwardCoordinate=r.dataset.coordinate||''});
+    rows.forEach((r,i)=>{if(r.dataset.routeOrder==null)r.dataset.routeOrder=String(i);if(!r.dataset.forwardCoordinate)r.dataset.forwardCoordinate=r.dataset.coordinate||'';rememberForwardTime(r)});
     try{
       const data=await loadRaw(),table=tableForRoute(data,routeNameEl.textContent.trim()),ret=returnMapFromTable(table);
       rows.forEach(r=>{const c=ret.get(rowName(r).toLowerCase());if(c)r.dataset.returnCoordinate=c});
@@ -56,18 +74,25 @@
     if(applying)return;applying=true;
     try{
       const rows=[...body.querySelectorAll('tr')];if(!rows.length)return;
+      rows.forEach(rememberForwardTime);
       const ordered=rows.slice().sort((a,b)=>(+a.dataset.routeOrder||0)-(+b.dataset.routeOrder||0));
       if(direction==='return')ordered.reverse();
-      ordered.forEach(r=>{
+      ordered.forEach((r,i)=>{
         r.dataset.coordinate=direction==='return'?(r.dataset.returnCoordinate||r.dataset.forwardCoordinate||''):(r.dataset.forwardCoordinate||'');
+        if(direction==='return')setPlainTime(r,i===0?returnTimeSelect.value:'');
+        else setPlainTime(r,r.dataset.forwardTime||'');
         body.append(r);
       });
+      if(forwardTimeSelect)forwardTimeSelect.hidden=direction==='return';
+      returnTimeSelect.hidden=direction!=='return';
       body.dataset.direction=direction;
-      body.dispatchEvent(new CustomEvent('route-direction-change',{bubbles:true,detail:{direction}}));
+      body.dataset.returnStart=direction==='return'?returnTimeSelect.value:'';
+      body.dispatchEvent(new CustomEvent('route-direction-change',{bubbles:true,detail:{direction,returnStart:returnTimeSelect.value}}));
     }finally{applying=false}
   }
 
-  select.addEventListener('change',()=>{direction=select.value;applyDirection()});
+  select.addEventListener('change',()=>{direction=select.value;if(direction==='return')returnTimeSelect.value=chooseReturnStart();applyDirection()});
+  returnTimeSelect.addEventListener('change',applyDirection);
   new MutationObserver(m=>{if(applying)return;if(m.some(x=>x.type==='childList'))setTimeout(enrichRows,60)}).observe(body,{childList:true});
   setTimeout(enrichRows,200);
 })();
