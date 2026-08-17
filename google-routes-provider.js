@@ -1,7 +1,8 @@
 (()=>{
   const API_URL='https://script.google.com/macros/s/AKfycbzdG_ARbbPgMdlPteqFLakZHR5EEkT4Lb3YFDbXW_I_OyrDKo8l0_KrQLjnncxj_M9q/exec';
   const nativeFetch=window.fetch.bind(window);
-
+window.__routeMode='google';
+  
   function parseOsrmCoordinates(url){
     try{
       const m=String(url).match(/\/route\/v1\/driving\/([^?]+)/);
