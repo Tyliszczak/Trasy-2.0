@@ -8,13 +8,13 @@
 
   const panel=document.createElement('section');
   panel.id='routeMapNav';panel.hidden=true;
-  panel.innerHTML=`<div style="position:fixed;inset:0;z-index:40000;background:#111;display:flex;flex-direction:column"><div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:#181818;border-bottom:2px solid #ccff33"><button id="routeMapClose" type="button" style="width:auto;min-width:84px">ZAKOŃCZ</button><strong style="flex:1;text-align:center;color:#ccff33">NAWIGACJA</strong><button id="routeMapCenter" type="button" style="width:auto;min-width:84px">CENTRUJ</button></div><div style="background:#222;padding:10px 12px;border-bottom:1px solid #444"><div id="routeManeuver" style="font-size:22px;font-weight:900;line-height:1.15">Pobieranie trasy…</div><div style="display:flex;justify-content:space-between;gap:12px;margin-top:5px"><span id="routeManeuverDistance" style="font-size:19px;font-weight:900;color:#ccff33"></span><span id="routeNextStop" style="font-size:14px;color:#ddd;text-align:right"></span></div></div><div id="routeMapCanvas" style="flex:1;min-height:0;overflow:hidden"></div><div id="routeMapStatus" style="padding:8px 12px;background:#181818;color:#fff;font-weight:800;text-align:center">Pobieranie pozycji…</div></div>`;
+  panel.innerHTML=`<div style="position:fixed;inset:0;z-index:40000;background:#111;display:flex;flex-direction:column"><div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:#181818;border-bottom:2px solid #ccff33"><button id="routeMapClose" type="button" style="width:auto;min-width:84px">ZAKOŃCZ</button><strong style="flex:1;text-align:center;color:#ccff33">NAWIGACJA</strong><button id="routeMapCenter" type="button" style="width:auto;min-width:84px">NAWIGUJ</button></div><div style="background:#222;padding:10px 12px;border-bottom:1px solid #444"><div id="routeManeuver" style="font-size:22px;font-weight:900;line-height:1.15">Pobieranie trasy…</div><div style="display:flex;justify-content:space-between;gap:12px;margin-top:5px"><span id="routeManeuverDistance" style="font-size:19px;font-weight:900;color:#ccff33"></span><span id="routeNextStop" style="font-size:14px;color:#ddd;text-align:right"></span></div></div><div id="routeMapCanvas" style="flex:1;min-height:0;overflow:hidden"></div><div id="routeMapStatus" style="padding:8px 12px;background:#181818;color:#fff;font-weight:800;text-align:center">Pobieranie pozycji…</div></div>`;
   document.body.append(panel);
   const providerBadge=document.createElement('button');
 providerBadge.id='routeProviderBadge';
 providerBadge.type='button';
 providerBadge.textContent='GOOGLE';
-providerBadge.style.cssText='position:absolute;top:6px;right:8px;z-index:50000;font-size:9px;font-weight:900;color:#7CFF7C;background:#0009;padding:3px 5px;border:0;border-radius:4px;cursor:pointer';
+providerBadge.style.cssText='position:absolute;top:54px;right:10px;z-index:50000;font-size:9px;font-weight:900;color:#7CFF7C;background:#0009;padding:3px 5px;border:0;border-radius:4px;cursor:pointer';
 panel.firstElementChild.appendChild(providerBadge);
   window.__routeMode=window.__routeMode||'google';
 
