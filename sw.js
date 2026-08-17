@@ -1,4 +1,4 @@
-const CACHE_NAME='trasy-2.0-v37';
+const CACHE_NAME='trasy-2.0-v38';
 const APP_SHELL=['./','./index.html','./style.css','./app.js','./wake-style.js','./vehicles.js','./nav-map.js','./eta-status.js','./routes.js','./schedule.js','./manifest.json','./Tyliszczak.png'];
 self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(CACHE_NAME).then(c=>c.addAll(APP_SHELL.map(u=>new Request(u,{cache:'reload'})))))});
 self.addEventListener('activate',e=>e.waitUntil((async()=>{const keys=await caches.keys();await Promise.all(keys.filter(k=>k!==CACHE_NAME).map(k=>caches.delete(k)));await self.clients.claim()})()));
