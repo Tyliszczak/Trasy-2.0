@@ -75,20 +75,36 @@
   }
 
   async function googleRoute(coords){
-    const res=await nativeFetch(API_URL,{
-      method:'POST',
-      headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body:JSON.stringify({action:'computeGoogleRoute',coordinates:coords,trafficAware:true}),
-      cache:'no-store',redirect:'follow'
-    });
-    if(!res.ok)throw Error(`Google proxy HTTP ${res.status}`);
-    const data=await res.json();
-    if(data?.status!=='success'||!data?.google?.routes?.[0])throw Error(data?.message||'Brak trasy Google');
-    const converted=toOsrmLike(data.google);
-    if(!converted?.routes?.[0])throw Error('Nie udało się przetworzyć trasy Google');
-    window.__routeProvider='google-traffic';
-    return new Response(JSON.stringify(converted),{status:200,headers:{'Content-Type':'application/json'}});
+  const res=await nativeFetch(API_URL,{
+    method:'POST',
+    headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body:JSON.stringify({
+      action:'computeGoogleRoute',
+      coordinates:coords,
+      trafficAware:true
+    }),
+    cache:'no-store',
+    redirect:'follow'
+  });
+
+  if(!res.ok)throw Error(`Google proxy HTTP ${res.status}`);
+
+  const data=await res.json();
+
+  if(data?.status!=='success'||!data?.osrmLike?.routes?.[0]){
+    throw Error(data?.message||'Brak trasy Google');
   }
+
+  window.__routeProvider=data.provider||'google-routes-traffic';
+
+  return new Response(
+    JSON.stringify(data.osrmLike),
+    {
+      status:200,
+      headers:{'Content-Type':'application/json'}
+    }
+  );
+}
 
   window.fetch=async function(input,init){
     const url=typeof input==='string'?input:input?.url||'';
