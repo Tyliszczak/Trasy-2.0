@@ -7,6 +7,8 @@
 
   const API_URL='https://script.google.com/macros/s/AKfycbzdG_ARbbPgMdlPteqFLakZHR5EEkT4Lb3YFDbXW_I_OyrDKo8l0_KrQLjnncxj_M9q/exec';
   let rawData=null,direction='forward',loading=null,applying=false,forwardCourseTime='';
+  let forceReturnOriginOnce=false;
+  let suppressObserverUntil=0;
 
   const switchLabel=document.createElement('label');
   switchLabel.className='returnRouteSwitchLabel';
@@ -28,11 +30,20 @@
   function rowName(r){return r.querySelector('td:first-child .stopMapButton span:last-child')?.textContent.trim()||r.querySelector('td:first-child')?.innerText.trim()||''}
   function remember(r){if(r.dataset.forwardTime==null)r.dataset.forwardTime=(r.children[1]?.firstChild?.textContent||r.children[1]?.textContent||'').trim()}
   function setTime(r,t){const c=r.children[1];if(!c)return;c.querySelectorAll('.punctualityLamp,.etaPunctuality').forEach(x=>x.remove());c.textContent=t}
-  async function enrichRows(){if(applying)return;const rows=[...body.querySelectorAll('tr')];if(!rows.length)return;rows.forEach((r,i)=>{if(r.dataset.routeOrder==null)r.dataset.routeOrder=String(i);if(!r.dataset.forwardCoordinate)r.dataset.forwardCoordinate=r.dataset.coordinate||'';remember(r)});try{const table=tableForRoute(await loadRaw(),routeNameEl.textContent.trim()),ret=returnMapFromTable(table);rows.forEach(r=>{const c=ret.get(rowName(r).toLowerCase());if(c)r.dataset.returnCoordinate=c})}catch(e){console.warn('Punkty powrotne:',e)}applyDirection()}
+
+  async function enrichRows(){
+    if(applying)return;
+    const rows=[...body.querySelectorAll('tr')];
+    if(!rows.length)return;
+    rows.forEach((r,i)=>{if(r.dataset.routeOrder==null)r.dataset.routeOrder=String(i);if(!r.dataset.forwardCoordinate)r.dataset.forwardCoordinate=r.dataset.coordinate||'';remember(r)});
+    try{const table=tableForRoute(await loadRaw(),routeNameEl.textContent.trim()),ret=returnMapFromTable(table);rows.forEach(r=>{const c=ret.get(rowName(r).toLowerCase());if(c)r.dataset.returnCoordinate=c})}catch(e){console.warn('Punkty powrotne:',e)}
+    applyDirection();
+  }
 
   function applyDirection(){
     if(applying)return;
     applying=true;
+    suppressObserverUntil=Date.now()+500;
     try{
       const rows=[...body.querySelectorAll('tr')];
       if(!rows.length)return;
@@ -53,30 +64,42 @@
       body.dataset.direction=direction;
       body.dataset.returnStart=direction==='return'?start:'';
       body.dataset.outboundCourse=direction==='return'?forwardCourseTime:'';
-      body.dataset.returnOriginActive=direction==='return'?'1':'';
 
-      if(direction==='return'){
+      if(direction==='return'&&forceReturnOriginOnce){
+        body.dataset.returnOriginActive='1';
         body.dataset.gpsNextStop='0';
         ordered.forEach((r,i)=>{
           const active=i===0;
           r.classList.toggle('gpsNextStop',active);
           r.classList.toggle('isActiveStop',active);
         });
-      }else{
+        forceReturnOriginOnce=false;
+      }else if(direction!=='return'){
+        body.dataset.returnOriginActive='';
         delete body.dataset.gpsNextStop;
       }
 
       body.dispatchEvent(new CustomEvent('route-direction-change',{
         bubbles:true,
-        detail:{direction,returnStart:start,outboundCourse:forwardCourseTime,returnOriginActive:direction==='return'}
+        detail:{direction,returnStart:start,outboundCourse:forwardCourseTime,returnOriginActive:body.dataset.returnOriginActive==='1'}
       }));
     }finally{
       applying=false;
     }
   }
 
-  returnSwitch.addEventListener('change',()=>{direction=returnSwitch.checked?'return':'forward';if(direction==='return')forwardCourseTime=resolveOutboundCourse();applyDirection()});
+  returnSwitch.addEventListener('change',()=>{
+    direction=returnSwitch.checked?'return':'forward';
+    if(direction==='return'){
+      forwardCourseTime=resolveOutboundCourse();
+      forceReturnOriginOnce=true;
+    }
+    applyDirection();
+  });
   forwardTimeSelect.addEventListener('change',()=>{if(direction==='forward')forwardCourseTime=forwardTimeSelect.value});
-  new MutationObserver(m=>{if(applying)return;if(m.some(x=>x.type==='childList'))setTimeout(enrichRows,60)}).observe(body,{childList:true});
+  new MutationObserver(m=>{
+    if(applying||Date.now()<suppressObserverUntil)return;
+    if(m.some(x=>x.type==='childList'))setTimeout(enrichRows,60);
+  }).observe(body,{childList:true});
   setTimeout(enrichRows,200);
 })();
