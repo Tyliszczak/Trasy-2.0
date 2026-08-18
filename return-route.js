@@ -18,7 +18,7 @@
   const returnStartLabel=document.createElement('span');
   returnStartLabel.id='returnStartLabel';returnStartLabel.hidden=true;switchLabel.after(returnStartLabel);
 
-  const style=document.createElement('style');style.textContent='.returnRouteSwitchLabel{display:inline-flex;align-items:center;gap:8px;font-weight:900;white-space:nowrap}.returnSwitch{position:relative;display:inline-block;width:52px;height:30px}.returnSwitch input{opacity:0;width:0;height:0}.returnSlider{position:absolute;inset:0;border-radius:999px;background:#555;cursor:pointer;transition:.2s}.returnSlider:before{content:"";position:absolute;width:24px;height:24px;left:3px;top:3px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 1px 4px #0008}.returnSwitch input:checked+.returnSlider{background:#22c55e}.returnSwitch input:checked+.returnSlider:before{transform:translateX(22px)}#returnStartLabel{font-weight:900;color:#ccff33;white-space:nowrap}';document.head.append(style);
+  const style=document.createElement('style');style.textContent='.returnRouteSwitchLabel{display:inline-flex;align-items:center;gap:5px;font-weight:900;white-space:nowrap;font-size:.82rem}.returnSwitch{position:relative;display:inline-block;width:28px;height:16px;flex:0 0 28px}.returnSwitch input{opacity:0;width:0;height:0}.returnSlider{position:absolute;inset:0;border-radius:999px;background:#555;cursor:pointer;transition:.2s}.returnSlider:before{content:"";position:absolute;width:12px;height:12px;left:2px;top:2px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 1px 3px #0008}.returnSwitch input:checked+.returnSlider{background:#22c55e}.returnSwitch input:checked+.returnSlider:before{transform:translateX(12px)}#returnStartLabel{font-weight:900;color:#ccff33;white-space:nowrap}';document.head.append(style);
 
   function add15(t){const m=String(t||'').match(/^(\d{1,2}):(\d{2})$/);if(!m)return'';let x=(+m[1]*60 + +m[2]+15)%(24*60);return`${String(Math.floor(x/60)).padStart(2,'0')}:${String(x%60).padStart(2,'0')}`}
   function minutesOf(t){const m=String(t||'').match(/^(\d{1,2}):(\d{2})$/);return m?+m[1]*60 + +m[2]:null}
@@ -31,75 +31,12 @@
   function remember(r){if(r.dataset.forwardTime==null)r.dataset.forwardTime=(r.children[1]?.firstChild?.textContent||r.children[1]?.textContent||'').trim()}
   function setTime(r,t){const c=r.children[1];if(!c)return;c.querySelectorAll('.punctualityLamp,.etaPunctuality').forEach(x=>x.remove());c.textContent=t}
 
-  async function enrichRows(){
-    if(applying)return;
-    const rows=[...body.querySelectorAll('tr')];
-    if(!rows.length)return;
-    rows.forEach((r,i)=>{if(r.dataset.routeOrder==null)r.dataset.routeOrder=String(i);if(!r.dataset.forwardCoordinate)r.dataset.forwardCoordinate=r.dataset.coordinate||'';remember(r)});
-    try{const table=tableForRoute(await loadRaw(),routeNameEl.textContent.trim()),ret=returnMapFromTable(table);rows.forEach(r=>{const c=ret.get(rowName(r).toLowerCase());if(c)r.dataset.returnCoordinate=c})}catch(e){console.warn('Punkty powrotne:',e)}
-    applyDirection();
-  }
+  async function enrichRows(){if(applying)return;const rows=[...body.querySelectorAll('tr')];if(!rows.length)return;rows.forEach((r,i)=>{if(r.dataset.routeOrder==null)r.dataset.routeOrder=String(i);if(!r.dataset.forwardCoordinate)r.dataset.forwardCoordinate=r.dataset.coordinate||'';remember(r)});try{const table=tableForRoute(await loadRaw(),routeNameEl.textContent.trim()),ret=returnMapFromTable(table);rows.forEach(r=>{const c=ret.get(rowName(r).toLowerCase());if(c)r.dataset.returnCoordinate=c})}catch(e){console.warn('Punkty powrotne:',e)}applyDirection()}
 
-  function applyDirection(){
-    if(applying)return;
-    applying=true;
-    suppressObserverUntil=Date.now()+500;
-    try{
-      const rows=[...body.querySelectorAll('tr')];
-      if(!rows.length)return;
-      rows.forEach(remember);
-      const ordered=rows.slice().sort((a,b)=>(+a.dataset.routeOrder||0)-(+b.dataset.routeOrder||0));
-      if(direction==='return')ordered.reverse();
-      const start=add15(forwardCourseTime||resolveOutboundCourse());
+  function applyDirection(){if(applying)return;applying=true;suppressObserverUntil=Date.now()+500;try{const rows=[...body.querySelectorAll('tr')];if(!rows.length)return;rows.forEach(remember);const ordered=rows.slice().sort((a,b)=>(+a.dataset.routeOrder||0)-(+b.dataset.routeOrder||0));if(direction==='return')ordered.reverse();const start=add15(forwardCourseTime||resolveOutboundCourse());ordered.forEach((r,i)=>{r.dataset.coordinate=direction==='return'?(r.dataset.returnCoordinate||r.dataset.forwardCoordinate||''):(r.dataset.forwardCoordinate||'');setTime(r,direction==='return'?(i===0?start:''):(r.dataset.forwardTime||''));body.append(r)});forwardTimeSelect.hidden=direction==='return';returnStartLabel.hidden=direction!=='return';returnStartLabel.textContent=direction==='return'?`START ${start}`:'';body.dataset.direction=direction;body.dataset.returnStart=direction==='return'?start:'';body.dataset.outboundCourse=direction==='return'?forwardCourseTime:'';if(direction==='return'&&forceReturnOriginOnce){body.dataset.returnOriginActive='1';body.dataset.gpsNextStop='0';ordered.forEach((r,i)=>{const active=i===0;r.classList.toggle('gpsNextStop',active);r.classList.toggle('isActiveStop',active)});forceReturnOriginOnce=false}else if(direction!=='return'){body.dataset.returnOriginActive='';delete body.dataset.gpsNextStop}body.dispatchEvent(new CustomEvent('route-direction-change',{bubbles:true,detail:{direction,returnStart:start,outboundCourse:forwardCourseTime,returnOriginActive:body.dataset.returnOriginActive==='1'}}))}finally{applying=false}}
 
-      ordered.forEach((r,i)=>{
-        r.dataset.coordinate=direction==='return'?(r.dataset.returnCoordinate||r.dataset.forwardCoordinate||''):(r.dataset.forwardCoordinate||'');
-        setTime(r,direction==='return'?(i===0?start:''):(r.dataset.forwardTime||''));
-        body.append(r);
-      });
-
-      forwardTimeSelect.hidden=direction==='return';
-      returnStartLabel.hidden=direction!=='return';
-      returnStartLabel.textContent=direction==='return'?`START ${start}`:'';
-      body.dataset.direction=direction;
-      body.dataset.returnStart=direction==='return'?start:'';
-      body.dataset.outboundCourse=direction==='return'?forwardCourseTime:'';
-
-      if(direction==='return'&&forceReturnOriginOnce){
-        body.dataset.returnOriginActive='1';
-        body.dataset.gpsNextStop='0';
-        ordered.forEach((r,i)=>{
-          const active=i===0;
-          r.classList.toggle('gpsNextStop',active);
-          r.classList.toggle('isActiveStop',active);
-        });
-        forceReturnOriginOnce=false;
-      }else if(direction!=='return'){
-        body.dataset.returnOriginActive='';
-        delete body.dataset.gpsNextStop;
-      }
-
-      body.dispatchEvent(new CustomEvent('route-direction-change',{
-        bubbles:true,
-        detail:{direction,returnStart:start,outboundCourse:forwardCourseTime,returnOriginActive:body.dataset.returnOriginActive==='1'}
-      }));
-    }finally{
-      applying=false;
-    }
-  }
-
-  returnSwitch.addEventListener('change',()=>{
-    direction=returnSwitch.checked?'return':'forward';
-    if(direction==='return'){
-      forwardCourseTime=resolveOutboundCourse();
-      forceReturnOriginOnce=true;
-    }
-    applyDirection();
-  });
+  returnSwitch.addEventListener('change',()=>{direction=returnSwitch.checked?'return':'forward';if(direction==='return'){forwardCourseTime=resolveOutboundCourse();forceReturnOriginOnce=true}applyDirection()});
   forwardTimeSelect.addEventListener('change',()=>{if(direction==='forward')forwardCourseTime=forwardTimeSelect.value});
-  new MutationObserver(m=>{
-    if(applying||Date.now()<suppressObserverUntil)return;
-    if(m.some(x=>x.type==='childList'))setTimeout(enrichRows,60);
-  }).observe(body,{childList:true});
+  new MutationObserver(m=>{if(applying||Date.now()<suppressObserverUntil)return;if(m.some(x=>x.type==='childList'))setTimeout(enrichRows,60)}).observe(body,{childList:true});
   setTimeout(enrichRows,200);
 })();
