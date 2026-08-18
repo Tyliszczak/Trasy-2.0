@@ -5,11 +5,15 @@
 
   let watch=null,lastPos=null,heading=null,currentIndex=null,applying=false;
   let reachedCurrent=false,reachedBeforeTime=false;
+  let missedPassFixes=0,lastCurrentDistance=Infinity;
 
   const MIN_MOVE=7;
   const REACHED=60;
   const DEPARTED=35;
   const MAX_ACCURACY=120;
+  const MISSED_PASS_CONFIRM_FIXES=3;
+  const MISSED_PASS_DISTANCE=70;
+  const MISSED_PASS_GROWTH=6;
 
   const style=document.createElement('style');
   style.textContent=`
@@ -106,6 +110,11 @@
     return d;
   }
 
+  function resetPassTracking(){
+    missedPassFixes=0;
+    lastCurrentDistance=Infinity;
+  }
+
   function firstStopProtected(){
     const rs=rows();
     if(!rs.length)return false;
@@ -120,6 +129,7 @@
     heading=null;
     reachedCurrent=false;
     reachedBeforeTime=false;
+    resetPassTracking();
     setTimeout(chooseAndApply,100);
   }
 
@@ -166,10 +176,12 @@
 
     if(currentIndex!==null&&currentIndex>=rs.length){
       currentIndex=null;
+      resetPassTracking();
     }
 
     if(firstStopProtected()){
       currentIndex=0;
+      resetPassTracking();
       return 0;
     }
 
@@ -177,6 +189,7 @@
       currentIndex=initialIndex(here);
       reachedCurrent=false;
       reachedBeforeTime=false;
+      resetPassTracking();
       return currentIndex;
     }
 
@@ -191,6 +204,7 @@
         :null;
 
     const dc=cur?dist(here,cur):Infinity;
+    const dn=next?dist(here,next):Infinity;
 
     const accuracy=Number(window.__navAcc||0);
 
@@ -201,6 +215,7 @@
 
     if(dc<=reachedRadius){
       reachedCurrent=true;
+      missedPassFixes=0;
 
       const plan=rowTime(row);
       if(plan&&Date.now()<plan.getTime()){
@@ -226,16 +241,40 @@
       const stillTooEarly=
         plan&&Date.now()<plan.getTime();
 
+      const distanceGrowing=
+        Number.isFinite(lastCurrentDistance)&&
+        dc>=lastCurrentDistance+MISSED_PASS_GROWTH;
+
+      const plausiblyPassedWithoutHit=
+        !reachedCurrent&&
+        !stillTooEarly&&
+        movingToNext&&
+        dc>MISSED_PASS_DISTANCE&&
+        Number.isFinite(dn)&&
+        distanceGrowing;
+
+      if(plausiblyPassedWithoutHit){
+        missedPassFixes++;
+      }else if(!reachedCurrent){
+        missedPassFixes=0;
+      }
+
       if(
         !stillTooEarly&&
-        clearlyLeaving
+        (
+          clearlyLeaving||
+          missedPassFixes>=MISSED_PASS_CONFIRM_FIXES
+        )
       ){
         currentIndex++;
         reachedCurrent=false;
         reachedBeforeTime=false;
+        resetPassTracking();
+        return currentIndex;
       }
     }
 
+    lastCurrentDistance=dc;
     return currentIndex;
   }
 
