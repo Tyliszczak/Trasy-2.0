@@ -9,6 +9,7 @@
 
   let pos=null,watch=null,lastRouteAt=0,lastTarget=null;
   let etaSeconds=null,etaMeasuredAt=0,requesting=false;
+  let infoEl=null,infoRow=null;
 
   const style=document.createElement('style');
   style.textContent=`#scheduleBody .punctualityLamp{display:none!important}#scheduleBody .etaPunctuality{display:block;margin-top:4px;font-size:12px;line-height:1.15;font-weight:1000;white-space:nowrap}#scheduleBody .etaPunctuality.onTime{color:#34c759}#scheduleBody .etaPunctuality.early{color:#d6a900}#scheduleBody .etaPunctuality.late{color:#ff3b30}#scheduleBody .etaPunctuality.neutral{color:#aaa}#scheduleBody .etaPunctuality.returnStartHold{color:#ffd60a}#scheduleBody .etaPunctuality.returnStartReady{color:#34c759}`;
@@ -24,6 +25,23 @@
   function liveEta(){if(etaSeconds===null||!etaMeasuredAt)return null;return Math.max(0,etaSeconds-(Date.now()-etaMeasuredAt)/1000)}
   function fullMinutesLabel(diff){if(Math.abs(diff)<=TOLERANCE_SECONDS)return'0 min';const full=Math.max(1,Math.floor(Math.abs(diff)/60));return diff<0?`+${full} min`:`−${full} min`}
   function countdownLabel(seconds){const s=Math.max(0,Math.ceil(seconds)),min=Math.floor(s/60),sec=s%60;return `${min}:${String(sec).padStart(2,'0')}`}
+
+  function ensureInfo(row){
+    if(!row)return null;
+    if(infoEl&&infoRow===row&&infoEl.isConnected)return infoEl;
+    if(infoEl?.isConnected)infoEl.remove();
+    infoEl=document.createElement('div');
+    infoEl.className='etaPunctuality';
+    row.querySelector('td:first-child')?.appendChild(infoEl);
+    infoRow=row;
+    return infoEl;
+  }
+
+  function clearInfo(){
+    if(infoEl?.isConnected)infoEl.remove();
+    infoEl=null;
+    infoRow=null;
+  }
 
   async function refreshEta(force=false){
     const row=activeRow();
@@ -45,26 +63,26 @@
 
   function render(){
     if(view.hidden)return;
-    document.querySelectorAll('#scheduleBody .etaPunctuality').forEach(x=>x.remove());
-    const row=activeRow();if(!row)return;
+    const row=activeRow();
+    if(!row){clearInfo();return}
+    const info=ensureInfo(row);
+    if(!info)return;
 
     if(isReturnOrigin(row)){
       const seconds=planSeconds(row);
-      if(seconds===null)return;
-      const info=document.createElement('div');
+      if(seconds===null){info.textContent='';return}
       info.className='etaPunctuality '+(seconds>0?'returnStartHold':'returnStartReady');
       info.textContent=seconds>0?`odjazd za ${countdownLabel(seconds)}`:'MOŻESZ JECHAĆ';
-      row.querySelector('td:first-child')?.appendChild(info);
       row.style.setProperty('--gps-status-color',seconds>0?'#ffd60a':'#34c759');
       return;
     }
 
-    const eta=liveEta();if(eta===null)return;
-    const info=document.createElement('div');info.className='etaPunctuality';
+    const eta=liveEta();
+    if(eta===null){info.textContent='';info.className='etaPunctuality neutral';return}
     const etaMin=Math.max(0,Math.ceil(eta/60));const plan=planSeconds(row);
-    if(plan===null){info.classList.add('neutral');info.textContent=`dojazd za ${etaMin} min`;row.querySelector('td:first-child')?.appendChild(info);return}
+    if(plan===null){info.className='etaPunctuality neutral';info.textContent=`dojazd za ${etaMin} min`;return}
     const diff=eta-plan;let kind='onTime';if(diff>TOLERANCE_SECONDS)kind='late';else if(diff<-TOLERANCE_SECONDS)kind='early';
-    const color=kind==='late'?'#ff3b30':kind==='early'?'#ffd60a':'#34c759';row.style.setProperty('--gps-status-color',color);info.classList.add(kind);info.textContent=`dojazd za ${etaMin} min • ${fullMinutesLabel(diff)}`;row.querySelector('td:first-child')?.appendChild(info);
+    const color=kind==='late'?'#ff3b30':kind==='early'?'#ffd60a':'#34c759';row.style.setProperty('--gps-status-color',color);info.className=`etaPunctuality ${kind}`;info.textContent=`dojazd za ${etaMin} min • ${fullMinutesLabel(diff)}`;
     body.dataset.etaKind=kind;body.dataset.etaDiffSeconds=String(diff);body.dataset.etaSeconds=String(eta);
     body.dispatchEvent(new CustomEvent('eta-status-change',{bubbles:true,detail:{kind,diffSeconds:diff,etaSeconds:eta}}));
   }
@@ -72,7 +90,7 @@
   body.addEventListener('nav-eta-update',e=>{const row=activeRow();if(row&&isReturnOrigin(row))return;const seconds=Number(e.detail?.etaSeconds);if(Number.isFinite(seconds)){etaSeconds=seconds;etaMeasuredAt=Date.now();render()}});
   body.addEventListener('gps-next-stop-change',e=>{
     if(Number(e.detail?.index)>0)body.dataset.returnOriginActive='';
-    lastTarget=null;etaSeconds=null;etaMeasuredAt=0;refreshEta(true).then(render);
+    lastTarget=null;etaSeconds=null;etaMeasuredAt=0;clearInfo();refreshEta(true).then(render);
   });
 
   function start(){if(watch!==null)return;watch=navigator.geolocation.watchPosition(p=>{pos={lat:p.coords.latitude,lng:p.coords.longitude,accuracy:p.coords.accuracy||999};if(pos.accuracy<=MAX_GPS_ACCURACY){refreshEta().then(render)}},()=>{},{enableHighAccuracy:true,maximumAge:1000,timeout:15000})}
