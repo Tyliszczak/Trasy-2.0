@@ -1,7 +1,8 @@
 (()=>{
   const API_URL='https://script.google.com/macros/s/AKfycbzdG_ARbbPgMdlPteqFLakZHR5EEkT4Lb3YFDbXW_I_OyrDKo8l0_KrQLjnncxj_M9q/exec';
   const nativeFetch=window.fetch.bind(window);
-window.__routeMode='google';
+  const GOOGLE_ROUTE_TIMEOUT_MS=12000;
+  window.__routeMode='google';
   
   function parseOsrmCoordinates(url){
     try{
@@ -76,63 +77,79 @@ window.__routeMode='google';
   }
 
   async function googleRoute(coords){
-  const res=await nativeFetch(API_URL,{
-    method:'POST',
-    headers:{'Content-Type':'text/plain;charset=utf-8'},
-    body:JSON.stringify({
-      action:'computeGoogleRoute',
-      coordinates:coords,
-      trafficAware:true
-    }),
-    cache:'no-store',
-    redirect:'follow'
-  });
+    const controller=new AbortController();
+    const timeout=setTimeout(
+      ()=>controller.abort(),
+      GOOGLE_ROUTE_TIMEOUT_MS
+    );
 
-  if(!res.ok)throw Error(`Google proxy HTTP ${res.status}`);
+    try{
+      const res=await nativeFetch(API_URL,{
+        method:'POST',
+        headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body:JSON.stringify({
+          action:'computeGoogleRoute',
+          coordinates:coords,
+          trafficAware:true
+        }),
+        cache:'no-store',
+        redirect:'follow',
+        signal:controller.signal
+      });
 
-  const data=await res.json();
+      if(!res.ok)throw Error(`Google proxy HTTP ${res.status}`);
 
-  if(data?.status!=='success'||!data?.osrmLike?.routes?.[0]){
-    throw Error(data?.message||'Brak trasy Google');
-  }
+      const data=await res.json();
 
-  window.__routeProvider=data.provider||'google-routes-traffic';
+      if(data?.status!=='success'||!data?.osrmLike?.routes?.[0]){
+        throw Error(data?.message||'Brak trasy Google');
+      }
 
-  return new Response(
-    JSON.stringify(data.osrmLike),
-    {
-      status:200,
-      headers:{'Content-Type':'application/json'}
+      window.__routeProvider=data.provider||'google-routes-traffic';
+
+      return new Response(
+        JSON.stringify(data.osrmLike),
+        {
+          status:200,
+          headers:{'Content-Type':'application/json'}
+        }
+      );
+    }catch(err){
+      if(err?.name==='AbortError'){
+        throw Error('Google Routes timeout');
+      }
+      throw err;
+    }finally{
+      clearTimeout(timeout);
     }
-  );
-}
+  }
 
   window.fetch=async function(input,init){
-  const url=typeof input==='string'?input:input?.url||'';
+    const url=typeof input==='string'?input:input?.url||'';
 
-  if(url.includes('router.project-osrm.org/route/v1/driving/')){
+    if(url.includes('router.project-osrm.org/route/v1/driving/')){
 
-    const coords=parseOsrmCoordinates(url);
+      const coords=parseOsrmCoordinates(url);
 
-    if(
-      window.__routeMode!=='osrm' &&
-      coords?.length>=2
-    ){
-      try{
-        return await googleRoute(coords);
-      }catch(err){
-        console.warn(
-          'Google Routes niedostępne, używam OSRM:',
-          err
-        );
+      if(
+        window.__routeMode!=='osrm' &&
+        coords?.length>=2
+      ){
+        try{
+          return await googleRoute(coords);
+        }catch(err){
+          console.warn(
+            'Google Routes niedostępne, używam OSRM:',
+            err
+          );
 
-        window.__routeProvider='osrm-fallback';
+          window.__routeProvider='osrm-fallback';
+        }
       }
+
+      window.__routeProvider='osrm';
     }
 
-    window.__routeProvider='osrm';
-  }
-
-  return nativeFetch(input,init);
-};
+    return nativeFetch(input,init);
+  };
 })();
