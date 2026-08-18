@@ -1,4 +1,6 @@
 (()=>{
+  const AUTO_RESUME_MS=15000;
+
   function init(){
     const root=document.getElementById('routeNavRoot');
     const close=document.getElementById('routeMapClose');
@@ -33,6 +35,15 @@
     center.style.cssText='position:fixed;right:14px;bottom:74px;z-index:50100;width:48px;height:48px;min-width:48px;min-height:48px;padding:0;border:1px solid #fff8;border-radius:50%;background:#111d;color:#fff;font-size:24px;line-height:48px;box-shadow:0 3px 10px #000a';
 
     let overview=false;
+    let resumeTimer=0;
+
+    function clearResume(){
+      if(resumeTimer){
+        clearTimeout(resumeTimer);
+        resumeTimer=0;
+      }
+    }
+
     function setOverview(on){
       overview=!!on;
       if(overview){
@@ -46,26 +57,51 @@
       }
     }
 
+    function resumeNavigation(){
+      clearResume();
+      if(!overview)return;
+      window.__routeManualView=false;
+      setOverview(false);
+      if(typeof originalCenter==='function'){
+        originalCenter.call(center);
+      }
+    }
+
+    function scheduleResume(){
+      clearResume();
+      resumeTimer=setTimeout(resumeNavigation,AUTO_RESUME_MS);
+    }
+
+    function enterManualView(){
+      window.__routeManualView=true;
+      setOverview(true);
+      scheduleResume();
+    }
+
     center.onclick=()=>{
       const map=window.__routeMap;
       if(!map)return;
+
       if(!overview){
-        window.__routeManualView=true;
-        setOverview(true);
+        enterManualView();
         try{
-          map.easeTo({bearing:0,pitch:0,zoom:Math.min(map.getZoom(),14.8),duration:500,essential:true});
+          map.easeTo({
+            bearing:0,
+            pitch:0,
+            zoom:Math.min(map.getZoom(),14.8),
+            duration:500,
+            essential:true
+          });
         }catch{}
       }else{
-        window.__routeManualView=false;
-        setOverview(false);
-        if(typeof originalCenter==='function')originalCenter.call(center);
+        resumeNavigation();
       }
     };
 
     const markManual=()=>{
-      window.__routeManualView=true;
-      setOverview(true);
+      enterManualView();
     };
+
     const mapTimer=setInterval(()=>{
       const map=window.__routeMap;
       if(!map||map.__compactUiGestures)return;
