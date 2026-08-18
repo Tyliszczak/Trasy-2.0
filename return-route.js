@@ -13,12 +13,12 @@
   const switchLabel=document.createElement('label');
   switchLabel.className='returnRouteSwitchLabel';
   switchLabel.innerHTML='<span>POWRÓT</span><span class="returnSwitch"><input id="returnRouteSwitch" type="checkbox" role="switch" aria-label="Powrót"><span class="returnSlider"></span></span>';
-  controls.prepend(switchLabel);
+  controls.append(switchLabel);
   const returnSwitch=switchLabel.querySelector('#returnRouteSwitch');
   const returnStartLabel=document.createElement('span');
-  returnStartLabel.id='returnStartLabel';returnStartLabel.hidden=true;switchLabel.after(returnStartLabel);
+  returnStartLabel.id='returnStartLabel';returnStartLabel.hidden=true;switchLabel.before(returnStartLabel);
 
-  const style=document.createElement('style');style.textContent='.returnRouteSwitchLabel{display:inline-flex;align-items:center;gap:5px;font-weight:900;white-space:nowrap;font-size:.82rem}.returnSwitch{position:relative;display:inline-block;width:28px;height:16px;flex:0 0 28px}.returnSwitch input{opacity:0;width:0;height:0}.returnSlider{position:absolute;inset:0;border-radius:999px;background:#555;cursor:pointer;transition:.2s}.returnSlider:before{content:"";position:absolute;width:12px;height:12px;left:2px;top:2px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 1px 3px #0008}.returnSwitch input:checked+.returnSlider{background:#22c55e}.returnSwitch input:checked+.returnSlider:before{transform:translateX(12px)}#returnStartLabel{font-weight:900;color:#ccff33;white-space:nowrap}';document.head.append(style);
+  const style=document.createElement('style');style.textContent='.returnRouteSwitchLabel{display:inline-flex;align-items:center;gap:5px;font-weight:900;white-space:nowrap;font-size:.82rem;margin:0}.returnSwitch{position:relative;display:inline-block;width:28px;height:16px;flex:0 0 28px}.returnSwitch input{opacity:0;width:0;height:0}.returnSlider{position:absolute;inset:0;border-radius:999px;background:#555;cursor:pointer;transition:.2s}.returnSlider:before{content:"";position:absolute;width:12px;height:12px;left:2px;top:2px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 1px 3px #0008}.returnSwitch input:checked+.returnSlider{background:#22c55e}.returnSwitch input:checked+.returnSlider:before{transform:translateX(12px)}#returnStartLabel{font-weight:900;color:#ccff33;white-space:nowrap}';document.head.append(style);
 
   function add15(t){const m=String(t||'').match(/^(\d{1,2}):(\d{2})$/);if(!m)return'';let x=(+m[1]*60 + +m[2]+15)%(24*60);return`${String(Math.floor(x/60)).padStart(2,'0')}:${String(x%60).padStart(2,'0')}`}
   function minutesOf(t){const m=String(t||'').match(/^(\d{1,2}):(\d{2})$/);return m?+m[1]*60 + +m[2]:null}
