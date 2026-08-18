@@ -9,20 +9,9 @@
       Number(body.dataset.gpsNextStop||0)===0;
   }
 
-  // Tylko na moment otwierania nawigacji podajemy drugi punkt jako cel trasy.
-  // Harmonogram i tracker pozostają na pierwszym punkcie, aby odliczać postój.
-  document.addEventListener('click',e=>{
-    const link=e.target.closest?.('.routeLink');
-    if(!link||!body.contains(link)||!isReturnStart())return;
-
-    body.dataset.gpsNextStop='1';
-    setTimeout(()=>{
-      if(body.dataset.returnOriginActive==='1'){
-        body.dataset.gpsNextStop='0';
-      }
-    },0);
-  },true);
-
+  // Punkt startowy powrotu pozostaje stabilnie aktywny w harmonogramie.
+  // Nie zmieniamy już tymczasowo gpsNextStop na drugi punkt przy otwieraniu mapy,
+  // bo powodowało to miganie podświetlenia między startem a najbliższym przystankiem.
   function applyCountdown(){
     if(!isReturnStart()||!guardMessage)return;
     const nav=document.getElementById('routeMapNav');
