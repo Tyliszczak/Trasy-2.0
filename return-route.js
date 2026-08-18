@@ -35,7 +35,68 @@
   function remember(r){if(r.dataset.forwardTime==null)r.dataset.forwardTime=(r.children[1]?.firstChild?.textContent||r.children[1]?.textContent||'').trim()}
   function setTime(r,t){const c=r.children[1];if(!c)return;c.querySelectorAll('.punctualityLamp,.etaPunctuality').forEach(x=>x.remove());c.textContent=t}
   async function enrichRows(){if(applying)return;const rows=[...body.querySelectorAll('tr')];if(!rows.length)return;rows.forEach((r,i)=>{if(r.dataset.routeOrder==null)r.dataset.routeOrder=String(i);if(!r.dataset.forwardCoordinate)r.dataset.forwardCoordinate=r.dataset.coordinate||'';remember(r)});try{const table=tableForRoute(await loadRaw(),routeNameEl.textContent.trim()),ret=returnMapFromTable(table);rows.forEach(r=>{const c=ret.get(rowName(r).toLowerCase());if(c)r.dataset.returnCoordinate=c})}catch(e){console.warn('Punkty powrotne:',e)}applyDirection()}
-  function applyDirection(){if(applying)return;applying=true;try{const rows=[...body.querySelectorAll('tr')];if(!rows.length)return;rows.forEach(remember);const ordered=rows.slice().sort((a,b)=>(+a.dataset.routeOrder||0)-(+b.dataset.routeOrder||0));if(direction==='return')ordered.reverse();const start=add15(forwardCourseTime||resolveOutboundCourse());ordered.forEach((r,i)=>{r.dataset.coordinate=direction==='return'?(r.dataset.returnCoordinate||r.dataset.forwardCoordinate||''):(r.dataset.forwardCoordinate||'');setTime(r,direction==='return'?(i===0?start:''):(r.dataset.forwardTime||''));body.append(r)});forwardTimeSelect.hidden=direction==='return';returnStartLabel.hidden=direction!=='return';returnStartLabel.textContent=direction==='return'?`START ${start}`:'';body.dataset.direction=direction;body.dataset.returnStart=direction==='return'?start:'';body.dataset.outboundCourse=direction==='return'?forwardCourseTime:'';body.dispatchEvent(new CustomEvent('route-direction-change',{bubbles:true,detail:{direction,returnStart:start,outboundCourse:forwardCourseTime}}))}finally{applying=false}}
+  function applyDirection(){
+    if(applying)return;
+    applying=true;
+    try{
+      const rows=[...body.querySelectorAll('tr')];
+      if(!rows.length)return;
+      rows.forEach(remember);
+      const ordered=rows.slice().sort((a,b)=>(+a.dataset.routeOrder||0)-(+b.dataset.routeOrder||0));
+      if(direction==='return')ordered.reverse();
+      const start=add15(forwardCourseTime||resolveOutboundCourse());
+
+      ordered.forEach((r,i)=>{
+        r.dataset.coordinate=direction==='return'?(r.dataset.returnCoordinate||r.dataset.forwardCoordinate||''):(r.dataset.forwardCoordinate||'');
+        setTime(r,direction==='return'?(i===0?start:''):(r.dataset.forwardTime||''));
+        body.append(r);
+      });
+
+      forwardTimeSelect.hidden=direction==='return';
+      returnStartLabel.hidden=direction!=='return';
+      returnStartLabel.textContent=direction==='return'?`START ${start}`:'';
+      body.dataset.direction=direction;
+      body.dataset.returnStart=direction==='return'?start:'';
+      body.dataset.outboundCourse=direction==='return'?forwardCourseTime:'';
+
+      if(direction==='return'&&ordered.length>1){
+        body.dataset.gpsNextStop='1';
+        ordered.forEach((r,i)=>{
+          const active=i===1;
+          r.classList.toggle('gpsNextStop',active);
+          r.classList.toggle('isActiveStop',active);
+        });
+      }else{
+        delete body.dataset.gpsNextStop;
+      }
+
+      body.dispatchEvent(new CustomEvent('route-direction-change',{
+        bubbles:true,
+        detail:{
+          direction,
+          returnStart:start,
+          outboundCourse:forwardCourseTime,
+          firstStopCompleted:direction==='return'
+        }
+      }));
+
+      if(direction==='return'&&ordered.length>1){
+        body.dispatchEvent(new CustomEvent('gps-skip-stop',{
+          bubbles:true,
+          detail:{index:1,reason:'return-start'}
+        }));
+        body.dispatchEvent(new CustomEvent('gps-next-stop-change',{
+          bubbles:true,
+          detail:{
+            index:1,
+            name:ordered[1].children[0]?.innerText.trim()||''
+          }
+        }));
+      }
+    }finally{
+      applying=false;
+    }
+  }
   returnSwitch.addEventListener('change',()=>{direction=returnSwitch.checked?'return':'forward';if(direction==='return')forwardCourseTime=resolveOutboundCourse();applyDirection()});
   forwardTimeSelect.addEventListener('change',()=>{if(direction==='forward')forwardCourseTime=forwardTimeSelect.value});
   new MutationObserver(m=>{if(applying)return;if(m.some(x=>x.type==='childList'))setTimeout(enrichRows,60)}).observe(body,{childList:true});
