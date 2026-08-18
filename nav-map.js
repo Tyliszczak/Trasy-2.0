@@ -25,8 +25,11 @@
   let progressIndex=0;
 
   let lastRouteBuildAt=0;
+  let lastRerouteAt=0;
   let legStartAt=0;
   let legDurations=[];
+  let routeBuildInFlight=false;
+  let offRouteFixes=0;
 
   let guardState={
     state:'',
@@ -38,6 +41,9 @@
 
   const TOLERANCE_SECONDS=30;
   const TRAFFIC_REFRESH_MS=180000;
+  const MIN_REROUTE_DISTANCE=85;
+  const REROUTE_CONFIRM_FIXES=3;
+  const REROUTE_COOLDOWN_MS=30000;
 
 
   /* =========================================================
@@ -341,7 +347,7 @@
 
     const lat1=a[0]*p;
     const lat2=b[0]*p;
-    const dLon=(b[1]-a[1])*p;
+    const dLon=(b[1]-b[1]+b[1]-a[1])*p;
 
     const y=Math.sin(dLon)*Math.cos(lat2);
 
@@ -903,10 +909,6 @@
       return;
     }
 
-    /*
-     * Marker zostaje na mapie, ale jego dymek
-     * ukrywamy, bo punkt jest poza ekranem.
-     */
     if(first?.badge){
       first.badge.style.display='none';
     }
@@ -923,10 +925,6 @@
     updateOffscreenArrow();
   }
 
-  /*
-   * Kliknięcie panelu:
-   * pokaż autobus i następny przystanek jednocześnie.
-   */
   offscreenPanel.onclick=()=>{
     if(
       !map||
@@ -1262,37 +1260,98 @@
     updateActiveBubble();
     updateActiveStopVisibility();
 
-    if(g.off>65){
-      gpsStatus.textContent=
-        'Poza trasą — przeliczam…';
+    const accuracy=Math.max(
+      0,
+      Number(window.__navAcc||0)
+    );
+
+    const offRouteThreshold=Math.max(
+      MIN_REROUTE_DISTANCE,
+      accuracy*2
+    );
+
+    const isOffRoute=
+      g.off>offRouteThreshold;
+
+    if(isOffRoute){
+      offRouteFixes+=1;
     }else{
-      gpsStatus.textContent=
-        `GPS ±${Math.round(window.__navAcc||0)} m`;
+      offRouteFixes=0;
+
+      if(rerouteTimer){
+        clearTimeout(rerouteTimer);
+        rerouteTimer=0;
+      }
     }
 
     if(
-      g.off>65&&
+      isOffRoute&&
+      offRouteFixes>=REROUTE_CONFIRM_FIXES
+    ){
+      gpsStatus.textContent=
+        'Poza trasą — sprawdzam zjazd…';
+    }else{
+      gpsStatus.textContent=
+        `GPS ±${Math.round(accuracy)} m`;
+    }
+
+    if(
+      isOffRoute&&
+      offRouteFixes>=REROUTE_CONFIRM_FIXES&&
       !rerouteTimer&&
-      Date.now()-lastRouteBuildAt>3000
+      !routeBuildInFlight&&
+      Date.now()-lastRouteBuildAt>5000&&
+      Date.now()-lastRerouteAt>REROUTE_COOLDOWN_MS
     ){
       rerouteTimer=setTimeout(()=>{
         rerouteTimer=0;
 
+        if(
+          !lastGpsPoint||
+          routeBuildInFlight
+        )return;
+
+        const latestAccuracy=Math.max(
+          0,
+          Number(window.__navAcc||0)
+        );
+
+        const latestThreshold=Math.max(
+          MIN_REROUTE_DISTANCE,
+          latestAccuracy*2
+        );
+
+        const latestOff=
+          nearestRoutePoint(
+            lastGpsPoint,
+            progressIndex
+          ).distance;
+
+        if(latestOff<=latestThreshold){
+          offRouteFixes=0;
+          return;
+        }
+
         const remaining=
           remainingStopsFromGps();
 
-        if(
-          remaining.length&&
-          lastGpsPoint
-        ){
+        if(remaining.length){
           currentStops=remaining;
+          lastRerouteAt=Date.now();
+          offRouteFixes=0;
 
           buildRoute(
             lastGpsPoint,
             currentStops
+          ).catch(
+            err=>
+              console.warn(
+                'Przeliczenie trasy:',
+                err
+              )
           );
         }
-      },1400);
+      },2000);
     }
   }
 
@@ -1313,108 +1372,117 @@
   }
 
   async function buildRoute(origin,stops){
-    if(!stops.length)return;
+    if(
+      !stops.length||
+      routeBuildInFlight
+    )return;
 
+    routeBuildInFlight=true;
     lastRouteBuildAt=Date.now();
     legStartAt=Date.now();
 
-    const coords=[
-      origin,
-      ...stops.map(s=>s.coord)
-    ]
-      .map(([lat,lng])=>`${lng},${lat}`)
-      .join(';');
+    try{
+      const coords=[
+        origin,
+        ...stops.map(s=>s.coord)
+      ]
+        .map(([lat,lng])=>`${lng},${lat}`)
+        .join(';');
 
-    status.textContent=
-      'Pobieranie przebiegu trasy…';
+      status.textContent=
+        'Pobieranie przebiegu trasy…';
 
-    const res=await fetch(
-      `https://router.project-osrm.org/route/v1/driving/${coords}`+
-      `?overview=full&geometries=geojson&steps=true&annotations=duration,distance`,
-      {cache:'no-store'}
-    );
+      const res=await fetch(
+        `https://router.project-osrm.org/route/v1/driving/${coords}`+
+        `?overview=full&geometries=geojson&steps=true&annotations=duration,distance`,
+        {cache:'no-store'}
+      );
 
-    if(!res.ok){
-      throw Error(`HTTP ${res.status}`);
+      if(!res.ok){
+        throw Error(`HTTP ${res.status}`);
+      }
+
+      const data=await res.json();
+      const route=data.routes?.[0];
+
+      if(!route){
+        throw Error('Nie znaleziono trasy.');
+      }
+
+      const geo=
+        routeGeoJSON(route.geometry.coordinates);
+
+      routeCoords=
+        (route.geometry?.coordinates||[])
+          .map(([lng,lat])=>[lat,lng]);
+
+      steps=
+        (route.legs||[])
+          .flatMap(l=>l.steps||[]);
+
+      legDurations=
+        (route.legs||[])
+          .map(l=>l.duration||0);
+
+      progressIndex=0;
+      offRouteFixes=0;
+
+      mapStepsToProgress();
+
+      if(map.getSource('route')){
+        map.getSource('route').setData(geo);
+
+      }else{
+        map.addSource('route',{
+          type:'geojson',
+          data:geo
+        });
+
+        map.addLayer({
+          id:'route-outline',
+          type:'line',
+          source:'route',
+          layout:{
+            'line-cap':'round',
+            'line-join':'round'
+          },
+          paint:{
+            'line-color':'#202020',
+            'line-width':11,
+            'line-opacity':.7
+          }
+        });
+
+        map.addLayer({
+          id:'route-line',
+          type:'line',
+          source:'route',
+          layout:{
+            'line-cap':'round',
+            'line-join':'round'
+          },
+          paint:{
+            'line-color':'#ccff33',
+            'line-width':7,
+            'line-opacity':.95
+          }
+        });
+      }
+
+      refreshStopMarkers(
+        stops,
+        route.legs||[]
+      );
+
+      dispatchEta();
+      updateProviderBadge();
+
+      status.textContent=
+        `Trasa ${fmtDistance(route.distance)} • `+
+        `${Math.round(route.duration/60)} min`;
+    }finally{
+      routeBuildInFlight=false;
     }
-
-    const data=await res.json();
-    const route=data.routes?.[0];
-
-    if(!route){
-      throw Error('Nie znaleziono trasy.');
-    }
-
-    const geo=
-      routeGeoJSON(route.geometry.coordinates);
-
-    routeCoords=
-      (route.geometry?.coordinates||[])
-        .map(([lng,lat])=>[lat,lng]);
-
-    steps=
-      (route.legs||[])
-        .flatMap(l=>l.steps||[]);
-
-    legDurations=
-      (route.legs||[])
-        .map(l=>l.duration||0);
-
-    progressIndex=0;
-
-    mapStepsToProgress();
-
-    if(map.getSource('route')){
-      map.getSource('route').setData(geo);
-
-    }else{
-      map.addSource('route',{
-        type:'geojson',
-        data:geo
-      });
-
-      map.addLayer({
-        id:'route-outline',
-        type:'line',
-        source:'route',
-        layout:{
-          'line-cap':'round',
-          'line-join':'round'
-        },
-        paint:{
-          'line-color':'#202020',
-          'line-width':11,
-          'line-opacity':.7
-        }
-      });
-
-      map.addLayer({
-        id:'route-line',
-        type:'line',
-        source:'route',
-        layout:{
-          'line-cap':'round',
-          'line-join':'round'
-        },
-        paint:{
-          'line-color':'#ccff33',
-          'line-width':7,
-          'line-opacity':.95
-        }
-      });
-    }
-
-    refreshStopMarkers(
-      stops,
-      route.legs||[]
-    );
-
-    dispatchEta();
-    updateProviderBadge();
-
-    status.textContent=
-      `Trasa ${fmtDistance(route.distance)} • `+
-      `${Math.round(route.duration/60)} min`;
   }
 
 
@@ -1449,10 +1517,6 @@
       legDurations=
         legDurations.slice(oldIndex);
 
-      /*
-       * Nie pytamy Google ponownie tylko
-       * dlatego, że zmienił się przystanek.
-       */
       legStartAt=Date.now();
 
       refreshStopMarkers(
@@ -1481,7 +1545,8 @@
       if(
         panel.hidden||
         !lastGpsPoint||
-        !currentStops.length
+        !currentStops.length||
+        routeBuildInFlight
       )return;
 
       if(
@@ -1634,6 +1699,13 @@
     lastGpsPoint=null;
     currentHeading=0;
     progressIndex=0;
+    offRouteFixes=0;
+    lastRerouteAt=0;
+
+    if(rerouteTimer){
+      clearTimeout(rerouteTimer);
+      rerouteTimer=0;
+    }
 
     try{
       const pos=await posOnce();
@@ -1813,6 +1885,11 @@
       watchId=null;
     }
 
+    if(rerouteTimer){
+      clearTimeout(rerouteTimer);
+      rerouteTimer=0;
+    }
+
     clearInterval(refreshTimer);
     refreshTimer=0;
 
@@ -1824,6 +1901,8 @@
     lastGpsPoint=null;
     currentHeading=0;
     progressIndex=0;
+    offRouteFixes=0;
+    routeBuildInFlight=false;
   }
 
 
@@ -1876,10 +1955,6 @@
     true
   );
 
-  /*
-   * Dynamiczny dymek/licznik co sekundę.
-   * Bez nowego zapytania Google.
-   */
   setInterval(()=>{
     if(panel.hidden)return;
 
