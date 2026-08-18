@@ -2,39 +2,47 @@
   const body=document.getElementById('scheduleBody');
   if(!body)return;
 
-  const style=document.createElement('style');
-  style.textContent=`
-    #routeSkipStop{
-      position:fixed;
-      left:50%;
-      bottom:76px;
-      transform:translateX(-50%);
-      z-index:50150;
-      width:auto;
-      min-width:190px;
-      min-height:44px;
-      padding:8px 16px;
-      border:1px solid #fff8;
-      border-radius:22px;
-      background:#b3261e;
-      color:#fff;
-      box-shadow:0 3px 12px #000a;
-      font-size:13px;
-      font-weight:900;
-    }
+  const modal=document.createElement('div');
+  modal.id='routeStopActions';
+  modal.hidden=true;
+  modal.style.cssText=`
+    position:fixed;
+    inset:0;
+    z-index:70100;
+    background:#0009;
+    display:flex;
+    align-items:flex-end;
+    justify-content:center;
+    padding:14px;
+    box-sizing:border-box
   `;
-  document.head.appendChild(style);
+  modal.innerHTML=`
+    <div style="width:min(100%,520px);background:#1d1d1d;border:1px solid #555;border-radius:16px;padding:16px;box-shadow:0 8px 30px #000b">
+      <div id="routeStopActionsTitle" style="font-size:20px;font-weight:900;color:#ccff33"></div>
+      <div id="routeStopActionsMeta" style="margin-top:5px;color:#ddd;font-size:14px"></div>
+      <div style="display:grid;gap:9px;margin-top:16px">
+        <button id="routeStopShowSegment" type="button" style="padding:13px;font-weight:900">POKAŻ ODCINEK DO PRZYSTANKU</button>
+        <button id="routeStopSkip" type="button" style="padding:13px;font-weight:900;background:#b3261e;color:#fff">POMIŃ PRZYSTANEK</button>
+        <button id="routeStopCancel" type="button" style="padding:13px;font-weight:900">ANULUJ</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
 
-  const button=document.createElement('button');
-  button.id='routeSkipStop';
-  button.type='button';
-  button.textContent='POMIŃ TEN PRZYSTANEK';
-  button.hidden=true;
-  document.body.appendChild(button);
+  const title=modal.querySelector('#routeStopActionsTitle');
+  const meta=modal.querySelector('#routeStopActionsMeta');
+  const showSegment=modal.querySelector('#routeStopShowSegment');
+  const skip=modal.querySelector('#routeStopSkip');
+  const cancel=modal.querySelector('#routeStopCancel');
 
   function rows(){
     return [...body.querySelectorAll('tr')]
       .filter(r=>r.dataset.coordinate);
+  }
+
+  function parseCoord(v){
+    const m=String(v||'').match(/(-?\d+(?:\.\d+)?)\s*[,; ]\s*(-?\d+(?:\.\d+)?)/);
+    return m?[+m[1],+m[2]]:null;
   }
 
   function currentIndex(){
@@ -45,47 +53,102 @@
     return idx>=0?idx:0;
   }
 
-  function overviewActive(){
+  function currentStop(){
+    const rs=rows();
+    const idx=currentIndex();
+    const row=rs[idx];
+    if(!row)return null;
+    const name=row.querySelector('td:first-child')?.childNodes[0]?.textContent?.trim()
+      ||row.querySelector('td:first-child')?.innerText?.trim()
+      ||`Przystanek ${idx+1}`;
+    const time=String(row.children[1]?.firstChild?.textContent||row.children[1]?.textContent||'').trim();
+    return{rs,idx,row,name,time,coord:parseCoord(row.dataset.coordinate)};
+  }
+
+  function openMenu(){
     const nav=document.getElementById('routeMapNav');
-    if(!nav||nav.hidden)return false;
+    if(!nav||nav.hidden)return;
+    const s=currentStop();
+    if(!s)return;
+    title.textContent=s.name;
+    meta.textContent=s.time?`Plan: ${s.time}`:'';
+    skip.disabled=s.idx>=s.rs.length-1;
+    skip.textContent=skip.disabled?'OSTATNI PRZYSTANEK':'POMIŃ PRZYSTANEK';
+    modal.hidden=false;
+  }
+
+  function closeMenu(){modal.hidden=true}
+
+  function showSegmentOnMap(){
+    const s=currentStop();
+    const map=window.__routeMap;
+    if(!s?.coord||!map)return;
+
     const center=document.getElementById('routeMapCenter');
-    return !!center && center.getAttribute('aria-label')==='Wróć do prowadzenia';
+    if(center&&center.getAttribute('aria-label')!=='Wróć do prowadzenia'){
+      center.click();
+    }
+
+    const fit=here=>{
+      try{
+        const bounds=new maplibregl.LngLatBounds();
+        bounds.extend([here[1],here[0]]);
+        bounds.extend([s.coord[1],s.coord[0]]);
+        map.fitBounds(bounds,{
+          padding:{top:90,bottom:110,left:55,right:55},
+          maxZoom:16,
+          duration:650
+        });
+      }catch{}
+    };
+
+    if(navigator.geolocation){
+      navigator.geolocation.getCurrentPosition(
+        p=>fit([p.coords.latitude,p.coords.longitude]),
+        ()=>{},
+        {enableHighAccuracy:true,timeout:7000,maximumAge:3000}
+      );
+    }
+    closeMenu();
   }
 
-  function refresh(){
-    const rs=rows();
-    const idx=currentIndex();
-    button.hidden=!(overviewActive()&&rs[idx]&&rs[idx+1]);
-  }
+  function skipCurrent(){
+    const s=currentStop();
+    if(!s||!s.rs[s.idx+1])return;
+    const nextIndex=s.idx+1;
+    const nextRow=s.rs[nextIndex];
+    const nextName=nextRow?.querySelector('td:first-child')?.childNodes[0]?.textContent?.trim()
+      ||nextRow?.querySelector('td:first-child')?.innerText?.trim()
+      ||`Przystanek ${nextIndex+1}`;
 
-  button.addEventListener('click',()=>{
-    const rs=rows();
-    const idx=currentIndex();
-    if(!rs[idx+1])return;
+    if(!confirm(`Pominąć przystanek „${s.name}” i przejść do „${nextName}”?`))return;
 
-    body.dataset.gpsNextStop=String(idx+1);
-    rs.forEach((r,i)=>{
-      r.classList.toggle('gpsNextStop',i===idx+1);
-      r.classList.toggle('isActiveStop',i===idx+1);
-    });
-
-    const target=rs[idx+1];
     body.dispatchEvent(new CustomEvent('gps-skip-stop',{
       bubbles:true,
-      detail:{index:idx+1}
-    }));
-    body.dispatchEvent(new CustomEvent('gps-next-stop-change',{
-      bubbles:true,
-      detail:{
-        index:idx+1,
-        name:target.children[0]?.innerText.trim()||''
-      }
+      detail:{index:nextIndex,skippedIndex:s.idx,skippedName:s.name}
     }));
 
-    button.hidden=true;
-  });
+    closeMenu();
+  }
 
-  document.addEventListener('click',()=>setTimeout(refresh,0),true);
-  body.addEventListener('gps-next-stop-change',()=>setTimeout(refresh,0));
-  setInterval(refresh,500);
+  showSegment.addEventListener('click',showSegmentOnMap);
+  skip.addEventListener('click',skipCurrent);
+  cancel.addEventListener('click',closeMenu);
+  modal.addEventListener('click',e=>{if(e.target===modal)closeMenu()});
+
+  document.addEventListener('click',e=>{
+    const nav=document.getElementById('routeMapNav');
+    if(!nav||nav.hidden)return;
+
+    const nextLabel=e.target.closest?.('#routeNextStop');
+    const bubble=e.target.closest?.('.activeStopEtaBubble');
+    const marker=e.target.closest?.('.maplibregl-marker');
+    const activeMarker=marker?.querySelector?.('.activeStopEtaBubble');
+
+    if(!nextLabel&&!bubble&&!activeMarker)return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    openMenu();
+  },true);
 })();
