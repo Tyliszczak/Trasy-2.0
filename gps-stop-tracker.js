@@ -8,7 +8,7 @@
 
   const MIN_MOVE=7;
   const REACHED=60;
-  const DEPARTED=90;
+  const DEPARTED=35;
   const MAX_ACCURACY=120;
 
   const style=document.createElement('style');
@@ -106,10 +106,6 @@
     return d;
   }
 
-  /*
-   * Przed planową godziną pierwszego przystanku
-   * nie pozwalamy GPS przeskoczyć w środek trasy.
-   */
   function firstStopProtected(){
     const rs=rows();
     if(!rs.length)return false;
@@ -127,10 +123,6 @@
     setTimeout(chooseAndApply,100);
   }
 
-  /*
-   * Uruchomienie aplikacji już w trakcie kursu:
-   * GPS + kierunek + czas wybierają następny punkt.
-   */
   function initialIndex(here){
     const rs=rows();
     if(!rs.length)return null;
@@ -199,7 +191,6 @@
         :null;
 
     const dc=cur?dist(here,cur):Infinity;
-    const dn=next?dist(here,next):Infinity;
 
     const accuracy=Number(window.__navAcc||0);
 
@@ -228,12 +219,6 @@
       const clearlyLeaving=
         reachedCurrent&&
         dc>DEPARTED&&
-        dn<dc&&
-        movingToNext;
-
-      const nextClearlyCloser=
-        reachedCurrent&&
-        dn+80<dc&&
         movingToNext;
 
       const plan=rowTime(row);
@@ -243,7 +228,7 @@
 
       if(
         !stillTooEarly&&
-        (clearlyLeaving||nextClearlyCloser)
+        clearlyLeaving
       ){
         currentIndex++;
         reachedCurrent=false;
@@ -279,10 +264,6 @@
 
       body.dataset.gpsNextStop=String(idx);
 
-      /*
-       * Nie wysyłamy tego zdarzenia przy każdym odczycie GPS.
-       * Tylko przy rzeczywistej zmianie przystanku.
-       */
       if(changed){
         body.dispatchEvent(
           new CustomEvent('gps-next-stop-change',{
@@ -385,7 +366,9 @@
       d<=DEPARTED
     ){
       state='ready';
-      message='MOŻESZ JECHAĆ';
+      message=currentIndex===rs.length-1
+        ?'JESTEŚ NA MIEJSCU'
+        :'MOŻESZ JECHAĆ';
     }
 
     if(state){
