@@ -2,6 +2,7 @@
   const style=document.createElement('style');
   style.textContent=`
     #scheduleView .scheduleControls{
+      width:100%;
       min-width:0;
       max-width:100%;
       flex-wrap:wrap;
@@ -15,6 +16,10 @@
       flex:0 1 auto;
       min-width:0;
       max-width:100%;
+    }
+    #scheduleView .returnRouteSwitchLabel{
+      margin-left:auto;
+      justify-self:end;
     }
     #scheduleView #returnStartLabel{
       overflow:hidden;
@@ -30,11 +35,17 @@
         gap:6px 10px;
       }
       #scheduleView .returnRouteSwitchLabel{
-        margin:0;
+        margin:0 0 0 auto;
+        grid-column:2;
+        grid-row:1;
+        justify-self:end;
       }
       #scheduleView #returnStartLabel{
         margin:0;
-        text-align:center;
+        grid-column:1;
+        grid-row:1;
+        justify-self:start;
+        text-align:left;
         white-space:nowrap;
       }
       #scheduleView .scheduleClock{
