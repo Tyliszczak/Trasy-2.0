@@ -35,99 +35,39 @@
   const skip=modal.querySelector('#routeStopSkip');
   const cancel=modal.querySelector('#routeStopCancel');
 
-  function rows(){
-    return [...body.querySelectorAll('tr')]
-      .filter(r=>r.dataset.coordinate);
-  }
-
-  function parseCoord(v){
-    const m=String(v||'').match(/(-?\d+(?:\.\d+)?)\s*[,; ]\s*(-?\d+(?:\.\d+)?)/);
-    return m?[+m[1],+m[2]]:null;
-  }
-
-  function currentIndex(){
-    const rs=rows();
-    let idx=Number(body.dataset.gpsNextStop);
-    if(Number.isInteger(idx)&&idx>=0&&idx<rs.length)return idx;
-    idx=rs.findIndex(r=>r.classList.contains('gpsNextStop'));
-    return idx>=0?idx:0;
-  }
-
+  function rows(){return [...body.querySelectorAll('tr')].filter(r=>r.dataset.coordinate)}
+  function parseCoord(v){const m=String(v||'').match(/(-?\d+(?:\.\d+)?)\s*[,; ]\s*(-?\d+(?:\.\d+)?)/);return m?[+m[1],+m[2]]:null}
+  function currentIndex(){const rs=rows();let idx=Number(body.dataset.gpsNextStop);if(Number.isInteger(idx)&&idx>=0&&idx<rs.length)return idx;idx=rs.findIndex(r=>r.classList.contains('gpsNextStop'));return idx>=0?idx:0}
   function currentStop(){
-    const rs=rows();
-    const idx=currentIndex();
-    const row=rs[idx];
+    const rs=rows(),idx=currentIndex(),row=rs[idx];
     if(!row)return null;
-    const name=row.querySelector('td:first-child')?.childNodes[0]?.textContent?.trim()
-      ||row.querySelector('td:first-child')?.innerText?.trim()
-      ||`Przystanek ${idx+1}`;
+    const name=row.querySelector('td:first-child')?.childNodes[0]?.textContent?.trim()||row.querySelector('td:first-child')?.innerText?.trim()||`Przystanek ${idx+1}`;
     const time=String(row.children[1]?.firstChild?.textContent||row.children[1]?.textContent||'').trim();
     return{rs,idx,row,name,time,coord:parseCoord(row.dataset.coordinate)};
   }
-
   function openMenu(){
     const nav=document.getElementById('routeMapNav');
     if(!nav||nav.hidden)return;
-    const s=currentStop();
-    if(!s)return;
-    title.textContent=s.name;
-    meta.textContent=s.time?`Plan: ${s.time}`:'';
+    const s=currentStop();if(!s)return;
+    title.textContent=s.name;meta.textContent=s.time?`Plan: ${s.time}`:'';
     skip.disabled=s.idx>=s.rs.length-1;
     skip.textContent=skip.disabled?'OSTATNI PRZYSTANEK':'POMIŃ PRZYSTANEK';
     modal.hidden=false;
   }
-
   function closeMenu(){modal.hidden=true}
-
   function showSegmentOnMap(){
-    const s=currentStop();
-    const map=window.__routeMap;
+    const s=currentStop(),map=window.__routeMap;
     if(!s?.coord||!map)return;
-
     const center=document.getElementById('routeMapCenter');
-    if(center&&center.getAttribute('aria-label')!=='Wróć do prowadzenia'){
-      center.click();
-    }
-
-    const fit=here=>{
-      try{
-        const bounds=new maplibregl.LngLatBounds();
-        bounds.extend([here[1],here[0]]);
-        bounds.extend([s.coord[1],s.coord[0]]);
-        map.fitBounds(bounds,{
-          padding:{top:90,bottom:110,left:55,right:55},
-          maxZoom:16,
-          duration:650
-        });
-      }catch{}
-    };
-
-    if(navigator.geolocation){
-      navigator.geolocation.getCurrentPosition(
-        p=>fit([p.coords.latitude,p.coords.longitude]),
-        ()=>{},
-        {enableHighAccuracy:true,timeout:7000,maximumAge:3000}
-      );
-    }
+    if(center&&center.getAttribute('aria-label')!=='Wróć do prowadzenia')center.click();
+    const fit=here=>{try{const bounds=new maplibregl.LngLatBounds();bounds.extend([here[1],here[0]]);bounds.extend([s.coord[1],s.coord[0]]);map.fitBounds(bounds,{padding:{top:90,bottom:110,left:55,right:55},maxZoom:16,duration:650})}catch{}};
+    if(navigator.geolocation){navigator.geolocation.getCurrentPosition(p=>fit([p.coords.latitude,p.coords.longitude]),()=>{},{enableHighAccuracy:true,timeout:7000,maximumAge:3000})}
     closeMenu();
   }
-
   function skipCurrent(){
-    const s=currentStop();
-    if(!s||!s.rs[s.idx+1])return;
+    const s=currentStop();if(!s||!s.rs[s.idx+1])return;
     const nextIndex=s.idx+1;
-    const nextRow=s.rs[nextIndex];
-    const nextName=nextRow?.querySelector('td:first-child')?.childNodes[0]?.textContent?.trim()
-      ||nextRow?.querySelector('td:first-child')?.innerText?.trim()
-      ||`Przystanek ${nextIndex+1}`;
-
-    if(!confirm(`Pominąć przystanek „${s.name}” i przejść do „${nextName}”?`))return;
-
-    body.dispatchEvent(new CustomEvent('gps-skip-stop',{
-      bubbles:true,
-      detail:{index:nextIndex,skippedIndex:s.idx,skippedName:s.name}
-    }));
-
+    body.dispatchEvent(new CustomEvent('gps-skip-stop',{bubbles:true,detail:{index:nextIndex,skippedIndex:s.idx,skippedName:s.name}}));
     closeMenu();
   }
 
@@ -135,20 +75,13 @@
   skip.addEventListener('click',skipCurrent);
   cancel.addEventListener('click',closeMenu);
   modal.addEventListener('click',e=>{if(e.target===modal)closeMenu()});
-
   document.addEventListener('click',e=>{
-    const nav=document.getElementById('routeMapNav');
-    if(!nav||nav.hidden)return;
-
+    const nav=document.getElementById('routeMapNav');if(!nav||nav.hidden)return;
     const nextLabel=e.target.closest?.('#routeNextStop');
     const bubble=e.target.closest?.('.activeStopEtaBubble');
     const marker=e.target.closest?.('.maplibregl-marker');
     const activeMarker=marker?.querySelector?.('.activeStopEtaBubble');
-
     if(!nextLabel&&!bubble&&!activeMarker)return;
-
-    e.preventDefault();
-    e.stopPropagation();
-    openMenu();
+    e.preventDefault();e.stopPropagation();openMenu();
   },true);
 })();
