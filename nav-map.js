@@ -207,63 +207,6 @@
 
 
   /* =========================================================
-     GOOGLE / OSRM
-     ========================================================= */
-
-  const providerBadge=document.createElement('button');
-
-  providerBadge.type='button';
-
-  providerBadge.style.cssText=`
-    position:absolute;
-    top:54px;
-    right:10px;
-    z-index:50000;
-    font-size:9px;
-    font-weight:900;
-    padding:3px 5px;
-    border:0;
-    border-radius:4px;
-    background:#000b;
-    cursor:pointer
-  `;
-
-  root.appendChild(providerBadge);
-
-  window.__routeMode=
-    window.__routeMode||'google';
-
-  function updateProviderBadge(){
-    const mode=
-      window.__routeMode||'google';
-
-    const actual=
-      window.__routeProvider||'';
-
-    if(
-      mode==='google'&&
-      actual==='osrm-fallback'
-    ){
-      providerBadge.textContent='OSRM ⚠';
-      providerBadge.style.color='#ff9f0a';
-      return;
-    }
-
-    providerBadge.textContent=
-      mode==='osrm'
-        ?'OSRM'
-        :'GOOGLE';
-
-    providerBadge.style.color=
-      mode==='osrm'
-        ?'#ffd166'
-        :'#7cff7c';
-  }
-
-  updateProviderBadge();
-
-
-  /* =========================================================
      PANEL ETA POZA EKRANEM
      ========================================================= */
 
@@ -1475,7 +1418,6 @@
       );
 
       dispatchEta();
-      updateProviderBadge();
 
       status.textContent=
         `Trasa ${fmtDistance(route.distance)} • `+
@@ -1590,35 +1532,6 @@
   /* =========================================================
      PRZYCISKI
      ========================================================= */
-
-  providerBadge.onclick=async()=>{
-    window.__routeMode=
-      window.__routeMode==='osrm'
-        ?'google'
-        :'osrm';
-
-    updateProviderBadge();
-
-    if(
-      positionMarker&&
-      currentStops.length
-    ){
-      const p=
-        positionMarker.getLngLat();
-
-      try{
-        await buildRoute(
-          [p.lat,p.lng],
-          currentStops
-        );
-      }catch(err){
-        console.error(
-          'Błąd przełączania:',
-          err
-        );
-      }
-    }
-  };
 
   panel.querySelector(
     '#routeMapCenter'
