@@ -1,4 +1,4 @@
-const CACHE_NAME='trasy-2.0-v53';
+const CACHE_NAME='trasy-2.0-v54';
 
 const APP_SHELL=[
   './',
