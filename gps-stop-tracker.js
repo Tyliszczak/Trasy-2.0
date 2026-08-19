@@ -49,6 +49,7 @@
   function start(){if(watch!==null)return;watch=navigator.geolocation.watchPosition(onPos,()=>{},{enableHighAccuracy:true,maximumAge:700,timeout:15000})}
 
   body.addEventListener('route-direction-change',routeChanged);
+  body.addEventListener('schedule-rendered',routeChanged);
   body.addEventListener('gps-skip-stop',e=>{
     const idx=Number(e.detail?.index);
     const rs=rows();
@@ -61,8 +62,8 @@
     updateStopGuard();
   });
 
-  new MutationObserver(m=>{if(applying||!lastPos)return;if(m.some(x=>x.type==='attributes'&&x.attributeName==='class'))setTimeout(chooseAndApply,0)}).observe(body,{subtree:true,attributes:true,attributeFilter:['class']});
   setInterval(updateStopGuard,1000);
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')start()});
   start();
 })();
+
