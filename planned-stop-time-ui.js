@@ -24,7 +24,7 @@
   function refresh(){
     const data=rowData();
     if(!data)return;
-    const text=data.plan?`${data.name} • plan ${data.plan}`:data.name;
+    const text=data.plan?`${data.name} • ${data.plan}`:data.name;
 
     document.querySelectorAll('.activeStopEtaBubble').forEach(el=>{
       if(el.textContent!==text)el.textContent=text;
