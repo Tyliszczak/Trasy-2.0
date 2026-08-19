@@ -34,23 +34,11 @@
               m.modifier='straight';
             }
 
-            if(
-              (type==='roundabout'||type==='rotary')&&
-              !m.exit
-            ){
-              if(mod==='left'||mod==='slight left'||mod==='sharp left'){
-                m.type='turn';
-                m.modifier='left';
-                step.name='rondzie';
-              }else if(mod==='right'||mod==='slight right'||mod==='sharp right'){
-                m.type='turn';
-                m.modifier='right';
-                step.name='rondzie';
-              }else if(mod==='straight'){
-                m.type='continue';
-                m.modifier='straight';
-                step.name='rondzie';
-              }
+            // Na rondzie modifier (np. "right") nie opisuje wiarygodnie kierunku wyjazdu.
+            // Zachowujemy typ ronda i używamy wyłącznie numeru zjazdu, jeśli dostawca go podał.
+            if(type==='roundabout'||type==='rotary'){
+              m.type=type;
+              if(!m.exit)m.modifier='';
             }
           });
         });
