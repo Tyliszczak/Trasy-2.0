@@ -2,7 +2,7 @@
   const AUTO_RESUME_MS=15000;
   function init(){
     const root=document.getElementById('routeNavRoot'),close=document.getElementById('routeMapClose'),center=document.getElementById('routeMapCenter'),maneuver=document.getElementById('routeManeuver');
-    if(!root||!close||!center||!maneuver)return false;if(root.dataset.compactNavUi==='6')return true;root.dataset.compactNavUi='6';
+    if(!root||!close||!center||!maneuver)return false;if(root.dataset.compactNavUi==='7')return true;root.dataset.compactNavUi='7';
     const style=document.createElement('style');style.textContent='.maplibregl-ctrl-compass{display:none!important}';document.head.appendChild(style);
     const top=close.parentElement,title=top?.querySelector('strong');if(title)title.style.display='none';if(top){top.style.height='0';top.style.minHeight='0';top.style.padding='0';top.style.border='0';top.style.background='transparent';top.style.overflow='visible';top.style.position='relative';top.style.zIndex='50040'}
     close.textContent='‹';close.setAttribute('aria-label','Zamknij nawigację');close.title='Wróć do harmonogramu';close.style.cssText='position:fixed;top:112px;left:10px;z-index:50100;width:38px;height:38px;min-width:38px;min-height:38px;padding:0;border:1px solid #fff8;border-radius:19px;background:#111d;color:#fff;font-size:32px;line-height:32px;box-shadow:0 2px 9px #000a';
@@ -15,8 +15,8 @@
     const navIcon='<span style="display:block;font-size:28px;line-height:28px;font-weight:900;color:#fff">➤</span>';
     function clearResume(){if(resumeTimer){clearTimeout(resumeTimer);resumeTimer=0}}
     function renderState(){
-      if(northView){center.innerHTML=compassIcon;center.setAttribute('aria-label','Wróć do nawigacji');center.title='Wróć do nawigacji'}
-      else{center.innerHTML=navIcon;center.setAttribute('aria-label','Widok na północ');center.title='Widok na północ'}
+      if(northView){center.innerHTML=navIcon;center.setAttribute('aria-label','Wróć do nawigacji');center.title='Wróć do nawigacji'}
+      else{center.innerHTML=compassIcon;center.setAttribute('aria-label','Widok na północ');center.title='Widok na północ'}
     }
     function resumeNavigation(){clearResume();if(!northView)return;northView=false;window.__routeManualView=false;renderState();if(typeof originalCenter==='function')originalCenter.call(center)}
     function scheduleResume(){clearResume();resumeTimer=setTimeout(resumeNavigation,AUTO_RESUME_MS)}
