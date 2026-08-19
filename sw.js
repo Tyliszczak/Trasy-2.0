@@ -1,4 +1,4 @@
-const CACHE_NAME='trasy-2.0-v56';
+const CACHE_NAME='trasy-2.0-v57';
 
 const APP_SHELL=[
   './',
@@ -13,6 +13,7 @@ const APP_SHELL=[
   './nav-map.js',
   './traffic-delay-ui.js',
   './navigation-ui-controls.js',
+  './skip-stop-control.js',
   './eta-status.js',
   './routes.js',
   './schedule.js',
