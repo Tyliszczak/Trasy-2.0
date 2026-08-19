@@ -1,87 +1,44 @@
 (()=>{
   const API_URL='https://script.google.com/macros/s/AKfycbzdG_ARbbPgMdlPteqFLakZHR5EEkT4Lb3YFDbXW_I_OyrDKo8l0_KrQLjnncxj_M9q/exec';
   const nativeFetch=window.fetch.bind(window);
-  const GOOGLE_ROUTE_TIMEOUT_MS=12000;
-  window.__routeMode='google';
-  
+  const GOOGLE_ROUTE_TIMEOUT_MS=6500;
+
+  // Domyślnie prowadzimy po OSRM. Google dostarcza tylko ETA/ruch.
+  window.__routeMode='osrm';
+  window.__routeTrafficDelaySeconds=0;
+  window.__routeTrafficAvailable=false;
+
   function parseOsrmCoordinates(url){
     try{
       const m=String(url).match(/\/route\/v1\/driving\/([^?]+)/);
       if(!m)return null;
       return decodeURIComponent(m[1]).split(';').map(p=>{
         const [lng,lat]=p.split(',').map(Number);
-        return Number.isFinite(lat)&&Number.isFinite(lng)?{latitude:lat,longitude:lng}:null;
+        return Number.isFinite(lat)&&Number.isFinite(lng)
+          ?{latitude:lat,longitude:lng}
+          :null;
       }).filter(Boolean);
     }catch{return null}
   }
 
-  function seconds(v){
+  function numberDuration(v){
+    if(Number.isFinite(Number(v)))return Number(v);
     const m=String(v||'').match(/^([0-9.]+)s$/);
     return m?Number(m[1]):0;
   }
 
-  function decodePolyline(str){
-    let index=0,lat=0,lng=0,out=[];
-    while(index<str.length){
-      let b,shift=0,result=0;
-      do{b=str.charCodeAt(index++)-63;result|=(b&31)<<shift;shift+=5}while(b>=32);
-      lat+=(result&1)?~(result>>1):(result>>1);
-      shift=0;result=0;
-      do{b=str.charCodeAt(index++)-63;result|=(b&31)<<shift;shift+=5}while(b>=32);
-      lng+=(result&1)?~(result>>1):(result>>1);
-      out.push([lng/1e5,lat/1e5]);
-    }
-    return out;
+  function staticGoogleDuration(route){
+    return (route?.legs||[]).reduce((total,leg)=>{
+      return total+(leg.steps||[]).reduce(
+        (sum,step)=>sum+numberDuration(step.duration),
+        0
+      );
+    },0);
   }
 
-  function maneuver(m){
-    const x=String(m||'').toUpperCase();
-    const map={
-      'TURN_LEFT':['turn','left'],'TURN_RIGHT':['turn','right'],
-      'TURN_SLIGHT_LEFT':['turn','slight left'],'TURN_SLIGHT_RIGHT':['turn','slight right'],
-      'TURN_SHARP_LEFT':['turn','sharp left'],'TURN_SHARP_RIGHT':['turn','sharp right'],
-      'STRAIGHT':['continue','straight'],'UTURN_LEFT':['turn','uturn'],'UTURN_RIGHT':['turn','uturn'],
-      'ROUNDABOUT_LEFT':['roundabout','left'],'ROUNDABOUT_RIGHT':['roundabout','right'],
-      'RAMP_LEFT':['on ramp','left'],'RAMP_RIGHT':['on ramp','right'],
-      'MERGE':['merge','straight'],'FORK_LEFT':['fork','left'],'FORK_RIGHT':['fork','right'],
-      'NAME_CHANGE':['new name','straight'],'DESTINATION':['arrive','straight']
-    };
-    return map[x]||['continue','straight'];
-  }
-
-  function latLng(loc){
-    const p=loc?.latLng;
-    return p&&Number.isFinite(Number(p.latitude))&&Number.isFinite(Number(p.longitude))
-      ?[Number(p.longitude),Number(p.latitude)]:null;
-  }
-
-  function toOsrmLike(data){
-    const r=data?.routes?.[0];
-    if(!r)return null;
-    const geometry=decodePolyline(r.polyline?.encodedPolyline||'');
-    const legs=(r.legs||[]).map(leg=>{
-      const steps=(leg.steps||[]).map(s=>{
-        const mm=maneuver(s.navigationInstruction?.maneuver);
-        const loc=latLng(s.startLocation)||latLng(s.endLocation)||geometry[0]||[0,0];
-        return {
-          distance:Number(s.distanceMeters||0),duration:seconds(s.staticDuration),name:'',
-          maneuver:{type:mm[0],modifier:mm[1],location:loc},
-          geometry:{coordinates:decodePolyline(s.polyline?.encodedPolyline||'')}
-        };
-      });
-      const end=latLng(leg.endLocation);
-      if(end)steps.push({distance:0,duration:0,name:'',maneuver:{type:'arrive',modifier:'straight',location:end}});
-      return {distance:Number(leg.distanceMeters||0),duration:seconds(leg.duration),steps};
-    });
-    return {routes:[{distance:Number(r.distanceMeters||0),duration:seconds(r.duration),geometry:{coordinates:geometry},legs}]};
-  }
-
-  async function googleRoute(coords){
+  async function googleTrafficData(coords){
     const controller=new AbortController();
-    const timeout=setTimeout(
-      ()=>controller.abort(),
-      GOOGLE_ROUTE_TIMEOUT_MS
-    );
+    const timeout=setTimeout(()=>controller.abort(),GOOGLE_ROUTE_TIMEOUT_MS);
 
     try{
       const res=await nativeFetch(API_URL,{
@@ -100,56 +57,121 @@
       if(!res.ok)throw Error(`Google proxy HTTP ${res.status}`);
 
       const data=await res.json();
+      const route=data?.osrmLike?.routes?.[0];
 
-      if(data?.status!=='success'||!data?.osrmLike?.routes?.[0]){
-        throw Error(data?.message||'Brak trasy Google');
+      if(data?.status!=='success'||!route){
+        throw Error(data?.message||'Brak danych Google Traffic');
       }
 
-      window.__routeProvider=data.provider||'google-routes-traffic';
-
-      return new Response(
-        JSON.stringify(data.osrmLike),
-        {
-          status:200,
-          headers:{'Content-Type':'application/json'}
-        }
-      );
+      return data.osrmLike;
     }catch(err){
-      if(err?.name==='AbortError'){
-        throw Error('Google Routes timeout');
-      }
+      if(err?.name==='AbortError')throw Error('Google Traffic timeout');
       throw err;
     }finally{
       clearTimeout(timeout);
     }
   }
 
+  function mergeTraffic(osrmData,googleData){
+    const osrmRoute=osrmData?.routes?.[0];
+    const googleRoute=googleData?.routes?.[0];
+    if(!osrmRoute||!googleRoute)return osrmData;
+
+    const trafficDuration=numberDuration(googleRoute.duration);
+    const staticDuration=staticGoogleDuration(googleRoute);
+
+    if(trafficDuration>0){
+      osrmRoute.duration=trafficDuration;
+    }
+
+    const osrmLegs=osrmRoute.legs||[];
+    const googleLegs=googleRoute.legs||[];
+
+    osrmLegs.forEach((leg,i)=>{
+      const trafficLeg=numberDuration(googleLegs[i]?.duration);
+      if(trafficLeg>0)leg.duration=trafficLeg;
+    });
+
+    const delay=(trafficDuration>0&&staticDuration>0)
+      ?Math.max(0,trafficDuration-staticDuration)
+      :0;
+
+    osrmRoute.trafficDelaySeconds=delay;
+    osrmRoute.trafficSource='google';
+
+    window.__routeTrafficDelaySeconds=delay;
+    window.__routeTrafficAvailable=true;
+    window.__routeProvider='osrm-google-traffic';
+
+    document.dispatchEvent(new CustomEvent('route-traffic-update',{
+      detail:{
+        delaySeconds:delay,
+        durationSeconds:trafficDuration,
+        source:'google'
+      }
+    }));
+
+    return osrmData;
+  }
+
+  function jsonResponse(data,sourceResponse){
+    return new Response(JSON.stringify(data),{
+      status:sourceResponse?.status||200,
+      statusText:sourceResponse?.statusText||'OK',
+      headers:{'Content-Type':'application/json'}
+    });
+  }
+
   window.fetch=async function(input,init){
     const url=typeof input==='string'?input:input?.url||'';
 
-    if(url.includes('router.project-osrm.org/route/v1/driving/')){
-
-      const coords=parseOsrmCoordinates(url);
-
-      if(
-        window.__routeMode!=='osrm' &&
-        coords?.length>=2
-      ){
-        try{
-          return await googleRoute(coords);
-        }catch(err){
-          console.warn(
-            'Google Routes niedostępne, używam OSRM:',
-            err
-          );
-
-          window.__routeProvider='osrm-fallback';
-        }
-      }
-
-      window.__routeProvider='osrm';
+    if(!url.includes('router.project-osrm.org/route/v1/driving/')){
+      return nativeFetch(input,init);
     }
 
-    return nativeFetch(input,init);
+    const coords=parseOsrmCoordinates(url);
+
+    // Zachowujemy możliwość ręcznego przełączenia na pełną trasę Google.
+    if(window.__routeMode==='google'&&coords?.length>=2){
+      try{
+        const googleData=await googleTrafficData(coords);
+        window.__routeProvider='google-routes-traffic';
+        window.__routeTrafficAvailable=true;
+        return jsonResponse(googleData);
+      }catch(err){
+        console.warn('Google Routes niedostępne, wracam do OSRM:',err);
+      }
+    }
+
+    // Tryb OSRM: geometria, manewry i komunikaty zawsze z OSRM.
+    // Google uruchamiamy równolegle wyłącznie po czasy z ruchem.
+    const osrmPromise=nativeFetch(input,init);
+    const trafficPromise=coords?.length>=2
+      ?googleTrafficData(coords)
+      :Promise.reject(Error('Brak punktów do Google Traffic'));
+
+    const osrmResponse=await osrmPromise;
+    if(!osrmResponse.ok){
+      window.__routeProvider='osrm';
+      return osrmResponse;
+    }
+
+    try{
+      const [osrmData,googleData]=await Promise.all([
+        osrmResponse.clone().json(),
+        trafficPromise
+      ]);
+
+      return jsonResponse(
+        mergeTraffic(osrmData,googleData),
+        osrmResponse
+      );
+    }catch(err){
+      console.warn('Google Traffic niedostępne — ETA z OSRM:',err);
+      window.__routeProvider='osrm-traffic-fallback';
+      window.__routeTrafficAvailable=false;
+      window.__routeTrafficDelaySeconds=0;
+      return osrmResponse;
+    }
   };
 })();
