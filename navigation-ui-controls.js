@@ -3,8 +3,8 @@
   function init(){
     const root=document.getElementById('routeNavRoot'),close=document.getElementById('routeMapClose'),center=document.getElementById('routeMapCenter'),maneuver=document.getElementById('routeManeuver');
     if(!root||!close||!center||!maneuver)return false;
-    if(root.dataset.compactNavUi==='11')return true;
-    root.dataset.compactNavUi='11';
+    if(root.dataset.compactNavUi==='12')return true;
+    root.dataset.compactNavUi='12';
 
     const style=document.createElement('style');
     style.textContent='.maplibregl-ctrl-compass{display:none!important}';
@@ -14,15 +14,15 @@
     if(title)title.style.display='none';
     if(top){top.style.height='0';top.style.minHeight='0';top.style.padding='0';top.style.border='0';top.style.background='transparent';top.style.overflow='visible';top.style.position='relative';top.style.zIndex='50040'}
 
-    close.textContent='‹';close.setAttribute('aria-label','Zamknij nawigację');close.title='Wróć do harmonogramu';
-    close.style.cssText='position:fixed;top:112px;left:10px;z-index:50100;width:38px;height:38px;min-width:38px;min-height:38px;padding:0;border:1px solid #fff8;border-radius:19px;background:#111d;color:#fff;font-size:32px;line-height:32px;box-shadow:0 2px 9px #000a';
+    close.textContent='‹';close.setAttribute('aria-label','Wróć');close.title='Wróć';
+    close.style.cssText='position:fixed;top:112px;left:10px;z-index:50100;width:38px;height:38px;min-width:38px;min-height:38px;padding:0;border:1px solid #fff8;border-radius:19px;background:#111d;color:#fff;font-size:32px;line-height:32px;box-shadow:0 2px 9px #000a;display:flex;align-items:center;justify-content:center';
 
     const originalCenter=center.onclick;
     center.style.cssText='position:fixed;right:12px;top:112px;z-index:50100;width:42px;height:42px;min-width:42px;min-height:42px;padding:0;border:1px solid #fff8;border-radius:21px;background:#111d;color:#fff;box-shadow:0 2px 9px #000a;display:flex;align-items:center;justify-content:center';
 
     let voice=document.getElementById('routeVoiceToggle');
     if(!voice){voice=document.createElement('button');voice.id='routeVoiceToggle';voice.type='button';root.appendChild(voice)}
-    voice.style.cssText='position:fixed;top:112px;left:56px;z-index:50100;width:38px;height:38px;min-width:38px;min-height:38px;padding:0;border:1px solid #fff8;border-radius:19px;background:#111d;color:#fff;font-size:19px;line-height:38px;box-shadow:0 2px 9px #000a';
+    voice.style.cssText='position:fixed;top:162px;right:14px;left:auto;z-index:50100;width:38px;height:38px;min-width:38px;min-height:38px;padding:0;border:1px solid #fff8;border-radius:19px;background:#111d;color:#fff;font-size:19px;line-height:38px;box-shadow:0 2px 9px #000a';
     window.__routeVoiceMuted=window.__routeVoiceMuted===true;
     const speech=window.speechSynthesis;
     if(speech&&typeof speech.speak==='function'&&!speech.__routeMuteWrapped){speech.__routeMuteWrapped=true;const nativeSpeak=speech.speak.bind(speech);speech.speak=function(u){if(window.__routeVoiceMuted)return;return nativeSpeak(u)}}
@@ -73,11 +73,11 @@
     center.onclick=()=>{if(overview)resumeNavigation();else enterOverview()};
 
     const mapTimer=setInterval(()=>{
-      const map=window.__routeMap;if(!map||map.__compactUiGesturesV11)return;
-      map.__compactUiGesturesV11=true;
+      const map=window.__routeMap;if(!map||map.__compactUiGesturesV12)return;
+      map.__compactUiGesturesV12=true;
       map.on('dragstart',markManual);map.on('zoomstart',markManual);map.on('rotatestart',markManual);map.on('pitchstart',markManual);
       const canvas=map.getCanvasContainer?.()||map.getCanvas?.()?.parentElement;
-      if(canvas&&!canvas.__routeManualGestureCaptureV11){canvas.__routeManualGestureCaptureV11=true;
+      if(canvas&&!canvas.__routeManualGestureCaptureV12){canvas.__routeManualGestureCaptureV12=true;
         const manualPointer=e=>{if(e.target===center||center.contains(e.target))return;markManual()};
         canvas.addEventListener('pointerdown',manualPointer,{passive:true,capture:true});
         canvas.addEventListener('touchstart',manualPointer,{passive:true,capture:true});
