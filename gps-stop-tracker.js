@@ -7,7 +7,7 @@
   const style=document.createElement('style');style.textContent=`
     #scheduleBody tr.isActiveStop:not(.gpsNextStop){background:transparent!important;box-shadow:none!important}
     #scheduleBody tr.isActiveStop:not(.gpsNextStop) td:first-child{color:#fff!important;font-weight:inherit!important}
-    #scheduleBody tr.gpsNextStop{background:rgba(255,255,255,.035)!important;box-shadow:inset 0 0 0 1.5px var(--gps-status-color,#ccff33),0 4px 10px #0006!important}
+    #scheduleBody tr.gpsNextStop{background:rgba(255,255,255,.035)!important;box-shadow:inset 5px 0 0 var(--gps-status-color,#ccff33),inset 0 1.5px 0 var(--gps-status-color,#ccff33),inset -1.5px 0 0 var(--gps-status-color,#ccff33),inset 0 -1.5px 0 var(--gps-status-color,#ccff33),0 4px 10px #0006!important}
     #scheduleBody tr.gpsNextStop td:first-child,#scheduleBody tr.gpsNextStop td:first-child>*:not(.etaPunctuality):not(.stopGuardNotice){font-weight:900!important;color:#fff!important}
     #scheduleBody tr td:first-child,#scheduleBody tr td:first-child>*:not(.etaPunctuality):not(.stopGuardNotice){color:#fff!important}
     #scheduleBody .stopGuardNotice{display:block;margin-top:5px;padding:6px 8px;border-radius:7px;font-size:12px;line-height:1.15;font-weight:1000;white-space:normal}#scheduleBody .stopGuardNotice.hold{background:#ffd60a;color:#111}#scheduleBody .stopGuardNotice.ready{background:#34c759;color:#071407}
