@@ -1,4 +1,4 @@
-const CACHE_NAME='trasy-2.0-v81';
+const CACHE_NAME='trasy-2.0-v82';
 const APP_SHELL=['./','./index.html','./style.css','./app.js','./wake-style.js','./vehicles.js','./return-route.js','./return-layout-fix.js','./return-gps-mode.js','./gps-stop-tracker.js','./return-active-visual-lock.js','./google-routes-provider.js','./navigation-guidance-fix.js','./return-start-navigation.js','./nav-map.js','./navigation-smoothing.js','./traffic-delay-ui.js','./map-interaction-fix.js','./navigation-ui-controls.js','./skip-stop-control.js','./skip-detection.js','./final-stop-ui.js','./planned-stop-time-ui.js','./stop-map-links.js','./route-status-guard.js','./eta-status.js','./routes.js','./schedule.js','./manifest.json','./Tyliszczak.png'];
 self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(CACHE_NAME).then(cache=>cache.addAll(APP_SHELL.map(url=>new Request(url,{cache:'reload'})))))});
 self.addEventListener('activate',e=>{e.waitUntil((async()=>{const keys=await caches.keys();await Promise.all(keys.filter(key=>key!==CACHE_NAME).map(key=>caches.delete(key)));await self.clients.claim()})())});
