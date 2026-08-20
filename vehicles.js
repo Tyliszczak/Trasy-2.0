@@ -3,7 +3,6 @@
   const CACHE_KEY='trasy2.vehicles.v2';
   const SELECTED_KEY='trasy2.selectedVehicle.v2';
   let vehicles=[];
-  let bypassNextClick=false;
 
   function num(v){
     const n=Number(String(v??'').replace(',','.').replace(/[^0-9.\-]/g,''));
@@ -32,21 +31,23 @@
     }).filter(Boolean);
   }
 
-  function vehicleKey(v){
-    return `${v.name}|${v.registration}`;
-  }
-
+  function vehicleKey(v){return `${v.name}|${v.registration}`}
   function vehicleLabel(v){
-    if(v.name&&v.registration)return `${v.name} — ${v.registration}`;
-    return v.name||v.registration||'Pojazd';
+    if(v?.name&&v?.registration)return `${v.name} — ${v.registration}`;
+    return v?.name||v?.registration||'Pojazd';
   }
+  function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 
-  function saveCache(){
-    try{localStorage.setItem(CACHE_KEY,JSON.stringify(vehicles))}catch{}
-  }
+  function saveCache(){try{localStorage.setItem(CACHE_KEY,JSON.stringify(vehicles))}catch{}}
+  function loadCache(){try{return JSON.parse(localStorage.getItem(CACHE_KEY)||'[]')||[]}catch{return[]}}
+  function selectedKey(){try{return localStorage.getItem(SELECTED_KEY)||''}catch{return''}}
+  function selectedVehicle(){return vehicles.find(v=>vehicleKey(v)===selectedKey())||window.__selectedVehicle||null}
 
-  function loadCache(){
-    try{return JSON.parse(localStorage.getItem(CACHE_KEY)||'[]')||[]}catch{return[]}
+  function setSelectedVehicle(v){
+    if(!v)return;
+    try{localStorage.setItem(SELECTED_KEY,vehicleKey(v))}catch{}
+    window.__selectedVehicle=v;
+    updateVehicleUi();
   }
 
   async function syncVehicles(){
@@ -57,14 +58,92 @@
       vehicles=parseVehicles(payload?.data??payload);
       saveCache();
       window.__trasyVehicles=vehicles;
+      const current=vehicles.find(v=>vehicleKey(v)===selectedKey())||null;
+      window.__selectedVehicle=current;
+      updateVehicleUi();
       document.dispatchEvent(new CustomEvent('trasy:vehicles-updated',{detail:vehicles}));
       return true;
     }catch(e){
       console.warn('Pojazdy: nie udało się pobrać danych',e);
       vehicles=loadCache();
       window.__trasyVehicles=vehicles;
+      window.__selectedVehicle=vehicles.find(v=>vehicleKey(v)===selectedKey())||null;
+      updateVehicleUi();
       return false;
     }
+  }
+
+  function ensureStyles(){
+    if(document.getElementById('vehicleUiStyles'))return;
+    const style=document.createElement('style');
+    style.id='vehicleUiStyles';
+    style.textContent=`
+      .vehicleField{display:grid;gap:7px;margin:14px 0 16px;font-weight:700}
+      .vehicleField select{width:100%;min-height:48px}
+      .scheduleVehicle{display:flex;align-items:center;gap:7px;margin-left:auto;white-space:nowrap}
+      .scheduleVehicleLabel{font-size:12px;color:#aaa}
+      .scheduleVehicleButton{max-width:42vw;padding:7px 9px;border:1px solid #666;border-radius:8px;background:#252525;color:#ccff33;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      @media(max-width:560px){.scheduleVehicleLabel{display:none}.scheduleVehicleButton{max-width:38vw;font-size:12px;padding:6px 8px}}
+    `;
+    document.head.append(style);
+  }
+
+  function ensureSelectionField(){
+    const panel=document.getElementById('selectionView');
+    const routeSelect=document.getElementById('routeSelect');
+    if(!panel||!routeSelect)return null;
+    let select=document.getElementById('vehicleSelect');
+    if(select)return select;
+    const label=document.createElement('label');
+    label.className='vehicleField';
+    label.innerHTML='<span>Pojazd</span><select id="vehicleSelect" aria-label="Pojazd"><option value="">Wybierz pojazd</option></select>';
+    routeSelect.insertAdjacentElement('afterend',label);
+    select=label.querySelector('select');
+    select.addEventListener('change',()=>{
+      const v=vehicles.find(x=>vehicleKey(x)===select.value)||null;
+      if(v)setSelectedVehicle(v);
+      else{
+        try{localStorage.removeItem(SELECTED_KEY)}catch{}
+        window.__selectedVehicle=null;
+        updateVehicleUi();
+      }
+      const message=document.getElementById('formMessage');
+      if(message)message.textContent='';
+    });
+    return select;
+  }
+
+  function ensureScheduleVehicle(){
+    const heading=document.querySelector('#scheduleView .scheduleHeading');
+    if(!heading)return null;
+    let wrap=document.getElementById('scheduleVehicle');
+    if(wrap)return wrap;
+    wrap=document.createElement('div');
+    wrap.id='scheduleVehicle';
+    wrap.className='scheduleVehicle';
+    wrap.innerHTML='<span class="scheduleVehicleLabel">Pojazd:</span><button id="scheduleVehicleButton" class="scheduleVehicleButton" type="button" title="Zmień pojazd">—</button>';
+    heading.append(wrap);
+    wrap.querySelector('button').addEventListener('click',async()=>{
+      const v=await chooseVehicle();
+      if(v)setSelectedVehicle(v);
+    });
+    return wrap;
+  }
+
+  function fillVehicleSelect(){
+    const select=ensureSelectionField();
+    if(!select)return;
+    const current=selectedKey();
+    select.replaceChildren(new Option('Wybierz pojazd',''));
+    vehicles.forEach(v=>select.add(new Option(vehicleLabel(v),vehicleKey(v))));
+    if(vehicles.some(v=>vehicleKey(v)===current))select.value=current;
+  }
+
+  function updateVehicleUi(){
+    fillVehicleSelect();
+    const wrap=ensureScheduleVehicle();
+    const btn=wrap?.querySelector('#scheduleVehicleButton');
+    if(btn)btn.textContent=vehicleLabel(selectedVehicle())||'Wybierz pojazd';
   }
 
   function ensureDialog(){
@@ -73,13 +152,7 @@
     dlg=document.createElement('dialog');
     dlg.id='vehicleSelectDialog';
     dlg.style.cssText='border:0;border-radius:16px;padding:0;max-width:520px;width:calc(100% - 28px);background:#181818;color:#fff;box-shadow:0 16px 60px #000a';
-    dlg.innerHTML=`
-      <form method="dialog" style="padding:18px">
-        <h2 style="margin:0 0 12px;color:#ccff33;text-align:center">Wybierz pojazd</h2>
-        <p style="margin:0 0 12px;color:#ddd;text-align:center">Którym pojazdem jedziesz?</p>
-        <div id="vehicleChoices" style="display:grid;gap:9px"></div>
-        <button value="cancel" type="submit" style="margin-top:14px;width:100%;padding:12px;border-radius:10px;border:1px solid #666;background:#2b2b2b;color:#fff;font-weight:800">ANULUJ</button>
-      </form>`;
+    dlg.innerHTML=`<form method="dialog" style="padding:18px"><h2 style="margin:0 0 12px;color:#ccff33;text-align:center">Wybierz pojazd</h2><p style="margin:0 0 12px;color:#ddd;text-align:center">Którym pojazdem jedziesz?</p><div id="vehicleChoices" style="display:grid;gap:9px"></div><button value="cancel" type="submit" style="margin-top:14px;width:100%;padding:12px;border-radius:10px;border:1px solid #666;background:#2b2b2b;color:#fff;font-weight:800">ANULUJ</button></form>`;
     document.body.append(dlg);
     return dlg;
   }
@@ -89,8 +162,7 @@
       const dlg=ensureDialog();
       const box=dlg.querySelector('#vehicleChoices');
       box.replaceChildren();
-      const previous=localStorage.getItem(SELECTED_KEY)||'';
-
+      const previous=selectedKey();
       if(!vehicles.length){
         const p=document.createElement('p');
         p.textContent='Brak pojazdów w karcie POJAZDY. Uzupełnij ją w Arkuszu Google.';
@@ -103,45 +175,36 @@
           const key=vehicleKey(v);
           btn.style.cssText=`text-align:left;padding:13px;border-radius:11px;border:2px solid ${key===previous?'#ccff33':'#444'};background:#242424;color:#fff`;
           btn.innerHTML=`<strong style="display:block;font-size:17px">${escapeHtml(vehicleLabel(v))}</strong>`;
-          btn.onclick=()=>{
-            localStorage.setItem(SELECTED_KEY,key);
-            window.__selectedVehicle=v;
-            dlg.close('selected');
-            resolve(v);
-          };
+          btn.onclick=()=>{setSelectedVehicle(v);dlg.close('selected');resolve(v)};
           box.append(btn);
         });
       }
-
-      const onClose=()=>{
-        dlg.removeEventListener('close',onClose);
-        if(dlg.returnValue!=='selected')resolve(null);
-      };
+      const onClose=()=>{dlg.removeEventListener('close',onClose);if(dlg.returnValue!=='selected')resolve(null)};
       dlg.addEventListener('close',onClose);
       dlg.showModal();
     });
   }
 
-  function escapeHtml(s){
-    return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  }
-
-  document.addEventListener('click',async e=>{
-    const link=e.target.closest?.('.routeLink');
-    if(!link)return;
-    if(bypassNextClick){bypassNextClick=false;return}
+  document.addEventListener('click',e=>{
+    const button=e.target.closest?.('#showSchedule');
+    if(!button)return;
+    const route=document.getElementById('routeSelect')?.value;
+    if(!route)return;
+    if(selectedVehicle())return;
     e.preventDefault();
     e.stopImmediatePropagation();
-    const selected=await chooseVehicle();
-    if(!selected)return;
-    bypassNextClick=true;
-    link.click();
+    const message=document.getElementById('formMessage');
+    if(message)message.textContent='Wybierz pojazd przed otwarciem harmonogramu.';
+    document.getElementById('vehicleSelect')?.focus();
   },true);
 
+  ensureStyles();
+  ensureSelectionField();
+  ensureScheduleVehicle();
   vehicles=loadCache();
   window.__trasyVehicles=vehicles;
-  const lastKey=localStorage.getItem(SELECTED_KEY)||'';
-  window.__selectedVehicle=vehicles.find(v=>vehicleKey(v)===lastKey)||null;
+  window.__selectedVehicle=vehicles.find(v=>vehicleKey(v)===selectedKey())||null;
+  updateVehicleUi();
   syncVehicles();
   window.addEventListener('online',syncVehicles);
 })();
