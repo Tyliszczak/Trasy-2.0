@@ -6,6 +6,7 @@
   let watch=null,lastPos=null,heading=null,currentIndex=null,applying=false;
   let reachedCurrent=false,reachedBeforeTime=false;
   let missedPassFixes=0,lastCurrentDistance=Infinity;
+  let earlyWarningTimer=null;
 
   const MIN_MOVE=7;
   const REACHED=60;
@@ -14,6 +15,7 @@
   const MISSED_PASS_CONFIRM_FIXES=3;
   const MISSED_PASS_DISTANCE=70;
   const MISSED_PASS_GROWTH=6;
+  const EARLY_WARNING_MS=10000;
 
   const style=document.createElement('style');
   style.textContent=`
@@ -24,7 +26,8 @@
     #scheduleBody .stopGuardNotice{display:block;margin-top:5px;padding:6px 8px;border-radius:7px;font-size:12px;line-height:1.15;font-weight:1000;white-space:normal}
     #scheduleBody .stopGuardNotice.hold{background:#ffd60a;color:#111}
     #scheduleBody .stopGuardNotice.ready{background:#34c759;color:#071407}
-    #scheduleBody .stopGuardNotice.earlyDeparture{background:#ff3b30;color:#fff}
+    #earlyDepartureWarning{position:fixed;z-index:99999;left:50%;top:18px;transform:translateX(-50%);width:min(92vw,520px);padding:16px 18px;border:3px solid #fff;border-radius:12px;background:#e11d2e;color:#fff;box-shadow:0 8px 28px #000c;text-align:center;font-size:1.12rem;font-weight:1000;line-height:1.2;letter-spacing:.02em;pointer-events:none}
+    #earlyDepartureWarning small{display:block;margin-top:5px;font-size:.78rem;font-weight:800;opacity:.95}
   `;
   document.head.append(style);
 
@@ -34,16 +37,79 @@
   function angle(a,b){return Math.abs(((a-b+540)%360)-180)}
   function rows(){return [...body.querySelectorAll('tr')].filter(r=>coord(r.dataset.coordinate))}
   function rowTime(row){const text=String(row?.children[1]?.firstChild?.textContent||row?.children[1]?.textContent||'').trim(),m=text.match(/^(\d{1,2}):(\d{2})/);if(!m)return null;const d=new Date();d.setHours(+m[1],+m[2],0,0);return d}
+  function rowPlanText(row){return String(row?.children[1]?.firstChild?.textContent||row?.children[1]?.textContent||'').trim()}
   function resetPassTracking(){missedPassFixes=0;lastCurrentDistance=Infinity}
-  function firstStopProtected(){const rs=rows();if(!rs.length)return false;const t=rowTime(rs[0]);return !!t&&Date.now()<t.getTime()}
+  function firstStopProtected(){if(body.dataset.direction==='return')return false;const rs=rows();if(!rs.length)return false;const t=rowTime(rs[0]);return !!t&&Date.now()<t.getTime()}
   function routeChanged(){currentIndex=null;lastPos=null;heading=null;reachedCurrent=false;reachedBeforeTime=false;resetPassTracking();setTimeout(chooseAndApply,100)}
-  function initialIndex(here){const rs=rows();if(!rs.length)return null;if(firstStopProtected())return 0;let best=0,bestScore=Infinity;rs.forEach((row,i)=>{const c=coord(row.dataset.coordinate);if(!c)return;const d=dist(here,c);let score=d;if(Number.isFinite(heading)){const a=angle(heading,bear(here,c));score+=a*4;if(a>120)score+=800}const plan=rowTime(row);if(plan){const minutes=Math.abs(Date.now()-plan.getTime())/60000;score+=Math.min(minutes,30)*45}if(score<bestScore){bestScore=score;best=i}});return best}
-  function chooseIndex(here){const rs=rows();if(!rs.length)return null;if(currentIndex!==null&&currentIndex>=rs.length){currentIndex=null;resetPassTracking()}if(firstStopProtected()){currentIndex=0;resetPassTracking();return 0}if(currentIndex===null){currentIndex=initialIndex(here);reachedCurrent=false;reachedBeforeTime=false;resetPassTracking();return currentIndex}const row=rs[currentIndex];if(!row)return currentIndex;const cur=coord(row.dataset.coordinate),next=currentIndex+1<rs.length?coord(rs[currentIndex+1].dataset.coordinate):null,dc=cur?dist(here,cur):Infinity,dn=next?dist(here,next):Infinity,accuracy=Number(window.__navAcc||0),reachedRadius=Math.max(REACHED,Math.min(85,accuracy*1.2));if(dc<=reachedRadius){reachedCurrent=true;missedPassFixes=0;const plan=rowTime(row);if(plan&&Date.now()<plan.getTime())reachedBeforeTime=true}if(next){const headingToNext=Number.isFinite(heading)?angle(heading,bear(here,next)):0,movingToNext=headingToNext<85,clearlyLeaving=reachedCurrent&&dc>DEPARTED&&movingToNext,plan=rowTime(row),stillTooEarly=plan&&Date.now()<plan.getTime(),distanceGrowing=Number.isFinite(lastCurrentDistance)&&dc>=lastCurrentDistance+MISSED_PASS_GROWTH,plausiblyPassedWithoutHit=!reachedCurrent&&!stillTooEarly&&movingToNext&&dc>MISSED_PASS_DISTANCE&&Number.isFinite(dn)&&distanceGrowing;if(plausiblyPassedWithoutHit)missedPassFixes++;else if(!reachedCurrent)missedPassFixes=0;if(!stillTooEarly&&(clearlyLeaving||missedPassFixes>=MISSED_PASS_CONFIRM_FIXES)){currentIndex++;reachedCurrent=false;reachedBeforeTime=false;resetPassTracking();return currentIndex}}lastCurrentDistance=dc;return currentIndex}
+
+  function showEarlyDepartureWarning(planText){
+    let el=document.getElementById('earlyDepartureWarning');
+    if(!el){el=document.createElement('div');el.id='earlyDepartureWarning';document.body.append(el)}
+    el.innerHTML=`ODJECHAŁEŚ PRZED CZASEM${planText?`<small>Planowany odjazd: ${planText}</small>`:''}`;
+    el.hidden=false;
+    clearTimeout(earlyWarningTimer);
+    earlyWarningTimer=setTimeout(()=>{el.hidden=true},EARLY_WARNING_MS);
+  }
+
+  function initialIndex(here){
+    const rs=rows();if(!rs.length)return null;if(firstStopProtected())return 0;
+    let best=0,bestScore=Infinity;
+    rs.forEach((row,i)=>{
+      const c=coord(row.dataset.coordinate);if(!c)return;
+      const d=dist(here,c);let score=d;
+      if(Number.isFinite(heading)){const a=angle(heading,bear(here,c));score+=a*4;if(a>120)score+=800}
+      if(body.dataset.direction!=='return'){
+        const plan=rowTime(row);if(plan){const minutes=Math.abs(Date.now()-plan.getTime())/60000;score+=Math.min(minutes,30)*45}
+      }
+      if(score<bestScore){bestScore=score;best=i}
+    });
+    return best
+  }
+
+  function chooseIndex(here){
+    const rs=rows();if(!rs.length)return null;
+    if(currentIndex!==null&&currentIndex>=rs.length){currentIndex=null;resetPassTracking()}
+    if(firstStopProtected()){currentIndex=0;resetPassTracking();return 0}
+    if(currentIndex===null){currentIndex=initialIndex(here);reachedCurrent=false;reachedBeforeTime=false;resetPassTracking();return currentIndex}
+    const row=rs[currentIndex];if(!row)return currentIndex;
+    const cur=coord(row.dataset.coordinate),next=currentIndex+1<rs.length?coord(rs[currentIndex+1].dataset.coordinate):null,dc=cur?dist(here,cur):Infinity,dn=next?dist(here,next):Infinity,accuracy=Number(window.__navAcc||0),reachedRadius=Math.max(REACHED,Math.min(85,accuracy*1.2));
+    if(dc<=reachedRadius){
+      reachedCurrent=true;missedPassFixes=0;
+      const plan=rowTime(row);if(plan&&Date.now()<plan.getTime())reachedBeforeTime=true
+    }
+    if(next){
+      const headingToNext=Number.isFinite(heading)?angle(heading,bear(here,next)):0,
+        movingToNext=headingToNext<85,
+        clearlyLeaving=reachedCurrent&&dc>DEPARTED&&movingToNext,
+        plan=rowTime(row),
+        planStillFuture=!!plan&&Date.now()<plan.getTime(),
+        distanceGrowing=Number.isFinite(lastCurrentDistance)&&dc>=lastCurrentDistance+MISSED_PASS_GROWTH,
+        plausiblyPassedWithoutHit=!reachedCurrent&&movingToNext&&dc>MISSED_PASS_DISTANCE&&Number.isFinite(dn)&&distanceGrowing;
+      if(plausiblyPassedWithoutHit)missedPassFixes++;else if(!reachedCurrent)missedPassFixes=0;
+      if(clearlyLeaving||missedPassFixes>=MISSED_PASS_CONFIRM_FIXES){
+        if(clearlyLeaving&&reachedBeforeTime&&planStillFuture&&body.dataset.direction!=='return')showEarlyDepartureWarning(rowPlanText(row));
+        currentIndex++;reachedCurrent=false;reachedBeforeTime=false;resetPassTracking();return currentIndex
+      }
+    }
+    lastCurrentDistance=dc;return currentIndex
+  }
 
   function applyIndex(idx){const rs=rows();if(idx===null||!rs[idx])return;const previous=Number(body.dataset.gpsNextStop),changed=!Number.isInteger(previous)||previous!==idx;applying=true;try{body.querySelectorAll('tr').forEach(r=>{const active=r===rs[idx];r.classList.toggle('gpsNextStop',active);r.classList.toggle('isActiveStop',active)});const target=rs[idx];body.dataset.gpsNextStop=String(idx);if(changed)body.dispatchEvent(new CustomEvent('gps-next-stop-change',{bubbles:true,detail:{index:idx,name:target.children[0]?.innerText.trim()||''}}))}finally{applying=false}}
   function formatCountdown(seconds){const s=Math.max(0,Math.ceil(seconds)),min=Math.floor(s/60),sec=s%60;return `${min}:${String(sec).padStart(2,'0')}`}
   function emitGuard(state,message,seconds,index,plan,distance){body.dataset.stopGuard=state||'';body.dispatchEvent(new CustomEvent('stop-guard-change',{bubbles:true,detail:{state,message,seconds,index,plan,distance}}))}
-  function updateStopGuard(){const rs=rows();document.querySelectorAll('#scheduleBody .stopGuardNotice').forEach(x=>x.remove());if(currentIndex===null||!rs[currentIndex]||!lastPos){emitGuard('','',0,currentIndex,'',Infinity);return}const row=rs[currentIndex],c=coord(row.dataset.coordinate),plan=rowTime(row);if(!c||!plan){emitGuard('','',0,currentIndex,'',Infinity);return}const d=dist(lastPos,c),seconds=(plan.getTime()-Date.now())/1000,planText=String(row.children[1]?.firstChild?.textContent||row.children[1]?.textContent||'').trim();let state='',message='';if(seconds>0&&d<=70){state='hold';message=`NIE ODJEDŻAJ • ${formatCountdown(seconds)} • plan ${planText}`}if(seconds>0&&reachedBeforeTime&&d>DEPARTED){state='earlyDeparture';message=`ZA WCZEŚNIE — ZATRZYMAJ SIĘ • ${formatCountdown(seconds)}`}if(seconds<=0&&reachedCurrent&&d<=DEPARTED){state='ready';message=currentIndex===rs.length-1?'JESTEŚ NA MIEJSCU':'MOŻESZ JECHAĆ'}if(state){const notice=document.createElement('div');notice.className=`stopGuardNotice ${state}`;notice.textContent=message;row.querySelector('td:first-child')?.appendChild(notice)}emitGuard(state,message,Math.max(0,seconds),currentIndex,planText,d)}
+
+  function updateStopGuard(){
+    const rs=rows();document.querySelectorAll('#scheduleBody .stopGuardNotice').forEach(x=>x.remove());
+    if(currentIndex===null||!rs[currentIndex]||!lastPos){emitGuard('','',0,currentIndex,'',Infinity);return}
+    const row=rs[currentIndex],c=coord(row.dataset.coordinate),plan=rowTime(row);
+    if(!c||!plan||body.dataset.direction==='return'){emitGuard('','',0,currentIndex,'',Infinity);return}
+    const d=dist(lastPos,c),seconds=(plan.getTime()-Date.now())/1000,planText=rowPlanText(row);let state='',message='';
+    if(seconds>0&&d<=70){state='hold';message=`NIE ODJEDŻAJ • ${formatCountdown(seconds)} • plan ${planText}`}
+    if(seconds<=0&&reachedCurrent&&d<=DEPARTED){state='ready';message=currentIndex===rs.length-1?'JESTEŚ NA MIEJSCU':'MOŻESZ JECHAĆ'}
+    if(state){const notice=document.createElement('div');notice.className=`stopGuardNotice ${state}`;notice.textContent=message;row.querySelector('td:first-child')?.appendChild(notice)}
+    emitGuard(state,message,Math.max(0,seconds),currentIndex,planText,d)
+  }
+
   function chooseAndApply(){if(view.hidden||!lastPos)return;const idx=chooseIndex(lastPos);applyIndex(idx);updateStopGuard()}
   function onPos(p){if((p.coords.accuracy||999)>MAX_ACCURACY)return;window.__navAcc=p.coords.accuracy||999;const here=[p.coords.latitude,p.coords.longitude];let h=Number(p.coords.heading);if(!Number.isFinite(h)||h<0){if(lastPos&&dist(lastPos,here)>=MIN_MOVE)h=bear(lastPos,here);else h=heading}if(Number.isFinite(h))heading=h;if(!lastPos||dist(lastPos,here)>=2)lastPos=here;chooseAndApply()}
   function start(){if(watch!==null)return;watch=navigator.geolocation.watchPosition(onPos,()=>{},{enableHighAccuracy:true,maximumAge:700,timeout:15000})}
@@ -51,19 +117,12 @@
   body.addEventListener('route-direction-change',routeChanged);
   body.addEventListener('schedule-rendered',routeChanged);
   body.addEventListener('gps-skip-stop',e=>{
-    const idx=Number(e.detail?.index);
-    const rs=rows();
+    const idx=Number(e.detail?.index),rs=rows();
     if(!Number.isInteger(idx)||idx<0||idx>=rs.length)return;
-    currentIndex=idx;
-    reachedCurrent=false;
-    reachedBeforeTime=false;
-    resetPassTracking();
-    applyIndex(idx);
-    updateStopGuard();
+    currentIndex=idx;reachedCurrent=false;reachedBeforeTime=false;resetPassTracking();applyIndex(idx);updateStopGuard()
   });
 
   setInterval(updateStopGuard,1000);
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')start()});
   start();
 })();
-
