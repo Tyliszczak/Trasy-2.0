@@ -50,7 +50,7 @@
   function onPosition(pos){lastPosition=pos;navStatus.textContent=`GPS ±${Math.round(pos.coords.accuracy||0)} m`;const step=navSteps[stepIndex],loc=step?.maneuver?.location;if(!loc){renderStep();return}const d=meters(pos.coords.latitude,pos.coords.longitude,loc[1],loc[0]);if(d<35&&stepIndex<navSteps.length-1){stepIndex++;renderStep()}else{navDistance.textContent=formatDistance(d);renderStep()}}
   function positionOnce(){return new Promise((resolve,reject)=>navigator.geolocation.getCurrentPosition(resolve,reject,{enableHighAccuracy:true,timeout:12000,maximumAge:5000}))}
   async function startNavigation(startRow){
-    const rows=[...scheduleBody.querySelectorAll('tr')],navigationRows=scheduleBody.dataset.serviceMode==='deadhead'?rows.slice(-1):rows.slice(startRow),stops=navigationRows.map(r=>parseCoord(r.dataset.coordinate)).filter(Boolean);if(!stops.length){alert('Brak współrzędnych dla tej trasy.');return}if(!navigator.geolocation){alert('Telefon nie udostępnia lokalizacji.');return}
+    const rows=[...scheduleBody.querySelectorAll('tr')],stops=rows.slice(startRow).map(r=>parseCoord(r.dataset.coordinate)).filter(Boolean);if(!stops.length){alert('Brak współrzędnych dla tej trasy.');return}if(!navigator.geolocation){alert('Telefon nie udostępnia lokalizacji.');return}
     nav.hidden=false;navStatus.textContent='Pobieranie pozycji telefonu…';navInstruction.textContent='Wyznaczanie trasy…';navDistance.textContent='--';navStreet.textContent='';navSummary.textContent='';navArrow.textContent='↑';
     try{
       const pos=await positionOnce();lastPosition=pos;const all=[[pos.coords.latitude,pos.coords.longitude],...stops],coords=all.map(([lat,lng])=>`${lng},${lat}`).join(';'),last=all.length-1;
@@ -73,5 +73,5 @@
       })
     }finally{enhancing=false}
   }
-  new MutationObserver(enhanceSchedule).observe(scheduleBody,{childList:true,subtree:true});scheduleBody.addEventListener('deadhead-mode-change',()=>setTimeout(enhanceSchedule,0));setInterval(enhanceSchedule,30000);enhanceSchedule();
+  new MutationObserver(enhanceSchedule).observe(scheduleBody,{childList:true,subtree:true});setInterval(enhanceSchedule,30000);enhanceSchedule();
 })();

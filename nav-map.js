@@ -446,12 +446,8 @@
      ========================================================= */
 
   function routeRows(){
-    const rows=[...body.querySelectorAll('tr')]
+    return [...body.querySelectorAll('tr')]
       .filter(r=>parseCoord(r.dataset.coordinate));
-
-    return body.dataset.serviceMode==='deadhead'&&rows.length
-      ?[rows.at(-1)]
-      :rows;
   }
 
   function remainingStopsFromGps(){
@@ -1832,7 +1828,9 @@
     syncRemainingLocally
   );
 
-  function syncRouteMode(){
+  body.addEventListener(
+    'route-direction-change',
+    ()=>{
       if(panel.hidden)return;
 
       const remaining=
@@ -1848,16 +1846,7 @@
           currentStops
         );
       }
-  }
-
-  body.addEventListener(
-    'route-direction-change',
-    syncRouteMode
-  );
-
-  body.addEventListener(
-    'deadhead-mode-change',
-    syncRouteMode
+    }
   );
 
   document.addEventListener(
