@@ -3,8 +3,8 @@
   function init(){
     const root=document.getElementById('routeNavRoot'),close=document.getElementById('routeMapClose'),center=document.getElementById('routeMapCenter'),maneuver=document.getElementById('routeManeuver');
     if(!root||!close||!center||!maneuver)return false;
-    if(root.dataset.compactNavUi==='12')return true;
-    root.dataset.compactNavUi='12';
+    if(root.dataset.compactNavUi==='13')return true;
+    root.dataset.compactNavUi='13';
 
     const style=document.createElement('style');
     style.textContent='.maplibregl-ctrl-compass{display:none!important}';
@@ -30,24 +30,38 @@
     voice.onclick=()=>{window.__routeVoiceMuted=!window.__routeVoiceMuted;if(window.__routeVoiceMuted){try{speech?.cancel?.()}catch{}}updateVoice()};
     updateVoice();
 
-    let overview=false,resumeTimer=0;
-    const compassIcon='<span style="position:relative;width:28px;height:31px;display:block"><span style="position:absolute;top:0;left:50%;transform:translateX(-50%);font-size:11px;line-height:11px;color:#fff;font-weight:1000">N</span><span style="position:absolute;top:9px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-bottom:13px solid #ff3b30"></span><span style="position:absolute;top:21px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:8px solid #eee"></span></span>';
-    const navIcon='<span style="display:block;width:25px;height:29px;position:relative"><span style="position:absolute;left:50%;top:1px;transform:translateX(-50%);width:0;height:0;border-left:10px solid transparent;border-right:10px solid transparent;border-bottom:24px solid #fff;filter:drop-shadow(0 1px 2px #0008)"></span><span style="position:absolute;left:50%;top:9px;transform:translateX(-50%);width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:12px solid #111d"></span></span>';
+    let manualView=false,resumeTimer=0;
+    const compassIcon='<span aria-hidden="true" style="position:relative;width:28px;height:31px;display:block"><span style="position:absolute;top:0;left:50%;transform:translateX(-50%);font-size:11px;line-height:11px;color:#fff;font-weight:1000">N</span><span style="position:absolute;top:9px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-bottom:13px solid #ff3b30"></span><span style="position:absolute;top:21px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:8px solid #eee"></span></span>';
+    const navIcon='<svg aria-hidden="true" viewBox="0 0 32 32" width="29" height="29" style="display:block;filter:drop-shadow(0 1px 2px #0008)"><path d="M27.4 4.7 17.8 27c-.7 1.7-3.1 1.5-3.5-.3l-1.9-8.8-8.8-1.9c-1.8-.4-2-2.8-.3-3.5L25.6 3c1.2-.5 2.3.6 1.8 1.7Z" fill="#fff" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"/><path d="m13.2 17.1 7.8-7.8" fill="none" stroke="#111" stroke-width="2.4" stroke-linecap="round"/></svg>';
 
     function clearResume(){if(resumeTimer){clearTimeout(resumeTimer);resumeTimer=0}}
+    function isGuidanceView(){
+      const map=window.__routeMap;
+      if(!map||manualView||window.__routeManualView)return false;
+      const pitch=Number(map.getPitch?.());
+      return Number.isFinite(pitch)&&pitch>20;
+    }
     function renderState(){
-      if(overview){center.innerHTML=navIcon;center.setAttribute('aria-label','Wróć do widoku prowadzenia');center.title='Wróć do nawigacji'}
-      else{center.innerHTML=compassIcon;center.setAttribute('aria-label','Pokaż trasę z góry');center.title='Widok trasy z góry'}
+      if(isGuidanceView()){
+        center.innerHTML=compassIcon;
+        center.setAttribute('aria-label','Pokaż trasę z góry');
+        center.title='Widok trasy z góry';
+      }else{
+        center.innerHTML=navIcon;
+        center.setAttribute('aria-label','Wróć do widoku prowadzenia');
+        center.title='Wróć do nawigacji';
+      }
     }
     function resumeNavigation(){
       clearResume();
-      overview=false;
+      manualView=false;
       window.__routeManualView=false;
-      renderState();
       if(typeof originalCenter==='function')originalCenter.call(center);
+      requestAnimationFrame(renderState);
+      setTimeout(renderState,500);
     }
     function scheduleResume(){clearResume();resumeTimer=setTimeout(resumeNavigation,AUTO_RESUME_MS)}
-    function markManual(){overview=true;window.__routeManualView=true;renderState();scheduleResume()}
+    function markManual(){manualView=true;window.__routeManualView=true;renderState();scheduleResume()}
     window.__routeEnterManualView=markManual;
     window.__routeResumeNavigation=resumeNavigation;
 
@@ -67,25 +81,28 @@
         if(bounds){map.fitBounds(bounds,{padding:{top:175,bottom:85,left:55,right:55},bearing:0,pitch:0,duration:550,essential:true,maxZoom:15})}
         else{map.easeTo({bearing:0,pitch:0,zoom:Math.min(map.getZoom(),14.8),duration:500,essential:true})}
       }catch{}
+      renderState();
     }
 
-    renderState();
-    center.onclick=()=>{if(overview)resumeNavigation();else enterOverview()};
+    center.onclick=()=>{if(isGuidanceView())enterOverview();else resumeNavigation()};
 
     const mapTimer=setInterval(()=>{
-      const map=window.__routeMap;if(!map||map.__compactUiGesturesV12)return;
-      map.__compactUiGesturesV12=true;
+      const map=window.__routeMap;if(!map||map.__compactUiGesturesV13)return;
+      map.__compactUiGesturesV13=true;
       map.on('dragstart',markManual);map.on('zoomstart',markManual);map.on('rotatestart',markManual);map.on('pitchstart',markManual);
+      map.on('moveend',renderState);map.on('pitchend',renderState);map.on('zoomend',renderState);map.on('rotateend',renderState);
       const canvas=map.getCanvasContainer?.()||map.getCanvas?.()?.parentElement;
-      if(canvas&&!canvas.__routeManualGestureCaptureV12){canvas.__routeManualGestureCaptureV12=true;
+      if(canvas&&!canvas.__routeManualGestureCaptureV13){canvas.__routeManualGestureCaptureV13=true;
         const manualPointer=e=>{if(e.target===center||center.contains(e.target))return;markManual()};
         canvas.addEventListener('pointerdown',manualPointer,{passive:true,capture:true});
         canvas.addEventListener('touchstart',manualPointer,{passive:true,capture:true});
         canvas.addEventListener('wheel',manualPointer,{passive:true,capture:true});
       }
+      renderState();
       clearInterval(mapTimer)
     },250);
     setTimeout(()=>clearInterval(mapTimer),30000);
+    renderState();
     return true;
   }
   const timer=setInterval(()=>{if(init())clearInterval(timer)},150);
