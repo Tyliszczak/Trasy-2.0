@@ -4,16 +4,32 @@
   style.textContent=`
     #scheduleView .scheduleHeading{
       display:grid!important;
-      grid-template-columns:38px minmax(88px,1fr) minmax(0,auto) minmax(118px,auto)!important;
+      grid-template-columns:42px minmax(88px,1fr) minmax(0,auto) minmax(118px,auto)!important;
       grid-template-rows:auto auto auto!important;
       align-items:center!important;
       gap:3px 10px!important;
     }
-    #scheduleView #backFromSchedule{
+    #scheduleView .scheduleBackStack{
       grid-column:1!important;
       grid-row:1 / 4!important;
       align-self:start!important;
+      display:flex!important;
+      flex-direction:column!important;
+      align-items:center!important;
+      gap:7px!important;
     }
+    #scheduleView .scheduleBackStack #wakeLockButton.wakeLockButton{
+      width:38px!important;
+      min-width:38px!important;
+      min-height:62px!important;
+    }
+    #scheduleView .scheduleBackStack #wakeLockButton .wakeTopRow{
+      flex-direction:column!important;
+      gap:0!important;
+    }
+    #scheduleView .scheduleBackStack #wakeLockButton .wakeBulb{font-size:1.45rem!important}
+    #scheduleView .scheduleBackStack #wakeLockLabel{min-width:0!important;font-size:.68rem!important;text-align:center!important}
+    #scheduleView .scheduleBackStack #wakeLockButton .wakeScreenLabel{margin-top:1px!important;font-size:.5rem!important}
     #scheduleView .scheduleTitleBlock,
     #scheduleView .scheduleControls{
       display:contents!important;
@@ -90,7 +106,7 @@
     }
     @media(max-width:520px){
       #scheduleView .scheduleHeading{
-        grid-template-columns:38px minmax(62px,1fr) minmax(0,auto) minmax(108px,auto)!important;
+        grid-template-columns:42px minmax(62px,1fr) minmax(0,auto) minmax(108px,auto)!important;
         gap:2px 7px!important;
       }
       #scheduleView #scheduleRouteName{font-size:1.12rem!important}

@@ -38,7 +38,7 @@ test('service worker nie przeładowuje aplikacji natychmiast po instalacji',asyn
 test('pełna lokalna powłoka mapy znajduje się w cache PWA',async()=>{
   const source=await readSource('sw.js');
   assert.match(source,/\.\/maplibre-route-hook\.js/);
-  assert.match(source,/trasy-2\.0-v108/);
+  assert.match(source,/trasy-2\.0-v109/);
   assert.match(source,/\.\/gps-hub\.js/);
   assert.match(source,/\.\/gps-stop-engine\.js/);
   assert.match(source,/\.\/schedule-time\.js/);
@@ -248,7 +248,7 @@ test('powiększony prędkościomierz harmonogramu znajduje się na górnej belce
     readSource('index.html'),readSource('speed-display.js'),readSource('return-layout-fix.js'),readSource('sw.js')
   ]);
   assert.match(html,/speed-display\.js\?v=5/);
-  assert.match(html,/return-layout-fix\.js\?v=4/);
+  assert.match(html,/return-layout-fix\.js\?v=5/);
   assert.match(worker,/speed-display\.js/);
   assert.match(speed,/heading\.append\(box\)/);
   assert.match(speed,/#scheduleSpeedBox \.routeSpeedLimit\{width:54px;height:54px/);
@@ -258,6 +258,15 @@ test('powiększony prędkościomierz harmonogramu znajduje się na górnej belce
   assert.match(speed,/id='routeMapSpeedBox'/);
   assert.match(speed,/Brak danych o ograniczeniu prędkości/);
   assert.match(speed,/limit\?String\(Math\.round\(limit\)\):'\?'/);
+});
+
+test('sterowanie ekranem jest pod powrotem, a najwyższa belka nie zawiera napisu TRASY',async()=>{
+  const [html,layout]=await Promise.all([readSource('index.html'),readSource('return-layout-fix.js')]);
+  assert.doesNotMatch(html,/<div class="brand">TRASY<\/div>/);
+  assert.match(html,/<div class="scheduleBackStack"><button id="backFromSchedule"[\s\S]*?<button id="wakeLockButton"/);
+  assert.match(layout,/#scheduleView \.scheduleBackStack\{[\s\S]*?grid-column:1!important;[\s\S]*?flex-direction:column!important;/);
+  assert.match(layout,/\.scheduleBackStack #wakeLockButton\.wakeLockButton\{[\s\S]*?width:38px!important;/);
+  assert.match(html,/return-layout-fix\.js\?v=5/);
 });
 
 test('dane zapasowe tworzą kompletny harmonogram każdej zmiany',()=>{
