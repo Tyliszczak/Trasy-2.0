@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 import { ROUTES } from '../routes.js';
+import { getParkingOptions,normalizeCoordinate } from '../parking-data.js';
 import { getRoute, getSchedule, mapUrl } from '../schedule.js';
 
 const readSource=(name)=>readFile(new URL(`../${name}`,import.meta.url),'utf8');
@@ -39,6 +40,7 @@ test('pełna lokalna powłoka mapy znajduje się w cache PWA',async()=>{
   assert.match(source,/trasy-2\.0-v95/);
   assert.match(source,/\.\/gps-hub\.js/);
   assert.match(source,/\.\/route-data-service\.js/);
+  assert.match(source,/\.\/parking-data\.js/);
 });
 
 test('odświeżenie PWA wymaga działania kierowcy',async()=>{
@@ -78,6 +80,21 @@ test('Na pusto jest niezależne od Powrotu i prowadzi do ostatniego punktu kieru
   assert.match(returnRoute,/id="returnRouteSwitch"/);
   assert.match(returnRoute,/body\.dataset\.emptyRun/);
   assert.match(nav,/remaining\[remaining\.length-1\]/);
+});
+
+test('parking wspólny i parking przypisany do trasy są poprawnie wybierane',()=>{
+  const data={PARKINGI:[
+    ['NAZWA','LOKALIZACJA','TRASA'],
+    ['Baza','51.10, 15.20','*'],
+    ['Sulechów','51.20;15.30','SAS Sulechów'],
+    ['Inna trasa','51.30, 15.40','TopPoint'],
+    ['Duplikat','51.10, 15.20','']
+  ]};
+  assert.deepEqual(getParkingOptions(data,'SAS Sulechów'),[
+    {name:'Baza',coordinates:'51.1, 15.2'},
+    {name:'Sulechów',coordinates:'51.2, 15.3'}
+  ]);
+  assert.equal(normalizeCoordinate('91, 15'),'');
 });
 
 test('przycisk kompasu jest usunięty, a nawigacja pojawia się poza prowadzeniem',async()=>{

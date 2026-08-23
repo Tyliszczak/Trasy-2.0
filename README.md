@@ -2,6 +2,16 @@
 
 Statyczna aplikacja PWA do prezentowania rozkładów tras pracowniczych. Dane w `routes.js` pochodzą z `BAZA_TRAS.xlsx`.
 
+## Parkingi dla trybu POWRÓT + NA PUSTO
+
+Źródło danych Google może zawierać zakładkę `PARKINGI` z kolumnami:
+
+- `NAZWA` — nazwa widoczna dla kierowcy,
+- `LOKALIZACJA` — współrzędne `szerokość, długość`,
+- `TRASA` — opcjonalna nazwa trasy; puste pole lub `*` udostępnia parking wszystkim trasom.
+
+Jeden dostępny parking jest wybierany automatycznie. Przy kilku parkingach kierowca wybiera cel przed uruchomieniem powrotu na pusto.
+
 ## Uruchomienie lokalne
 
 Otwórz katalog przez dowolny serwer HTTP, a następnie wejdź na `index.html`. Test danych uruchomisz poleceniem `npm test` (nie wymaga dodatkowych pakietów).
