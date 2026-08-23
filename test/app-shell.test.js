@@ -38,7 +38,7 @@ test('service worker nie przeładowuje aplikacji natychmiast po instalacji',asyn
 test('pełna lokalna powłoka mapy znajduje się w cache PWA',async()=>{
   const source=await readSource('sw.js');
   assert.match(source,/\.\/maplibre-route-hook\.js/);
-  assert.match(source,/trasy-2\.0-v98/);
+  assert.match(source,/trasy-2\.0-v99/);
   assert.match(source,/\.\/gps-hub\.js/);
   assert.match(source,/\.\/route-data-service\.js/);
   assert.match(source,/\.\/parking-data\.js/);
@@ -190,6 +190,14 @@ test('dymek uwag działa na każdym ekranie i nie zapisuje nagrań głosowych',a
   assert.match(feedback,/SpeechRecognition\|\|window\.webkitSpeechRecognition/);
   assert.match(feedback,/localStorage\.setItem\(STORAGE_KEY/);
   assert.doesNotMatch(feedback,/MediaRecorder|getUserMedia|audio\/webm/);
+});
+
+test('uwagę można przekazać przez WhatsApp lub SMS z wymaganym początkiem wiadomości',async()=>{
+  const feedback=await readSource('navigation-feedback.js');
+  assert.match(feedback,/FEEDBACK_PHONE='\+48603666921'/);
+  assert.match(feedback,/return `Trasy 2\.0\\n\\n/);
+  assert.match(feedback,/https:\/\/wa\.me\//);
+  assert.match(feedback,/sms:\$\{FEEDBACK_PHONE\}\?body=/);
 });
 
 test('dane zapasowe tworzą kompletny harmonogram każdej zmiany',()=>{

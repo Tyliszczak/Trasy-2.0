@@ -2,6 +2,7 @@
   const STORAGE_KEY='trasy2.navigationFeedback.v1';
   const MAX_SAVED_NOTES=50;
   const MAX_NOTE_LENGTH=2000;
+  const FEEDBACK_PHONE='+48603666921';
 
   const style=document.createElement('style');
   style.textContent=`
@@ -14,7 +15,7 @@
     .routeFeedbackHead{display:flex;align-items:center;gap:10px}.routeFeedbackHead h2{flex:1;margin:0;color:#ccff33;font-size:21px}.routeFeedbackClose{width:38px;height:38px;padding:0;border-radius:19px;background:#333;color:#fff;font-size:24px}
     #routeFeedbackText{display:block;width:100%;min-height:128px;margin-top:13px;padding:12px;box-sizing:border-box;resize:vertical;border:1px solid #777;border-radius:10px;background:#101010;color:#fff;font:16px/1.4 Arial,sans-serif}
     .routeFeedbackVoice{display:flex;align-items:center;gap:9px;margin-top:10px}.routeFeedbackVoice button{width:46px;height:46px;padding:0;border-radius:23px;font-size:22px}.routeFeedbackVoice button.listening{background:#e53935;color:#fff;animation:routeFeedbackPulse 1.2s infinite}.routeFeedbackVoice span{font-size:13px;color:#ccc}
-    .routeFeedbackInfo{margin:11px 0 0;color:#bbb;font-size:12px;line-height:1.35}.routeFeedbackActions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:14px}.routeFeedbackActions button{padding:12px 8px;font-weight:900}.routeFeedbackActions .primary{background:#ccff33;color:#111}.routeFeedbackMessage{min-height:18px;margin-top:9px;color:#ccff33;font-size:13px}
+    .routeFeedbackInfo{margin:11px 0 0;color:#bbb;font-size:12px;line-height:1.35}.routeFeedbackActions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:14px}.routeFeedbackActions button{padding:12px 8px;font-weight:900}.routeFeedbackActions .primary{background:#ccff33;color:#111}.routeFeedbackActions .whatsapp{background:#25d366;color:#071d0f}.routeFeedbackActions .sms{background:#3a86ff;color:#fff}.routeFeedbackMessage{min-height:18px;margin-top:9px;color:#ccff33;font-size:13px}
     @keyframes routeFeedbackPulse{50%{box-shadow:0 0 0 7px #e5393544}}
     @media(max-width:420px){.routeFeedbackActions{grid-template-columns:1fr}}
   `;
@@ -44,10 +45,12 @@
         <button id="routeFeedbackMic" type="button" aria-label="Dyktuj uwagę" title="Dyktuj uwagę">🎤</button>
         <span id="routeFeedbackVoiceStatus">Możesz napisać lub podyktować uwagę.</span>
       </div>
-      <p class="routeFeedbackInfo">Uwaga zostanie zapisana na tym urządzeniu. Przycisk „Udostępnij” pozwoli wysłać ją wybraną aplikacją.</p>
+      <p class="routeFeedbackInfo">Uwaga zostanie zapisana na tym urządzeniu. Możesz wysłać ją przez WhatsApp lub SMS na numer +48 603 666 921. Wiadomość wyślesz samodzielnie w otwartej aplikacji.</p>
       <div class="routeFeedbackActions">
         <button id="routeFeedbackSave" type="button">ZAPISZ</button>
-        <button id="routeFeedbackShare" class="primary" type="button">UDOSTĘPNIJ</button>
+        <button id="routeFeedbackWhatsApp" class="whatsapp" type="button">WHATSAPP</button>
+        <button id="routeFeedbackSms" class="sms" type="button">SMS</button>
+        <button id="routeFeedbackShare" class="primary" type="button">INNA APLIKACJA</button>
       </div>
       <div id="routeFeedbackMessage" class="routeFeedbackMessage" aria-live="polite"></div>
     </section>
@@ -60,6 +63,8 @@
   const micButton=dialog.querySelector('#routeFeedbackMic');
   const voiceStatus=dialog.querySelector('#routeFeedbackVoiceStatus');
   const saveButton=dialog.querySelector('#routeFeedbackSave');
+  const whatsAppButton=dialog.querySelector('#routeFeedbackWhatsApp');
+  const smsButton=dialog.querySelector('#routeFeedbackSms');
   const shareButton=dialog.querySelector('#routeFeedbackShare');
   const message=dialog.querySelector('#routeFeedbackMessage');
   let recognition=null;
@@ -113,7 +118,7 @@
       record.version&&`Wersja: ${record.version}`,
       `Czas: ${record.createdAt}`
     ].filter(Boolean).join('\n');
-    return `Uwaga o nawigacji Trasy 2.0\n\n${record.text}\n\n${details}`;
+    return `Trasy 2.0\n\n${record.text}\n\n${details}`;
   }
 
   function setListening(active){
@@ -186,6 +191,28 @@
       textarea.value='';
       message.textContent='Uwaga została zapisana na tym urządzeniu.';
     }catch(error){message.textContent=error.message}
+  };
+
+  whatsAppButton.onclick=()=>{
+    try{
+      const record=saveNote(textarea.value);
+      const text=formatRecord(record);
+      const url=`https://wa.me/${FEEDBACK_PHONE.replace(/\D/g,'')}?text=${encodeURIComponent(text)}`;
+      const opened=window.open(url,'_blank','noopener,noreferrer');
+      if(!opened)window.location.href=url;
+      textarea.value='';
+      message.textContent='Uwaga została zapisana. Dokończ wysyłanie w WhatsApp.';
+    }catch(error){message.textContent=error.message||'Nie udało się otworzyć WhatsApp.'}
+  };
+
+  smsButton.onclick=()=>{
+    try{
+      const record=saveNote(textarea.value);
+      const text=formatRecord(record);
+      window.location.href=`sms:${FEEDBACK_PHONE}?body=${encodeURIComponent(text)}`;
+      textarea.value='';
+      message.textContent='Uwaga została zapisana. Dokończ wysyłanie w aplikacji Wiadomości.';
+    }catch(error){message.textContent=error.message||'Nie udało się otworzyć wiadomości SMS.'}
   };
 
   shareButton.onclick=async()=>{
