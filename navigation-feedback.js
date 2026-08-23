@@ -197,9 +197,9 @@
     try{
       const record=saveNote(textarea.value);
       const text=formatRecord(record);
-      const url=`https://wa.me/${FEEDBACK_PHONE.replace(/\D/g,'')}?text=${encodeURIComponent(text)}`;
-      const opened=window.open(url,'_blank','noopener,noreferrer');
-      if(!opened)window.location.href=url;
+      const phone=FEEDBACK_PHONE.replace(/\D/g,'');
+      const url=`https://api.whatsapp.com/send/?phone=${phone}&text=${encodeURIComponent(text)}&type=phone_number&app_absent=0`;
+      window.location.assign(url);
       textarea.value='';
       message.textContent='Uwaga została zapisana. Dokończ wysyłanie w WhatsApp.';
     }catch(error){message.textContent=error.message||'Nie udało się otworzyć WhatsApp.'}
