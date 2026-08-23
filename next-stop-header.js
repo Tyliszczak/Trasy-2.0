@@ -62,6 +62,10 @@
   const APPROACH_CLEAR_M=140;
   const APPROACH_MAX_ACCURACY_M=80;
   const DAY_MS=24*60*60*1000;
+  const AUDIO_PRIME_MS=220;
+  const BEEP_LEAD_SECONDS=.08;
+  const BEEP_DURATION_SECONDS=.28;
+  const BEEP_SPACING_SECONDS=.42;
   const AudioContextClass=window.AudioContext||window.webkitAudioContext;
 
   let lastStatusDetail=null;
@@ -251,34 +255,67 @@
     }
   }
 
+  function delay(ms){
+    return new Promise(resolve=>setTimeout(resolve,ms));
+  }
+
+  function primeAudio(context){
+    try{
+      const oscillator=context.createOscillator();
+      const gain=context.createGain();
+      gain.gain.setValueAtTime(.0001,context.currentTime);
+      oscillator.frequency.setValueAtTime(40,context.currentTime);
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+      oscillator.start();
+      oscillator.stop(context.currentTime+.08);
+    }catch{}
+  }
+
+  async function prepareAudio(context){
+    try{
+      if(context.state==='suspended')await context.resume();
+      primeAudio(context);
+      await delay(AUDIO_PRIME_MS);
+      if(context.state==='suspended')await context.resume();
+      return context.state==='running';
+    }catch{
+      return false;
+    }
+  }
+
   async function playBeeps(count){
     const context=ensureAudio();
     if(!context)return;
     try{
-      if(context.state==='suspended')await context.resume();
-      const start=context.currentTime+.02;
+      if(!await prepareAudio(context))return;
+      const start=context.currentTime+BEEP_LEAD_SECONDS;
       for(let i=0;i<count;i+=1){
-        const at=start+i*.29;
+        const at=start+i*BEEP_SPACING_SECONDS;
+        const end=at+BEEP_DURATION_SECONDS;
         const oscillator=context.createOscillator();
         const gain=context.createGain();
         oscillator.type='square';
         oscillator.frequency.setValueAtTime(1180,at);
         gain.gain.setValueAtTime(.0001,at);
-        gain.gain.exponentialRampToValueAtTime(.48,at+.018);
-        gain.gain.setValueAtTime(.48,at+.13);
-        gain.gain.exponentialRampToValueAtTime(.0001,at+.19);
+        gain.gain.exponentialRampToValueAtTime(.55,at+.025);
+        gain.gain.setValueAtTime(.55,at+.18);
+        gain.gain.exponentialRampToValueAtTime(.0001,end);
         oscillator.connect(gain);
         gain.connect(context.destination);
         oscillator.start(at);
-        oscillator.stop(at+.2);
+        oscillator.stop(end+.02);
       }
     }catch{}
   }
 
-  function unlockAudio(){
+  async function unlockAudio(){
     const context=ensureAudio();
     if(!context)return;
-    context.resume?.().catch?.(()=>{});
+    try{
+      if(context.state==='suspended')await context.resume();
+      primeAudio(context);
+    }catch{}
   }
 
   function flashHold(){
