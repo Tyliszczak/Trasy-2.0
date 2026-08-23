@@ -100,7 +100,7 @@
         max-width:100%!important;
       }
       #scheduleView #scheduleSpeedBox{transform:scale(.9);transform-origin:right center}
-      #scheduleView .routeModeSwitches{gap:2px!important}
+      #scheduleView .routeModeSwitches{gap:8px!important}
       #scheduleView #scheduleVehicleButton{
         max-width:38vw!important;
         font-size:.7rem!important;

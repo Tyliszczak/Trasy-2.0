@@ -37,7 +37,7 @@ test('service worker nie przeładowuje aplikacji natychmiast po instalacji',asyn
 test('pełna lokalna powłoka mapy znajduje się w cache PWA',async()=>{
   const source=await readSource('sw.js');
   assert.match(source,/\.\/maplibre-route-hook\.js/);
-  assert.match(source,/trasy-2\.0-v95/);
+  assert.match(source,/trasy-2\.0-v96/);
   assert.match(source,/\.\/gps-hub\.js/);
   assert.match(source,/\.\/route-data-service\.js/);
   assert.match(source,/\.\/parking-data\.js/);
