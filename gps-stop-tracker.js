@@ -50,10 +50,23 @@ import{planDateForRow}from'./schedule-time.js';
   }
 
   function rowPlanText(row){
-    return String(
-      row?.children?.[1]?.firstChild?.textContent||
-      row?.children?.[1]?.textContent||''
+    const cell=row?.children?.[1];
+    const source=String(
+      cell?.dataset.routeRolePlan||
+      cell?.dataset.finalStopPlan||
+      cell?.textContent||''
     ).trim();
+    return source.match(/\b\d{1,2}:\d{2}\b/)?.[0]||'';
+  }
+
+  function alarmEligible(routeRows,index,row=routeRows[index]){
+    return Boolean(
+      row&&
+      Number.isInteger(index)&&
+      index>=0&&
+      index<routeRows.length-1&&
+      rowPlanText(row)
+    );
   }
 
   function rowPlanDate(row,now=new Date()){
@@ -154,9 +167,17 @@ import{planDateForRow}from'./schedule-time.js';
     }
 
     const row=routeRows[currentIndex];
+    if(
+      body.dataset.direction==='return'||
+      !alarmEligible(routeRows,currentIndex,row)
+    ){
+      emitGuard('','',0,currentIndex,'',Infinity);
+      return;
+    }
+
     const target=coord(row.dataset.coordinate);
     const plan=rowPlanDate(row);
-    if(!target||!plan||body.dataset.direction==='return'){
+    if(!target||!plan){
       emitGuard('','',0,currentIndex,'',Infinity);
       return;
     }
@@ -173,9 +194,7 @@ import{planDateForRow}from'./schedule-time.js';
     }
     if(seconds<=0&&arrived&&distance<=READY_RADIUS){
       state='ready';
-      message=currentIndex===routeRows.length-1
-        ?'JESTEŚ NA MIEJSCU'
-        :'MOŻESZ JECHAĆ';
+      message='MOŻESZ JECHAĆ';
     }
     if(state){
       const notice=document.createElement('div');
@@ -200,15 +219,18 @@ import{planDateForRow}from'./schedule-time.js';
     currentIndex=result.index;
 
     if(result.justArrived){
-      const row=rows()[currentIndex];
-      const plan=rowPlanDate(row);
+      const routeRows=rows();
+      const row=routeRows[currentIndex];
+      const plan=alarmEligible(routeRows,currentIndex,row)?rowPlanDate(row):null;
       reachedBeforeTime=Boolean(plan&&Date.now()<plan.getTime());
     }
     if(result.changed&&result.reason==='confirmed-departure'){
-      const previousRow=rows()[result.fromIndex];
-      const plan=rowPlanDate(previousRow);
+      const routeRows=rows();
+      const previousRow=routeRows[result.fromIndex];
+      const eligible=alarmEligible(routeRows,result.fromIndex,previousRow);
+      const plan=eligible?rowPlanDate(previousRow):null;
       if(
-        reachedBeforeTime&&plan&&Date.now()<plan.getTime()&&
+        eligible&&reachedBeforeTime&&plan&&Date.now()<plan.getTime()&&
         body.dataset.direction!=='return'
       )showEarlyDepartureWarning(rowPlanText(previousRow));
       reachedBeforeTime=false;
