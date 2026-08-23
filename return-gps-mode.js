@@ -3,7 +3,7 @@
   if(!body)return;
 
   body.addEventListener('route-direction-change',e=>{
-    if(e.detail?.direction!=='return')return;
+    if(e.detail?.direction!=='return'||e.detail?.emptyRun)return;
 
     // Godzina START pozostaje informacją w nagłówku, ale nie blokuje logiki GPS.
     body.dataset.returnOriginActive='';

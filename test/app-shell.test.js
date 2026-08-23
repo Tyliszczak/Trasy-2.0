@@ -36,7 +36,9 @@ test('service worker nie przeładowuje aplikacji natychmiast po instalacji',asyn
 test('pełna lokalna powłoka mapy znajduje się w cache PWA',async()=>{
   const source=await readSource('sw.js');
   assert.match(source,/\.\/maplibre-route-hook\.js/);
-  assert.match(source,/trasy-2\.0-v94/);
+  assert.match(source,/trasy-2\.0-v95/);
+  assert.match(source,/\.\/gps-hub\.js/);
+  assert.match(source,/\.\/route-data-service\.js/);
 });
 
 test('odświeżenie PWA wymaga działania kierowcy',async()=>{
@@ -49,6 +51,40 @@ test('odświeżenie PWA wymaga działania kierowcy',async()=>{
 test('nagłówek następnego przystanku nie odpytuje DOM co pół sekundy',async()=>{
   const source=await readSource('next-stop-header.js');
   assert.doesNotMatch(source,/setInterval/);
+});
+
+test('jeden moduł utrzymuje fizyczny nasłuch GPS',async()=>{
+  const names=['gps-hub.js','gps-stop-tracker.js','eta-status.js','return-start-guard.js','skip-detection.js','nav-map.js'];
+  const sources=await Promise.all(names.map(readSource));
+  assert.equal(sources.filter(source=>/watchPosition/.test(source)).length,1);
+  assert.match(sources[0],/subscriberCount/);
+  sources.slice(1).forEach(source=>assert.match(source,/__trasyGps/));
+});
+
+test('kierunki korzystają ze wspólnego źródła danych tras',async()=>{
+  const [service,app,returnRoute]=await Promise.all([
+    readSource('route-data-service.js'),readSource('app.js'),readSource('return-route.js')
+  ]);
+  assert.match(service,/script\.google\.com/);
+  assert.doesNotMatch(app,/script\.google\.com/);
+  assert.doesNotMatch(returnRoute,/script\.google\.com/);
+  assert.match(app,/__trasyRouteDataService/);
+  assert.match(returnRoute,/__trasyRouteDataService/);
+});
+
+test('Na pusto jest niezależne od Powrotu i prowadzi do ostatniego punktu kierunku',async()=>{
+  const [returnRoute,nav]=await Promise.all([readSource('return-route.js'),readSource('nav-map.js')]);
+  assert.match(returnRoute,/id="emptyRouteSwitch"/);
+  assert.match(returnRoute,/id="returnRouteSwitch"/);
+  assert.match(returnRoute,/body\.dataset\.emptyRun/);
+  assert.match(nav,/remaining\[remaining\.length-1\]/);
+});
+
+test('przycisk kompasu jest usunięty, a nawigacja pojawia się poza prowadzeniem',async()=>{
+  const source=await readSource('navigation-ui-controls.js');
+  assert.doesNotMatch(source,/compassIcon|Kompas \/ widok prowadzenia/);
+  assert.match(source,/center\.hidden=guidance/);
+  assert.match(source,/center\.title='Wróć do nawigacji'/);
 });
 
 test('dane zapasowe tworzą kompletny harmonogram każdej zmiany',()=>{

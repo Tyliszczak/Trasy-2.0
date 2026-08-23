@@ -61,7 +61,7 @@
   }
 
   function evaluate(here){
-    if(nav.hidden)return;
+    if(nav.hidden||body.dataset.emptyRun==='1')return;
     const rs=rows(),i=currentIndex();if(!rs[i]||i>=rs.length-1)return;
     const target=coord(rs[i].dataset.coordinate);if(!target)return;
     const d=dist(here,target);
@@ -96,5 +96,5 @@
   body.addEventListener('gps-next-stop-change',reset);
   body.addEventListener('route-direction-change',reset);
   body.addEventListener('schedule-rendered',reset);
-  watch=navigator.geolocation.watchPosition(onPos,()=>{},{enableHighAccuracy:true,maximumAge:800,timeout:15000});
+  watch=window.__trasyGps.subscribe(onPos,()=>{});
 })();

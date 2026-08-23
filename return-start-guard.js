@@ -90,7 +90,7 @@
     }
   }
 
-  navigator.geolocation.watchPosition(onPos,()=>{}, {enableHighAccuracy:true,maximumAge:700,timeout:15000});
+  window.__trasyGps.subscribe(onPos,()=>{});
   body.addEventListener('route-direction-change',reset);
   body.addEventListener('schedule-rendered',reset);
 })();

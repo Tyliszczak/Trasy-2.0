@@ -50,7 +50,7 @@
       justify-self:end!important;
       margin:0!important;
     }
-    #scheduleView .returnRouteSwitchLabel{
+    #scheduleView .routeModeSwitches{
       grid-column:4!important;
       grid-row:2!important;
       align-self:center!important;
@@ -100,7 +100,7 @@
         max-width:100%!important;
       }
       #scheduleView #scheduleSpeedBox{transform:scale(.9);transform-origin:right center}
-      #scheduleView .returnRouteSwitchLabel{font-size:.76rem!important}
+      #scheduleView .routeModeSwitches{gap:2px!important}
       #scheduleView #scheduleVehicleButton{
         max-width:38vw!important;
         font-size:.7rem!important;

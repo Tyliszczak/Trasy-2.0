@@ -468,7 +468,7 @@
       idx=active>=0?active:0;
     }
 
-    return rows
+    const remaining=rows
       .slice(idx)
       .map((r,i)=>({
         coord:parseCoord(r.dataset.coordinate),
@@ -492,6 +492,10 @@
         ).trim()
       }))
       .filter(x=>x.coord);
+
+    return body.dataset.emptyRun==='1'&&remaining.length
+      ?[remaining[remaining.length-1]]
+      :remaining;
   }
 
 
@@ -1738,11 +1742,11 @@
       startTrafficRefresh();
 
       if(watchId!==null){
-        navigator.geolocation.clearWatch(watchId);
+        window.__trasyGps.unsubscribe(watchId);
       }
 
       watchId=
-        navigator.geolocation.watchPosition(
+        window.__trasyGps.subscribe(
           p=>{
             const ll=[
               p.coords.latitude,
@@ -1776,12 +1780,6 @@
           ()=>{
             gpsStatus.textContent=
               'Brak aktualnej pozycji GPS.';
-          },
-
-          {
-            enableHighAccuracy:true,
-            maximumAge:500,
-            timeout:15000
           }
         );
 
@@ -1794,7 +1792,7 @@
 
   function closeMapNav(){
     if(watchId!==null){
-      navigator.geolocation.clearWatch(watchId);
+      window.__trasyGps.unsubscribe(watchId);
       watchId=null;
     }
 
@@ -1830,6 +1828,27 @@
 
   body.addEventListener(
     'route-direction-change',
+    ()=>{
+      if(panel.hidden)return;
+
+      const remaining=
+        remainingStopsFromGps();
+
+      if(!remaining.length)return;
+
+      currentStops=remaining;
+
+      if(lastGpsPoint){
+        buildRoute(
+          lastGpsPoint,
+          currentStops
+        );
+      }
+    }
+  );
+
+  body.addEventListener(
+    'route-mode-change',
     ()=>{
       if(panel.hidden)return;
 

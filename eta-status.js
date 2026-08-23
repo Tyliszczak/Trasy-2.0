@@ -41,6 +41,6 @@
   body.addEventListener('nav-eta-update',e=>{const row=activeRow();if(row&&(isReturnOrigin(row)||isFinalArrived(row)))return;const seconds=Number(e.detail?.etaSeconds);if(Number.isFinite(seconds)){etaSeconds=seconds;etaMeasuredAt=Date.now();render()}});
   body.addEventListener('gps-next-stop-change',e=>{if(Number(e.detail?.index)>0)body.dataset.returnOriginActive='';lastTarget=null;etaSeconds=null;etaMeasuredAt=0;clearInfo();refreshEta(true).then(render)});
   body.addEventListener('stop-guard-change',()=>render());
-  function start(){if(watch!==null)return;watch=navigator.geolocation.watchPosition(p=>{pos={lat:p.coords.latitude,lng:p.coords.longitude,accuracy:p.coords.accuracy||999};if(pos.accuracy<=MAX_GPS_ACCURACY){refreshEta().then(render)}},()=>{},{enableHighAccuracy:true,maximumAge:1000,timeout:15000})}
+  function start(){if(watch!==null)return;watch=window.__trasyGps.subscribe(p=>{pos={lat:p.coords.latitude,lng:p.coords.longitude,accuracy:p.coords.accuracy||999};if(pos.accuracy<=MAX_GPS_ACCURACY){refreshEta().then(render)}},()=>{})}
   start();setInterval(()=>{if(!view.hidden&&pos?.accuracy<=MAX_GPS_ACCURACY){refreshEta();render()}},1000);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')start()});
 })();
