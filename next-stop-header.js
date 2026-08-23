@@ -23,6 +23,5 @@
   function escapeHtml(v){return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
   body.addEventListener('nav-eta-update',e=>render(e.detail));
   const observer=new MutationObserver(()=>render());observer.observe(body,{subtree:true,attributes:true,attributeFilter:['class','data-gps-next-stop']});
-  setInterval(()=>{document.querySelectorAll('#routeNavRoot .maplibregl-popup,.activeStopEtaBubble').forEach(el=>el.style.display='none')},500);
   render();
 })();

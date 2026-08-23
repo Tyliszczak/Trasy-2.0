@@ -5,14 +5,12 @@ const API_URL='https://script.google.com/macros/s/AKfycbzdG_ARbbPgMdlPteqFLakZHR
 const DATA_KEY='trasy2.routes',SYNC_KEY='trasy2.lastSuccessfulSync',FAIL_KEY='trasy2.firstFailedSync',THREE_DAYS=259200000;
 const $=s=>document.querySelector(s);
 const routeSelect=$('#routeSelect'),message=$('#formMessage'),connectionStatus=$('#connectionStatus'),staleWarning=$('#staleWarning');
-let routes=[],syncing=false,offline=true,wakeLock=null,wakeWanted=false;
+let routes=[],syncing=false,offline=true;
 
 function showView(id){$('#selectionView').hidden=id!=='#selectionView';$('#scheduleView').hidden=id!=='#scheduleView';scrollTo(0,0)}
 function normalizeTime(v){const s=String(v??'');const iso=s.match(/T(\d{2}):(\d{2})/);if(iso)return `${iso[1]}:${iso[2]}`;const m=s.match(/(?:^|\s)(\d{1,2}):(\d{2})(?:$|:\d{2}|\s)/);return m?`${m[1].padStart(2,'0')}:${m[2]}`:''}
 function nextCourseTime(r){if(!r?.times?.length)return '';const now=new Date(),minutes=now.getHours()*60+now.getMinutes();const sorted=r.times.map(t=>({t,m:(+t.slice(0,2))*60+(+t.slice(3,5))})).filter(x=>Number.isFinite(x.m)).sort((a,b)=>a.m-b.m);return (sorted.find(x=>x.m>=minutes)||sorted[0])?.t||''}
-function updateScheduleClock(){const el=$('#scheduleClock');if(!el)return;const now=new Date();el.textContent=`🕒 ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`}
-updateScheduleClock();setInterval(updateScheduleClock,1000);
-function renderSchedule(r,t){if(!r||!t)return;$('#scheduleRouteName').textContent=r.name;const sel=$('#scheduleTimeSelect');sel.replaceChildren(...r.times.map(x=>new Option(x,x)));sel.value=t;$('#scheduleBody').replaceChildren(...getSchedule(r,t).map(stopRow));updateScheduleClock();lastActiveStop=null;setTimeout(()=>$('#scheduleBody').dispatchEvent(new CustomEvent('schedule-rendered',{bubbles:true})),0)}
+function renderSchedule(r,t){if(!r||!t)return;$('#scheduleRouteName').textContent=r.name;const sel=$('#scheduleTimeSelect');sel.replaceChildren(...r.times.map(x=>new Option(x,x)));sel.value=t;$('#scheduleBody').replaceChildren(...getSchedule(r,t).map(stopRow));lastActiveStop=null;setTimeout(()=>$('#scheduleBody').dispatchEvent(new CustomEvent('schedule-rendered',{bubbles:true})),0)}
 
 let lastActiveStop=null;
 function keepActiveStopVisible(){const view=$('#scheduleView'),active=$('#scheduleBody tr.gpsNextStop');if(!view||view.hidden||!active||active===lastActiveStop)return;lastActiveStop=active;active.scrollIntoView({behavior:'smooth',block:'center',inline:'nearest'})}
@@ -21,8 +19,6 @@ $('#scheduleTimeSelect').onchange=()=>{const r=getRoute(routes,routeSelect.value
 routeSelect.onchange=()=>{message.textContent=''};
 $('#showSchedule').onclick=()=>{const r=getRoute(routes,routeSelect.value);if(!r){message.textContent='Wybierz trasę.';return}const t=nextCourseTime(r);if(!t){message.textContent='Ta trasa nie ma dostępnych godzin.';return}renderSchedule(r,t);showView('#scheduleView')};
 $('#backFromSchedule').onclick=()=>{showView('#selectionView')};
-const wakeBtn=$('#wakeLockButton'),wakeLabel=$('#wakeLockLabel');wakeBtn.onclick=async()=>{wakeWanted=!wakeWanted;if(wakeWanted&&'wakeLock'in navigator){try{wakeLock=await navigator.wakeLock.request('screen')}catch{}}else if(wakeLock){try{await wakeLock.release()}catch{}wakeLock=null}wakeLabel.textContent=wakeWanted?'EKRAN ON':'EKRAN OFF'};
-document.addEventListener('visibilitychange',async()=>{if(document.visibilityState==='visible'&&wakeWanted&&'wakeLock'in navigator){try{wakeLock=await navigator.wakeLock.request('screen')}catch{}}});
 function normalize(data){if(!data||typeof data!=='object')return[];if(!Array.isArray(data)){const sheetRoutes=Object.entries(data).map(([name,rows])=>{if(!Array.isArray(rows)||!Array.isArray(rows[0]))return null;const headers=rows[0].map(v=>String(v??'').trim()),courseCols=[];for(let c=3;c<headers.length;c++){const t=normalizeTime(headers[c]);if(t)courseCols.push([c,t])}const times=courseCols.map(x=>x[1]);const stops=rows.slice(1).map(row=>{const stopName=String(row?.[0]??'').trim();if(!stopName)return null;const stopTimes={};courseCols.forEach(([c,t])=>{const v=normalizeTime(row?.[c]);if(v)stopTimes[t]=v});return{name:stopName,coordinates:String(row?.[1]??'').trim(),times:stopTimes}}).filter(Boolean);return{name:String(name).trim(),times,stops}}).filter(r=>r?.name);if(sheetRoutes.length)return sheetRoutes}const arr=Array.isArray(data)?data:Object.entries(data).map(([name,v])=>({...v,name:v.name??name}));return arr.map(v=>{const name=String(v.name??v.nazwa??'').trim(),raw=v.stops??v.przystanki??[],times=[...new Set((v.times??v.godziny??[]).map(String).filter(Boolean))];const stops=raw.map(s=>{const o={},src=s.times??s.godziny??{};if(Array.isArray(src))times.forEach((t,i)=>o[t]=src[i]??null);else Object.entries(src).forEach(([k,val])=>o[String(k)]=val??null);return{name:String(s.name??s.nazwa??s.przystanek??s[0]??''),coordinates:String(s.coordinates??s.lokalizacja??s.coords??s[1]??''),times:o}}).filter(s=>s.name);return{name,times,stops}}).filter(r=>r?.name)}
 function valid(r){return r?.name&&r.times?.length&&r.stops?.length}
 function jsonpGet(){return new Promise((resolve,reject)=>{const callback=`__trasy2_${Date.now()}_${Math.random().toString(36).slice(2)}`;const script=document.createElement('script');let done=false;const cleanup=()=>{delete window[callback];script.remove()};const timer=setTimeout(()=>{if(done)return;done=true;cleanup();reject(new Error('Przekroczono czas oczekiwania na API'))},12000);window[callback]=data=>{if(done)return;done=true;clearTimeout(timer);cleanup();resolve(data)};script.onerror=()=>{if(done)return;done=true;clearTimeout(timer);cleanup();reject(new Error('Nie udało się pobrać danych przez JSONP'))};script.src=`${API_URL}?callback=${encodeURIComponent(callback)}&t=${Date.now()}`;document.head.append(script)})}
@@ -36,4 +32,33 @@ function stopRow(s){const tr=document.createElement('tr');tr.dataset.coordinate=
 async function startApp(){const cached=loadCached();if(cached?.length){routes=cached;renderRoutes();message.textContent=''}else{routeSelect.disabled=true;message.textContent='Pobieranie aktualnych danych…'}const ok=await syncRoutes();if(!ok&&!routes.length){routes=FALLBACK_ROUTES;renderRoutes();message.textContent='Nie udało się pobrać świeżych danych. Używam zapisanej kopii.'}else if(ok)message.textContent='';routeSelect.disabled=false}
 startApp();setInterval(updateStatus,60000);window.addEventListener('online',syncRoutes);window.addEventListener('focus',()=>{if(document.visibilityState==='visible')syncRoutes()});
 let promptInstall=null;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();promptInstall=e;$('#installBanner').hidden=false});$('#installButton').onclick=async()=>{if(promptInstall){promptInstall.prompt();$('#installBanner').hidden=true}};$('#rejectInstall').onclick=()=>$('#installBanner').hidden=true;
-if('serviceWorker'in navigator)window.addEventListener('load',async()=>{const reg=await navigator.serviceWorker.register('./sw.js');reg.update();$('#updateAppButton').onclick=()=>reg.waiting?.postMessage({type:'SKIP_WAITING'});navigator.serviceWorker.addEventListener('controllerchange',()=>location.reload())});
+if('serviceWorker'in navigator)window.addEventListener('load',async()=>{
+  const notice=$('#updateNotice');
+  const updateButton=$('#updateAppButton');
+  let updateRequested=false;
+  try{
+    const reg=await navigator.serviceWorker.register('./sw.js');
+    const showUpdate=()=>{
+      if(reg.waiting)notice.hidden=false;
+    };
+    showUpdate();
+    reg.addEventListener('updatefound',()=>{
+      const worker=reg.installing;
+      worker?.addEventListener('statechange',()=>{
+        if(worker.state==='installed'&&navigator.serviceWorker.controller)showUpdate();
+      });
+    });
+    updateButton.onclick=()=>{
+      if(!reg.waiting)return;
+      updateRequested=true;
+      updateButton.disabled=true;
+      reg.waiting.postMessage({type:'SKIP_WAITING'});
+    };
+    navigator.serviceWorker.addEventListener('controllerchange',()=>{
+      if(updateRequested)location.reload();
+    });
+    if(navigator.onLine)reg.update().catch(error=>console.warn('Sprawdzenie aktualizacji PWA:',error));
+  }catch(error){
+    console.warn('Uruchomienie PWA:',error);
+  }
+});
