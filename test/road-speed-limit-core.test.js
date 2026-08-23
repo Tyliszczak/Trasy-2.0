@@ -28,4 +28,5 @@ test('nearestRoadLimit respects directional maxspeed',()=>{
   }];
   assert.equal(nearestRoadLimit(elements,{lat:52.0005,lon:15},{heading:0})?.maxspeed,50);
   assert.equal(nearestRoadLimit(elements,{lat:52.0005,lon:15},{heading:180})?.maxspeed,90);
+  assert.equal(nearestRoadLimit(elements,{lat:52.0005,lon:15})?.maxspeed,70);
 });
