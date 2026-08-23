@@ -38,7 +38,7 @@ test('service worker nie przeładowuje aplikacji natychmiast po instalacji',asyn
 test('pełna lokalna powłoka mapy znajduje się w cache PWA',async()=>{
   const source=await readSource('sw.js');
   assert.match(source,/\.\/maplibre-route-hook\.js/);
-  assert.match(source,/trasy-2\.0-v109/);
+  assert.match(source,/trasy-2\.0-v110/);
   assert.match(source,/\.\/gps-hub\.js/);
   assert.match(source,/\.\/gps-stop-engine\.js/);
   assert.match(source,/\.\/schedule-time\.js/);
@@ -98,6 +98,9 @@ test('Na pusto jest niezależne od Powrotu i prowadzi do ostatniego punktu kieru
   assert.match(returnRoute,/id="emptyRouteSwitch"/);
   assert.match(returnRoute,/id="returnRouteSwitch"/);
   assert.match(returnRoute,/body\.dataset\.emptyRun/);
+  assert.match(returnRoute,/const target=displayRows\.length-1/);
+  assert.match(returnRoute,/row\.hidden=!active/);
+  assert.match(returnRoute,/ordered\.forEach\(\(row,index\)=>\{row\.hidden=false/);
   assert.match(nav,/remaining\[remaining\.length-1\]/);
 });
 

@@ -111,7 +111,7 @@
       const ordered=rows.slice().sort((a,b)=>(+a.dataset.routeOrder||0)-(+b.dataset.routeOrder||0));
       if(direction==='return')ordered.reverse();
       const start=add15(forwardCourseTime||resolveOutboundCourse());
-      ordered.forEach((row,index)=>{row.dataset.coordinate=direction==='return'?(row.dataset.returnCoordinate||row.dataset.forwardCoordinate||''):(row.dataset.forwardCoordinate||'');setTime(row,direction==='return'?(index===0?start:''):(row.dataset.forwardTime||''));body.append(row)});
+      ordered.forEach((row,index)=>{row.hidden=false;row.dataset.coordinate=direction==='return'?(row.dataset.returnCoordinate||row.dataset.forwardCoordinate||''):(row.dataset.forwardCoordinate||'');setTime(row,direction==='return'?(index===0?start:''):(row.dataset.forwardTime||''));body.append(row)});
       const displayRows=ordered.slice();
       if(direction==='return'&&emptyRun&&selectedParking){const parkingRow=createParkingRow(selectedParking,ordered[ordered.length-1]);body.append(parkingRow);displayRows.push(parkingRow)}
       forwardTimeSelect.hidden=direction==='return';
@@ -121,7 +121,7 @@
       body.dataset.returnStart=direction==='return'?start:'';
       body.dataset.outboundCourse=direction==='return'?forwardCourseTime:'';
       body.dataset.selectedParking=direction==='return'&&emptyRun&&selectedParking?selectedParking.name:'';
-      if(emptyRun){const target=displayRows.length-1;body.dataset.returnOriginActive='';body.dataset.gpsNextStop=String(target);displayRows.forEach((row,index)=>{const active=index===target;row.classList.toggle('gpsNextStop',active);row.classList.toggle('isActiveStop',active)})}
+      if(emptyRun){const target=displayRows.length-1;body.dataset.returnOriginActive='';body.dataset.gpsNextStop=String(target);displayRows.forEach((row,index)=>{const active=index===target;row.hidden=!active;row.classList.toggle('gpsNextStop',active);row.classList.toggle('isActiveStop',active)})}
       else if(direction==='return'&&forceReturnOriginOnce){body.dataset.returnOriginActive='1';body.dataset.gpsNextStop='0';displayRows.forEach((row,index)=>{const active=index===0;row.classList.toggle('gpsNextStop',active);row.classList.toggle('isActiveStop',active)});forceReturnOriginOnce=false}
       else if(direction!=='return'){body.dataset.returnOriginActive='';delete body.dataset.gpsNextStop}
       body.dispatchEvent(new CustomEvent('route-direction-change',{bubbles:true,detail:{direction,returnStart:start,outboundCourse:forwardCourseTime,returnOriginActive:body.dataset.returnOriginActive==='1',emptyRun,parking:selectedParking}}));
