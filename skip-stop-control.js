@@ -22,6 +22,7 @@
       <div id="routeStopActionsMeta" style="margin-top:5px;color:#ddd;font-size:14px"></div>
       <div style="display:grid;gap:9px;margin-top:16px">
         <button id="routeStopShowSegment" type="button" style="padding:13px;font-weight:900">POKAŻ ODCINEK DO PRZYSTANKU</button>
+        <button id="routeStopPrevious" type="button" style="padding:13px;font-weight:900;background:#2d5f94;color:#fff">WRÓĆ DO POPRZEDNIEGO PRZYSTANKU</button>
         <button id="routeStopCancel" type="button" style="padding:13px;font-weight:900">ANULUJ</button>
       </div>
     </div>
@@ -31,6 +32,7 @@
   const title=modal.querySelector('#routeStopActionsTitle');
   const meta=modal.querySelector('#routeStopActionsMeta');
   const showSegment=modal.querySelector('#routeStopShowSegment');
+  const previous=modal.querySelector('#routeStopPrevious');
   const cancel=modal.querySelector('#routeStopCancel');
 
   function rows(){return [...body.querySelectorAll('tr')].filter(r=>r.dataset.coordinate)}
@@ -50,6 +52,7 @@
     window.__routeEnterManualView?.();
     window.__routeStopActionsOpen=true;
     title.textContent=s.name;meta.textContent=s.time?`Plan: ${s.time}`:'';
+    previous.hidden=s.idx<=0||body.dataset.emptyRun==='1';
     modal.hidden=false;
   }
   function closeMenu(){modal.hidden=true;window.__routeStopActionsOpen=false}
@@ -62,7 +65,18 @@
     closeMenu();
   }
 
+  function selectPreviousStop(){
+    const s=currentStop();
+    if(!s||s.idx<=0)return;
+    body.dispatchEvent(new CustomEvent('gps-skip-stop',{
+      bubbles:true,
+      detail:{index:s.idx-1,source:'manual-previous'}
+    }));
+    closeMenu();
+  }
+
   showSegment.addEventListener('click',showSegmentOnMap);
+  previous.addEventListener('click',selectPreviousStop);
   cancel.addEventListener('click',closeMenu);
   modal.addEventListener('click',e=>{if(e.target===modal)closeMenu()});
   document.addEventListener('click',e=>{

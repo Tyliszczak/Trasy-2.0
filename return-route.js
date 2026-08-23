@@ -71,6 +71,7 @@
   function createParkingRow(parking,sampleRow){
     const row=document.createElement('tr');
     row.dataset.parkingRow='1';
+    row.dataset.stopId=`parking:${parking.coordinates}`;
     row.dataset.coordinate=parking.coordinates;
     row.dataset.forwardCoordinate=parking.coordinates;
     row.dataset.returnCoordinate=parking.coordinates;

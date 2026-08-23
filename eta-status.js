@@ -1,3 +1,5 @@
+import{planDateForRow}from'./schedule-time.js';
+
 (()=>{
   const body=document.getElementById('scheduleBody');
   const view=document.getElementById('scheduleView');
@@ -13,7 +15,7 @@
   let infoEl=null,infoRow=null;
 
   const style=document.createElement('style');
-  style.textContent=`#scheduleBody .punctualityLamp{display:none!important}#scheduleBody .etaPunctuality{display:block;margin-top:4px;font-size:12px;line-height:1.15;font-weight:1000;white-space:nowrap}#scheduleBody .etaPunctuality.onTime{color:#34c759}#scheduleBody .etaPunctuality.early{color:#d6a900}#scheduleBody .etaPunctuality.late{color:#ff3b30}#scheduleBody .etaPunctuality.neutral{color:#aaa}#scheduleBody .etaPunctuality.returnStartHold{color:#ffd60a}#scheduleBody .etaPunctuality.returnStartReady{color:#34c759}#scheduleBody .etaPunctuality.arrived{color:#fff!important}`;
+  style.textContent=`#scheduleBody .punctualityLamp{display:none!important}#scheduleBody .etaPunctuality{display:block;margin-top:4px;font-size:12px;line-height:1.15;font-weight:1000;white-space:nowrap}#scheduleBody .etaPunctuality.onTime{color:#34c759}#scheduleBody .etaPunctuality.early{color:#ffd60a}#scheduleBody .etaPunctuality.late{color:#ff3b30}#scheduleBody .etaPunctuality.neutral{color:#aaa}#scheduleBody .etaPunctuality.returnStartHold{color:#ffd60a}#scheduleBody .etaPunctuality.returnStartReady{color:#34c759}#scheduleBody .etaPunctuality.arrived{color:#fff!important}`;
   document.head.append(style);
 
   function coord(v){const m=String(v||'').match(/(-?\d+(?:\.\d+)?)\s*[,; ]\s*(-?\d+(?:\.\d+)?)/);return m?[+m[1],+m[2]]:null}
@@ -24,9 +26,9 @@
   function isFinalArrived(row){if(!isFinalRow(row)||!pos)return false;const c=coord(row.dataset.coordinate);if(!c)return false;return distanceMeters([pos.lat,pos.lng],c)<=Math.max(FINAL_ARRIVAL_RADIUS,Math.min(90,(pos.accuracy||0)*1.2))}
   function isReturnOrigin(row){const rows=routeRows();return body.dataset.direction==='return'&&body.dataset.returnOriginActive==='1'&&row===rows[0]&&Number(body.dataset.gpsNextStop||0)===0}
   function guardIsShowing(){return !!body.querySelector('tr.gpsNextStop .stopGuardNotice')}
-  function planSeconds(row){const text=String(row?.children[1]?.firstChild?.textContent||row?.children[1]?.textContent||'').trim();const m=text.match(/^(\d{1,2}):(\d{2})/);if(!m)return null;const now=new Date(),plan=new Date(now);plan.setHours(+m[1],+m[2],0,0);return(plan.getTime()-now.getTime())/1000}
+  function planSeconds(row){const now=new Date(),plan=planDateForRow(routeRows(),row,now);return plan?(plan.getTime()-now.getTime())/1000:null}
   function liveEta(){if(etaSeconds===null||!etaMeasuredAt)return null;return Math.max(0,etaSeconds-(Date.now()-etaMeasuredAt)/1000)}
-  function fullMinutesLabel(diff){if(Math.abs(diff)<=TOLERANCE_SECONDS)return'0 min';const full=Math.max(1,Math.floor(Math.abs(diff)/60));return diff<0?`+${full} min`:`−${full} min`}
+  function fullMinutesLabel(diff){if(Math.abs(diff)<=TOLERANCE_SECONDS)return'👍';const full=Math.max(1,Math.floor(Math.abs(diff)/60));return diff<0?`${full} min za wcześnie`:`${full} min opóźnienia`}
 
   function ensureInfo(row){if(!row)return null;if(infoEl&&infoRow===row&&infoEl.isConnected)return infoEl;if(infoEl?.isConnected)infoEl.remove();infoEl=document.createElement('div');infoEl.className='etaPunctuality';row.querySelector('td:first-child')?.appendChild(infoEl);infoRow=row;return infoEl}
   function clearInfo(){if(infoEl?.isConnected)infoEl.remove();infoEl=null;infoRow=null}

@@ -10,8 +10,9 @@
   const AWAY_ANGLE=95;
   const TOWARD_ANGLE=55;
   const COOLDOWN_MS=45000;
+  const MIN_SPEED_MPS=1.5;
 
-  let watch=null,lastPos=null,heading=null,lastTargetDistance=Infinity,awayFixes=0,lastPromptAt=0,lastPromptKey='';
+  let watch=null,lastPos=null,lastPosAt=0,headingAnchor=null,heading=null,lastTargetDistance=Infinity,awayFixes=0,lastPromptAt=0,lastPromptKey='';
 
   function coord(v){const m=String(v||'').match(/(-?\d+(?:\.\d+)?)\s*[,; ]\s*(-?\d+(?:\.\d+)?)/);return m?[+m[1],+m[2]]:null}
   function dist(a,b){const R=6371000,p=Math.PI/180,dLat=(b[0]-a[0])*p,dLon=(b[1]-a[1])*p,x=Math.sin(dLat/2)**2+Math.cos(a[0]*p)*Math.cos(b[0]*p)*Math.sin(dLon/2)**2;return 2*R*Math.asin(Math.sqrt(x))}
@@ -60,8 +61,9 @@
     modal.hidden=false;
   }
 
-  function evaluate(here){
-    if(nav.hidden||body.dataset.emptyRun==='1')return;
+  function evaluate(here,speed){
+    if(body.dataset.emptyRun==='1')return;
+    if(speed<MIN_SPEED_MPS){awayFixes=0;lastTargetDistance=Infinity;return}
     const rs=rows(),i=currentIndex();if(!rs[i]||i>=rs.length-1)return;
     const target=coord(rs[i].dataset.coordinate);if(!target)return;
     const d=dist(here,target);
@@ -86,13 +88,22 @@
 
   function onPos(p){
     if((p.coords.accuracy||999)>MAX_ACCURACY)return;
-    const here=[p.coords.latitude,p.coords.longitude];let h=Number(p.coords.heading);
-    if((!Number.isFinite(h)||h<0)&&lastPos&&dist(lastPos,here)>=7)h=bear(lastPos,here);
+    const here=[p.coords.latitude,p.coords.longitude],now=Number(p.timestamp)||Date.now();
+    let speed=Number(p.coords.speed);
+    if(!Number.isFinite(speed)||speed<0){
+      speed=lastPos&&lastPosAt&&now>lastPosAt?dist(lastPos,here)/((now-lastPosAt)/1000):0;
+    }
+    let h=Number(p.coords.heading);
+    if(!Number.isFinite(h)||h<0){
+      if(!headingAnchor)headingAnchor=here;
+      const required=Math.max(12,Math.min(30,(p.coords.accuracy||0)*.35));
+      if(dist(headingAnchor,here)>=required){h=bear(headingAnchor,here);headingAnchor=here}
+    }else headingAnchor=here;
     if(Number.isFinite(h)&&h>=0)heading=h;
-    lastPos=here;evaluate(here);
+    lastPos=here;lastPosAt=now;evaluate(here,Math.max(0,speed));
   }
 
-  function reset(){awayFixes=0;lastTargetDistance=Infinity;lastPromptKey='';closePrompt()}
+  function reset(){awayFixes=0;lastTargetDistance=Infinity;lastPromptKey='';headingAnchor=null;closePrompt()}
   body.addEventListener('gps-next-stop-change',reset);
   body.addEventListener('route-direction-change',reset);
   body.addEventListener('schedule-rendered',reset);

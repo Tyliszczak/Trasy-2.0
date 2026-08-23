@@ -461,6 +461,10 @@
       .filter(r=>parseCoord(r.dataset.coordinate));
   }
 
+  function stopKey(row,index){
+    return row.dataset.stopId||`${index}:${row.dataset.coordinate||''}`;
+  }
+
   function remainingStopsFromGps(){
     const rows=routeRows();
 
@@ -483,6 +487,8 @@
       .slice(idx)
       .map((r,i)=>({
         coord:parseCoord(r.dataset.coordinate),
+
+        key:stopKey(r,idx+i),
 
         name:
           r.querySelector('td:first-child')
@@ -586,8 +592,8 @@
     );
 
     return diff<0
-      ?`za wcześnie ${full} min`
-      :`opóźnienie ${full} min`;
+      ?`${full} min za wcześnie`
+      :`${full} min opóźnienia`;
   }
 
   function activeEtaData(){
@@ -748,6 +754,28 @@
     first.badge.style.color=data.color;
   }
 
+  function updatePunctualityUi(){
+    dispatchEta();
+
+    const p=punctuality();
+
+    if(currentStops.length){
+      const eta=Number.isFinite(p.seconds)
+        ?fmtClock(new Date(Date.now()+p.seconds*1000))
+        :'';
+
+      nextStopEl.textContent=
+        `Następny: ${currentStops[0].name}`+
+        `${eta?` • ${eta}`:''}`+
+        `${p.diff!==null?` • ${deltaText(p.diff)}`:''}`;
+    }else{
+      nextStopEl.textContent='';
+    }
+
+    updateActiveBubble();
+    updateActiveStopVisibility();
+  }
+
   function refreshStopMarkers(stops,legs){
     stopMarkers.forEach(
       x=>x.marker.remove()
@@ -849,7 +877,7 @@
 
     const stop=currentStops[0];
 
-    const visible=
+    const insideBounds=
       map.getBounds().contains([
         stop.coord[1],
         stop.coord[0]
@@ -857,7 +885,17 @@
 
     const first=stopMarkers[0];
 
-    if(visible){
+    const markerElement=first?.badge?.parentElement;
+    const markerRect=markerElement?.getBoundingClientRect?.();
+    const safelyVisible=!markerRect||(!markerRect.width&&!markerRect.height)
+      ?insideBounds
+      :insideBounds&&
+        markerRect.left>=20&&
+        markerRect.right<=window.innerWidth-20&&
+        markerRect.top>=150&&
+        markerRect.bottom<=window.innerHeight-75;
+
+    if(safelyVisible){
       offscreenPanel.hidden=true;
 
       if(first?.badge){
@@ -1188,6 +1226,8 @@
   function updateGuidance(ll){
     const g=nextStepByProgress(ll);
 
+    updatePunctualityUi();
+
     if(!g.step)return;
 
     const text=instruction(g.step);
@@ -1196,27 +1236,6 @@
     maneuverDistance.textContent=fmtDistance(g.distance);
 
     speak(g.step,text,g.distance);
-
-    dispatchEta();
-
-    const p=punctuality();
-
-    if(currentStops.length){
-      const eta=
-        Number.isFinite(p.seconds)
-          ?fmtClock(
-              new Date(Date.now()+p.seconds*1000)
-            )
-          :'';
-
-      nextStopEl.textContent=
-        `Następny: ${currentStops[0].name}`+
-        `${eta?` • ${eta}`:''}`+
-        `${p.diff!==null?` • ${deltaText(p.diff)}`:''}`;
-    }
-
-    updateActiveBubble();
-    updateActiveStopVisibility();
 
     const accuracy=Math.max(
       0,
@@ -1460,11 +1479,11 @@
       return;
     }
 
-    const name=remaining[0].name;
+    const key=remaining[0].key;
 
     const oldIndex=
       currentStops.findIndex(
-        s=>s.name===name
+        s=>s.key===key
       );
 
     if(oldIndex>0){
@@ -1485,8 +1504,15 @@
 
       dispatchEta();
 
-    }else{
+    }else if(oldIndex<0){
       currentStops=remaining;
+      legDurations=[];
+      legStartAt=Date.now();
+      if(lastGpsPoint&&!routeBuildInFlight){
+        buildRoute(lastGpsPoint,currentStops).catch(
+          error=>console.warn('Zmiana przystanku:',error)
+        );
+      }
     }
   }
 
@@ -1904,9 +1930,7 @@
   setInterval(()=>{
     if(panel.hidden)return;
 
-    dispatchEta();
-    updateActiveBubble();
-    updateActiveStopVisibility();
+    updatePunctualityUi();
 
   },1000);
 

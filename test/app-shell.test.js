@@ -38,8 +38,10 @@ test('service worker nie przeładowuje aplikacji natychmiast po instalacji',asyn
 test('pełna lokalna powłoka mapy znajduje się w cache PWA',async()=>{
   const source=await readSource('sw.js');
   assert.match(source,/\.\/maplibre-route-hook\.js/);
-  assert.match(source,/trasy-2\.0-v102/);
+  assert.match(source,/trasy-2\.0-v105/);
   assert.match(source,/\.\/gps-hub\.js/);
+  assert.match(source,/\.\/gps-stop-engine\.js/);
+  assert.match(source,/\.\/schedule-time\.js/);
   assert.match(source,/\.\/route-data-service\.js/);
   assert.match(source,/\.\/parking-data\.js/);
 });
@@ -62,6 +64,16 @@ test('jeden moduł utrzymuje fizyczny nasłuch GPS',async()=>{
   assert.equal(sources.filter(source=>/watchPosition/.test(source)).length,1);
   assert.match(sources[0],/subscriberCount/);
   sources.slice(1).forEach(source=>assert.match(source,/__trasyGps/));
+});
+
+test('czas planowy nie steruje wyborem następnego przystanku',async()=>{
+  const [tracker,engine]=await Promise.all([
+    readSource('gps-stop-tracker.js'),readSource('gps-stop-engine.js')
+  ]);
+  assert.doesNotMatch(tracker,/lateDirection|firstStopProtected|LATE_ADVANCE/);
+  assert.doesNotMatch(engine,/planTime|lateMinutes|rowTime/);
+  assert.match(engine,/arrivalFixes/);
+  assert.match(engine,/departureFixes/);
 });
 
 test('kierunki korzystają ze wspólnego źródła danych tras',async()=>{
@@ -205,12 +217,22 @@ test('uwagę można przekazać przez WhatsApp lub SMS z wymaganym początkiem wi
 });
 
 test('dymek mapy pokazuje minuty za wcześnie, opóźnienie albo kciuk',async()=>{
-  const [html,nav,worker]=await Promise.all([
-    readSource('index.html'),readSource('nav-map.js'),readSource('sw.js')
+  const [html,nav,eta,worker]=await Promise.all([
+    readSource('index.html'),readSource('nav-map.js'),readSource('eta-status.js'),readSource('sw.js')
   ]);
-  assert.match(nav,/`za wcześnie \$\{full\} min`/);
-  assert.match(nav,/`opóźnienie \$\{full\} min`/);
+  assert.match(nav,/`\$\{full\} min za wcześnie`/);
+  assert.match(nav,/`\$\{full\} min opóźnienia`/);
   assert.match(nav,/return '👍'/);
+  assert.match(nav,/function updatePunctualityUi\(\)/);
+  assert.match(nav,/nextStopEl\.textContent=/);
+  assert.match(nav,/updatePunctualityUi\(\);\s+if\(!g\.step\)return/);
+  assert.match(nav,/markerRect\.top>=150/);
+  assert.match(eta,/`\$\{full\} min za wcześnie`/);
+  assert.match(eta,/`\$\{full\} min opóźnienia`/);
+  assert.match(eta,/return'👍'/);
+  assert.match(eta,/etaPunctuality\.early\{color:#ffd60a\}/);
+  assert.match(eta,/etaPunctuality\.late\{color:#ff3b30\}/);
+  assert.match(eta,/etaPunctuality\.onTime\{color:#34c759\}/);
   assert.doesNotMatch(html,/planned-stop-time-ui\.js/);
   assert.doesNotMatch(worker,/planned-stop-time-ui\.js/);
 });
@@ -224,6 +246,7 @@ test('dane zapasowe tworzą kompletny harmonogram każdej zmiany',()=>{
     for(const time of route.times){
       const schedule=getSchedule(route,time);
       assert.equal(schedule.length,route.stops.length,`${route.name} ${time}: niepełny harmonogram`);
+      assert.equal(schedule[0].id,String(route.stops[0].id??route.stops[0].stopId??0));
     }
   }
 });

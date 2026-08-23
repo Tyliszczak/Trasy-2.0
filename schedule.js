@@ -4,7 +4,8 @@ export function getRoute(routes, routeName) {
 
 export function getSchedule(route, time) {
   if (!route || !route.times.includes(time)) return [];
-  return route.stops.map((stop) => ({
+  return route.stops.map((stop,index) => ({
+    id: stop.id ?? stop.stopId ?? String(index),
     name: stop.name,
     time: stop.times[time] ?? null,
     coordinates: stop.coordinates,
