@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import vm from 'node:vm';
 
 import { ROUTES } from '../routes.js';
 import { getParkingOptions,normalizeCoordinate } from '../parking-data.js';
@@ -37,7 +38,7 @@ test('service worker nie przeładowuje aplikacji natychmiast po instalacji',asyn
 test('pełna lokalna powłoka mapy znajduje się w cache PWA',async()=>{
   const source=await readSource('sw.js');
   assert.match(source,/\.\/maplibre-route-hook\.js/);
-  assert.match(source,/trasy-2\.0-v96/);
+  assert.match(source,/trasy-2\.0-v97/);
   assert.match(source,/\.\/gps-hub\.js/);
   assert.match(source,/\.\/route-data-service\.js/);
   assert.match(source,/\.\/parking-data\.js/);
@@ -100,8 +101,82 @@ test('parking wspólny i parking przypisany do trasy są poprawnie wybierane',()
 test('przycisk kompasu jest usunięty, a nawigacja pojawia się poza prowadzeniem',async()=>{
   const source=await readSource('navigation-ui-controls.js');
   assert.doesNotMatch(source,/compassIcon|Kompas \/ widok prowadzenia/);
-  assert.match(source,/center\.hidden=guidance/);
+  assert.match(source,/center\.hidden=this\.state!==['"]manual['"]/);
   assert.match(source,/center\.title='Wróć do nawigacji'/);
+});
+
+test('kamera ma jeden kontroler i wraca do prowadzenia po 15 sekundach',async()=>{
+  const [html,nav,controls,worker]=await Promise.all([
+    readSource('index.html'),readSource('nav-map.js'),readSource('navigation-ui-controls.js'),readSource('sw.js')
+  ]);
+  assert.doesNotMatch(html,/navigation-smoothing\.js/);
+  assert.doesNotMatch(worker,/navigation-smoothing\.js/);
+  assert.match(controls,/AUTO_RESUME_MS=15000/);
+  assert.match(controls,/this\.resumeTimer=setTimeout\(\(\)=>this\.resume\(\),AUTO_RESUME_MS\)/);
+  assert.match(controls,/if\(this\.state===['"]manual['"]\)return/);
+  assert.match(nav,/trasy:route-map-ready/);
+  assert.doesNotMatch(controls,/setInterval|INSTALL_TIMEOUT_MS/);
+});
+
+test('przełącznik 2D i 3D jest od razu kontrolką MapLibre na dole mapy',async()=>{
+  const source=await readSource('navigation-ui-controls.js');
+  assert.match(source,/this\.map\.addControl\(control,['"]bottom-right['"]\)/);
+  assert.doesNotMatch(source,/routePitchFallback|attachPitch/);
+});
+
+test('ręczne oddalenie zatrzymuje śledzenie i po 15 sekundach je przywraca',async()=>{
+  const source=await readSource('navigation-ui-controls.js');
+  const listeners={};
+  const timers=new Map();
+  let timerId=0;
+  const element=()=>({
+    style:{},dataset:{},children:[],hidden:false,
+    appendChild(child){this.children.push(child);child.parentElement=this;return child},
+    remove(){},setAttribute(){},querySelector(){return null}
+  });
+  const root=element(),close=element(),center=element(),maneuver=element(),top=element(),title=element();
+  close.parentElement=top;
+  top.querySelector=selector=>selector==='strong'?title:null;
+  const nodes={routeNavRoot:root,routeMapClose:close,routeMapCenter:center,routeManeuver:maneuver};
+  const document={
+    head:element(),
+    getElementById:id=>nodes[id]||null,
+    createElement:()=>element(),
+    addEventListener:(name,handler)=>{listeners[name]=handler}
+  };
+  const window={speechSynthesis:{speak(){},cancel(){}}};
+  const mapEvents={};
+  const moves=[];
+  let pitch=58;
+  const map={
+    addControl(control,position){assert.equal(position,'bottom-right');control.onAdd()},
+    on(name,handler){(mapEvents[name]??=[]).push(handler)},
+    easeTo(options,eventData){moves.push({options,eventData});pitch=options.pitch??pitch},
+    getPitch:()=>pitch,
+    getBearing:()=>0,
+    getCenter:()=>({toArray:()=>[15,51]})
+  };
+  const context={
+    window,document,console,
+    setTimeout(fn,delay){const id=++timerId;timers.set(id,{fn,delay});return id},
+    clearTimeout(id){timers.delete(id)},
+    speechSynthesis:window.speechSynthesis
+  };
+  vm.runInNewContext(source,context);
+  listeners['trasy:route-map-ready']({detail:{map}});
+  const controller=window.__routeCameraController;
+  controller.follow({center:[15,51],bearing:0,offset:[0,100],instant:true});
+  const moveCount=moves.length;
+  mapEvents.zoomstart[0]({originalEvent:{}});
+  assert.equal(center.hidden,false);
+  assert.equal([...timers.values()][0].delay,15000);
+  controller.follow({center:[15.1,51.1],bearing:20,offset:[0,100],instant:false});
+  assert.equal(moves.length,moveCount);
+  [...timers.values()][0].fn();
+  assert.equal(moves.at(-1).options.pitch,58);
+  assert.equal(moves.at(-1).eventData.trasyCamera,true);
+  mapEvents.moveend[0]({trasyCamera:true});
+  assert.equal(center.hidden,true);
 });
 
 test('dane zapasowe tworzą kompletny harmonogram każdej zmiany',()=>{

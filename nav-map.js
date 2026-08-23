@@ -15,7 +15,6 @@
   let refreshTimer=0;
 
   let lastSpoken='';
-  let autoCenter=true;
 
   let currentStops=[];
   let lastGpsPoint=null;
@@ -386,20 +385,32 @@
   }
 
   function followCamera(ll,heading,instant=false){
-    if(!map||!autoCenter)return;
+    if(!map)return;
 
     const h=
       map.getContainer().clientHeight||600;
 
-    map.easeTo({
+    const target={
       center:[ll[1],ll[0]],
-      zoom:ZOOM,
       bearing:heading,
-      pitch:PITCH,
       offset:[0,Math.round(h*.18)],
+      instant
+    };
+
+    if(window.__routeCameraController){
+      window.__routeCameraController.follow(target);
+      return;
+    }
+
+    map.easeTo({
+      center:target.center,
+      bearing:target.bearing,
+      offset:target.offset,
+      zoom:ZOOM,
+      pitch:PITCH,
       duration:instant?0:420,
       essential:true
-    });
+    },{trasyCamera:true});
   }
 
 
@@ -879,7 +890,7 @@
       !currentStops[0]
     )return;
 
-    autoCenter=false;
+    window.__routeEnterManualView?.();
 
     const stop=currentStops[0];
 
@@ -1540,7 +1551,10 @@
   panel.querySelector(
     '#routeMapCenter'
   ).onclick=()=>{
-    autoCenter=true;
+    if(window.__routeResumeNavigation){
+      window.__routeResumeNavigation();
+      return;
+    }
 
     if(positionMarker&&map){
       const p=positionMarker.getLngLat();
@@ -1599,6 +1613,7 @@
     currentStops=stops;
 
     panel.hidden=false;
+    window.__routeCameraController?.startGuidance();
 
     status.textContent=
       'Pobieranie pozycji telefonu…';
@@ -1611,7 +1626,6 @@
     maneuverDistance.textContent='';
     nextStopEl.textContent='';
 
-    autoCenter=true;
     lastSpoken='';
     lastGpsPoint=null;
     currentHeading=0;
@@ -1685,11 +1699,9 @@
           'bottom-right'
         );
 
-        map.on('dragstart',e=>{
-          if(e.originalEvent){
-            autoCenter=false;
-          }
-        });
+        document.dispatchEvent(new CustomEvent('trasy:route-map-ready',{
+          detail:{map}
+        }));
 
         map.on('move',()=>{
           updateActiveStopVisibility();
@@ -1791,6 +1803,8 @@
   }
 
   function closeMapNav(){
+    window.__routeCameraController?.startGuidance();
+
     if(watchId!==null){
       window.__trasyGps.unsubscribe(watchId);
       watchId=null;

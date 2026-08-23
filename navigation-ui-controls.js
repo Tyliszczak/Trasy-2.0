@@ -1,18 +1,278 @@
 (()=>{
-  const AUTO_RESUME_MS=15000,PITCH=58;
-  function init(){
-    const root=document.getElementById('routeNavRoot'),close=document.getElementById('routeMapClose'),center=document.getElementById('routeMapCenter'),maneuver=document.getElementById('routeManeuver');if(!root||!close||!center||!maneuver)return false;if(root.dataset.compactNavUi==='19')return true;root.dataset.compactNavUi='19';
-    const style=document.createElement('style');style.textContent='.maplibregl-ctrl-compass{display:none!important}#routePitchToggle{box-sizing:border-box;width:29px;height:48px;padding:2px 1px 1px;border:0;border-bottom:1px solid #ddd;background:#fff;color:#333;display:flex;flex-direction:column;align-items:center;justify-content:center;font:700 9px/1 Arial,sans-serif;cursor:pointer}#routePitchToggle svg{display:block}#routePitchToggle:hover{background:#f2f2f2}.routePitchFallback{position:absolute;right:10px;top:10px;z-index:50100;border-radius:4px 4px 0 0;box-shadow:0 0 0 2px rgba(0,0,0,.1)}';document.head.appendChild(style);
-    const top=close.parentElement,title=top?.querySelector('strong');if(title)title.style.display='none';if(top){top.style.height='0';top.style.minHeight='0';top.style.padding='0';top.style.border='0';top.style.background='transparent';top.style.overflow='visible';top.style.position='relative';top.style.zIndex='50040'}
-    close.textContent='‹';close.setAttribute('aria-label','Wróć');close.title='Wróć';close.style.cssText='position:fixed;top:112px;left:10px;z-index:50100;width:38px;height:38px;padding:0;border:1px solid #fff8;border-radius:19px;background:#111d;color:#fff;font-size:32px;line-height:32px;box-shadow:0 2px 9px #000a;display:flex;align-items:center;justify-content:center';
-    const originalCenter=center.onclick;center.style.cssText='position:fixed;right:12px;top:112px;z-index:50100;width:42px;height:42px;padding:0;border:1px solid #fff8;border-radius:21px;background:#111d;color:#fff;box-shadow:0 2px 9px #000a;display:flex;align-items:center;justify-content:center';
-    let voice=document.getElementById('routeVoiceToggle');if(!voice){voice=document.createElement('button');voice.id='routeVoiceToggle';voice.type='button';root.appendChild(voice)}voice.style.cssText='position:fixed;top:162px;right:14px;z-index:50100;width:38px;height:38px;padding:0;border:1px solid #fff8;border-radius:19px;background:#111d;color:#fff;font-size:19px;box-shadow:0 2px 9px #000a';window.__routeVoiceMuted=window.__routeVoiceMuted===true;const speech=window.speechSynthesis;if(speech&&typeof speech.speak==='function'&&!speech.__routeMuteWrapped){speech.__routeMuteWrapped=true;const native=speech.speak.bind(speech);speech.speak=u=>{if(!window.__routeVoiceMuted)return native(u)}}function updateVoice(){const m=window.__routeVoiceMuted===true;voice.textContent=m?'🔇':'🔊';voice.title=m?'Włącz komunikaty głosowe':'Wycisz komunikaty głosowe'}voice.onclick=()=>{window.__routeVoiceMuted=!window.__routeVoiceMuted;if(window.__routeVoiceMuted)try{speech?.cancel?.()}catch{}updateVoice()};updateVoice();
-    const navIcon='<svg viewBox="0 0 32 32" width="29" height="29"><path d="M27.4 4.7 17.8 27c-.7 1.7-3.1 1.5-3.5-.3l-1.9-8.8-8.8-1.9c-1.8-.4-2-2.8-.3-3.5L25.6 3c1.2-.5 2.3.6 1.8 1.7Z" fill="#fff"/><path d="m13.2 17.1 7.8-7.8" stroke="#111" stroke-width="2.4"/></svg>',flatGrid='<svg viewBox="0 0 28 22" width="25" height="20"><rect x="3" y="2" width="22" height="17" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10.3 2v17M17.7 2v17M3 7.7h22M3 13.3h22" stroke="currentColor"/></svg>',tiltedGrid='<svg viewBox="0 0 28 22" width="25" height="20"><path d="M7 2h14l4 17H3L7 2Z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="m11.7 2-2 17M16.3 2l2 17M5.7 7.7h16.6M4.3 13.3h19.4" stroke="currentColor"/></svg>';
-    let manualView=false,resumeTimer=0,programmaticPitch=false,forcedGuidance3D=false;function map(){return window.__routeMap}function clearResume(){if(resumeTimer){clearTimeout(resumeTimer);resumeTimer=0}}function pitched(){return Number(map()?.getPitch?.())>20}function isGuidance(){return !!map()&&pitched()&&(forcedGuidance3D||(!manualView&&!window.__routeManualView))}
-    let pitchBtn=document.getElementById('routePitchToggle');if(!pitchBtn){pitchBtn=document.createElement('button');pitchBtn.id='routePitchToggle';pitchBtn.type='button'}function attachPitch(){const canvas=document.getElementById('routeMapCanvas'),group=canvas?.querySelector('.maplibregl-ctrl-group'),plus=group?.querySelector('.maplibregl-ctrl-zoom-in');if(group&&plus){pitchBtn.classList.remove('routePitchFallback');if(pitchBtn.parentElement!==group)group.insertBefore(pitchBtn,plus)}else if(canvas&&pitchBtn.parentElement!==canvas){pitchBtn.classList.add('routePitchFallback');canvas.appendChild(pitchBtn)}}function render(){attachPitch();const guidance=isGuidance();center.hidden=guidance;center.innerHTML=navIcon;center.title='Wróć do nawigacji';pitchBtn.innerHTML=(pitched()?flatGrid:tiltedGrid)+`<span>${pitched()?'2D':'3D'}</span>`;pitchBtn.title=pitched()?'Widok 2D z góry':'Widok 3D pochylony'}
-    function resume(){clearResume();forcedGuidance3D=true;manualView=false;window.__routeManualView=false;if(typeof originalCenter==='function')originalCenter.call(center);requestAnimationFrame(render);setTimeout(()=>{if(pitched())forcedGuidance3D=true;render()},600)}function schedule(){clearResume();resumeTimer=setTimeout(resume,AUTO_RESUME_MS)}function markManual(){if(programmaticPitch)return;forcedGuidance3D=false;manualView=true;window.__routeManualView=true;render();schedule()}window.__routeEnterManualView=markManual;window.__routeResumeNavigation=resume;
-    center.onclick=()=>{if(!isGuidance())resume()};
-    pitchBtn.onclick=e=>{e.preventDefault();e.stopPropagation();const m=map();if(!m)return;const toFlat=pitched();programmaticPitch=true;clearResume();if(toFlat){forcedGuidance3D=false;manualView=true;window.__routeManualView=true;m.easeTo({pitch:0,duration:400,essential:true})}else{forcedGuidance3D=true;manualView=false;window.__routeManualView=false;m.easeTo({pitch:PITCH,duration:400,essential:true})}setTimeout(()=>{programmaticPitch=false;if(!toFlat){forcedGuidance3D=true;manualView=false;window.__routeManualView=false}render()},500)};
-    const timer=setInterval(()=>{const m=map();if(!m||m.__compactUiGesturesV19)return;m.__compactUiGesturesV19=true;const originalEaseTo=m.easeTo.bind(m);m.easeTo=function(options,eventData){const o=options||{},looksLikeFollow=Number(o.zoom)===17.2&&Number(o.pitch)===58&&(Number(o.duration)===420||Number(o.duration)===0);if(window.__routeManualView&&looksLikeFollow)return m;return originalEaseTo(options,eventData)};m.on('dragstart',markManual);m.on('zoomstart',markManual);m.on('rotatestart',markManual);m.on('pitchstart',()=>{if(!programmaticPitch)markManual()});m.on('moveend',render);m.on('pitchend',render);m.on('zoomend',render);m.on('rotateend',render);render();clearInterval(timer)},200);setTimeout(()=>clearInterval(timer),30000);render();return true;
-  }const t=setInterval(()=>{if(init())clearInterval(t)},150);setTimeout(()=>clearInterval(t),30000);
+  const AUTO_RESUME_MS=15000;
+  const GUIDANCE_PITCH=58;
+  const GUIDANCE_ZOOM=17.2;
+  const CAMERA_DURATION_MS=760;
+  const STATIONARY_RADIUS_M=7;
+  const HEADING_MOVE_M=9;
+
+  const root=document.getElementById('routeNavRoot');
+  const close=document.getElementById('routeMapClose');
+  const center=document.getElementById('routeMapCenter');
+  const maneuver=document.getElementById('routeManeuver');
+  if(!root||!close||!center||!maneuver)return;
+
+  root.dataset.compactNavUi='21';
+
+  const style=document.createElement('style');
+  style.textContent=`
+    .maplibregl-ctrl-compass{display:none!important}
+    .route-view-control{box-shadow:0 0 0 2px rgba(0,0,0,.1)}
+    #routePitchToggle{box-sizing:border-box;width:34px;height:48px;padding:2px 1px 1px;border:0;background:#fff;color:#333;display:flex;flex-direction:column;align-items:center;justify-content:center;font:700 9px/1 Arial,sans-serif;cursor:pointer}
+    #routePitchToggle svg{display:block}
+    #routePitchToggle:hover{background:#f2f2f2}
+  `;
+  document.head.appendChild(style);
+
+  const top=close.parentElement;
+  const title=top?.querySelector('strong');
+  if(title)title.style.display='none';
+  if(top){
+    top.style.height='0';
+    top.style.minHeight='0';
+    top.style.padding='0';
+    top.style.border='0';
+    top.style.background='transparent';
+    top.style.overflow='visible';
+    top.style.position='relative';
+    top.style.zIndex='50040';
+  }
+
+  close.textContent='‹';
+  close.setAttribute('aria-label','Wróć');
+  close.title='Wróć';
+  close.style.cssText='position:fixed;top:112px;left:10px;z-index:50100;width:38px;height:38px;padding:0;border:1px solid #fff8;border-radius:19px;background:#111d;color:#fff;font-size:32px;line-height:32px;box-shadow:0 2px 9px #000a;display:flex;align-items:center;justify-content:center';
+
+  center.style.cssText='position:fixed;right:12px;top:112px;z-index:50100;width:42px;height:42px;padding:0;border:1px solid #fff8;border-radius:21px;background:#111d;color:#fff;box-shadow:0 2px 9px #000a;display:flex;align-items:center;justify-content:center';
+
+  let voice=document.getElementById('routeVoiceToggle');
+  if(!voice){
+    voice=document.createElement('button');
+    voice.id='routeVoiceToggle';
+    voice.type='button';
+    root.appendChild(voice);
+  }
+  voice.style.cssText='position:fixed;top:162px;right:14px;z-index:50100;width:38px;height:38px;padding:0;border:1px solid #fff8;border-radius:19px;background:#111d;color:#fff;font-size:19px;box-shadow:0 2px 9px #000a';
+  window.__routeVoiceMuted=window.__routeVoiceMuted===true;
+  const speech=window.speechSynthesis;
+  if(speech&&typeof speech.speak==='function'&&!speech.__routeMuteWrapped){
+    speech.__routeMuteWrapped=true;
+    const nativeSpeak=speech.speak.bind(speech);
+    speech.speak=utterance=>{
+      if(!window.__routeVoiceMuted)return nativeSpeak(utterance);
+    };
+  }
+  function updateVoice(){
+    const muted=window.__routeVoiceMuted===true;
+    voice.textContent=muted?'🔇':'🔊';
+    voice.title=muted?'Włącz komunikaty głosowe':'Wycisz komunikaty głosowe';
+  }
+  voice.onclick=()=>{
+    window.__routeVoiceMuted=!window.__routeVoiceMuted;
+    if(window.__routeVoiceMuted){
+      try{speech?.cancel?.()}catch{}
+    }
+    updateVoice();
+  };
+  updateVoice();
+
+  const navIcon='<svg viewBox="0 0 32 32" width="29" height="29"><path d="M27.4 4.7 17.8 27c-.7 1.7-3.1 1.5-3.5-.3l-1.9-8.8-8.8-1.9c-1.8-.4-2-2.8-.3-3.5L25.6 3c1.2-.5 2.3.6 1.8 1.7Z" fill="#fff"/><path d="m13.2 17.1 7.8-7.8" stroke="#111" stroke-width="2.4"/></svg>';
+  const flatGrid='<svg viewBox="0 0 28 22" width="25" height="20"><rect x="3" y="2" width="22" height="17" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10.3 2v17M17.7 2v17M3 7.7h22M3 13.3h22" stroke="currentColor"/></svg>';
+  const tiltedGrid='<svg viewBox="0 0 28 22" width="25" height="20"><path d="M7 2h14l4 17H3L7 2Z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="m11.7 2-2 17M16.3 2l2 17M5.7 7.7h16.6M4.3 13.3h19.4" stroke="currentColor"/></svg>';
+  center.innerHTML=navIcon;
+  center.title='Wróć do nawigacji';
+
+  function distanceMetres(a,b){
+    if(!a||!b)return Infinity;
+    const R=6371000;
+    const p=Math.PI/180;
+    const dLat=(b[1]-a[1])*p;
+    const dLon=(b[0]-a[0])*p;
+    const x=Math.sin(dLat/2)**2+Math.cos(a[1]*p)*Math.cos(b[1]*p)*Math.sin(dLon/2)**2;
+    return 2*R*Math.asin(Math.sqrt(x));
+  }
+
+  class RouteCameraController{
+    constructor(map){
+      this.map=map;
+      this.state='following';
+      this.resumeTimer=0;
+      this.transitionTimer=0;
+      this.latestTarget=null;
+      this.lastNavCenter=null;
+      this.stableBearing=Number.isFinite(map.getBearing?.())?map.getBearing():0;
+      this.pitchButton=null;
+      this.installControl();
+      this.installGestureListeners();
+      this.render();
+    }
+
+    installControl(){
+      const controller=this;
+      const control={
+        onAdd(){
+          const group=document.createElement('div');
+          group.className='maplibregl-ctrl maplibregl-ctrl-group route-view-control';
+          const button=document.createElement('button');
+          button.id='routePitchToggle';
+          button.type='button';
+          button.setAttribute('aria-label','Zmień widok mapy');
+          button.onclick=event=>{
+            event.preventDefault();
+            event.stopPropagation();
+            controller.togglePitch();
+          };
+          group.appendChild(button);
+          controller.pitchButton=button;
+          controller.render();
+          return group;
+        },
+        onRemove(){
+          controller.pitchButton?.parentElement?.remove();
+          controller.pitchButton=null;
+        }
+      };
+      this.map.addControl(control,'bottom-right');
+    }
+
+    installGestureListeners(){
+      const manual=event=>{
+        if(!event?.trasyCamera)this.enterManual();
+      };
+      this.map.on('dragstart',manual);
+      this.map.on('zoomstart',manual);
+      this.map.on('rotatestart',manual);
+      this.map.on('pitchstart',manual);
+      this.map.on('moveend',()=>this.finishTransition());
+      this.map.on('pitchend',()=>this.render());
+      this.map.on('zoomend',()=>this.render());
+      this.map.on('rotateend',()=>this.render());
+    }
+
+    clearTimers(){
+      if(this.resumeTimer){
+        clearTimeout(this.resumeTimer);
+        this.resumeTimer=0;
+      }
+      if(this.transitionTimer){
+        clearTimeout(this.transitionTimer);
+        this.transitionTimer=0;
+      }
+    }
+
+    scheduleResume(){
+      if(this.resumeTimer)clearTimeout(this.resumeTimer);
+      this.resumeTimer=setTimeout(()=>this.resume(),AUTO_RESUME_MS);
+    }
+
+    startGuidance(){
+      this.clearTimers();
+      this.state='following';
+      window.__routeManualView=false;
+      this.render();
+    }
+
+    enterManual(){
+      this.state='manual';
+      window.__routeManualView=true;
+      this.scheduleResume();
+      this.render();
+    }
+
+    follow(target){
+      this.latestTarget={
+        center:target.center.slice(),
+        bearing:Number(target.bearing)||0,
+        offset:Array.isArray(target.offset)?target.offset.slice():[0,0],
+        instant:target.instant===true
+      };
+      if(this.state==='manual')return;
+      this.state='following';
+      window.__routeManualView=false;
+      this.moveToTarget(this.latestTarget,this.latestTarget.instant?0:CAMERA_DURATION_MS);
+    }
+
+    smoothBearing(target){
+      const center=target.center;
+      const moved=this.lastNavCenter?distanceMetres(this.lastNavCenter,center):Infinity;
+      const requested=Number(target.bearing)||0;
+      if(!this.lastNavCenter||moved>=HEADING_MOVE_M){
+        const delta=((requested-this.stableBearing+540)%360)-180;
+        this.stableBearing=(this.stableBearing+delta*.42+360)%360;
+        this.lastNavCenter=center.slice();
+      }else if(moved>STATIONARY_RADIUS_M){
+        const delta=((requested-this.stableBearing+540)%360)-180;
+        this.stableBearing=(this.stableBearing+delta*.16+360)%360;
+      }
+      return this.stableBearing;
+    }
+
+    moveToTarget(target,duration){
+      this.map.easeTo({
+        center:target.center,
+        zoom:GUIDANCE_ZOOM,
+        bearing:this.smoothBearing(target),
+        pitch:GUIDANCE_PITCH,
+        offset:target.offset,
+        duration,
+        easing:t=>1-Math.pow(1-t,3),
+        essential:true
+      },{trasyCamera:true});
+    }
+
+    resume(){
+      this.clearTimers();
+      this.state='transition';
+      window.__routeManualView=false;
+      const target=this.latestTarget||{
+        center:this.map.getCenter().toArray(),
+        bearing:this.map.getBearing(),
+        offset:[0,0]
+      };
+      this.moveToTarget(target,650);
+      this.transitionTimer=setTimeout(()=>this.finishTransition(),800);
+      this.render();
+    }
+
+    finishTransition(){
+      if(this.state!=='transition')return;
+      if(this.transitionTimer){
+        clearTimeout(this.transitionTimer);
+        this.transitionTimer=0;
+      }
+      this.state='following';
+      window.__routeManualView=false;
+      this.render();
+    }
+
+    togglePitch(){
+      if(Number(this.map.getPitch())>20){
+        this.enterManual();
+        this.map.easeTo({pitch:0,duration:400,essential:true},{trasyCamera:true});
+      }else{
+        this.resume();
+      }
+      this.render();
+    }
+
+    render(){
+      center.hidden=this.state!=='manual';
+      if(!this.pitchButton)return;
+      const pitched=Number(this.map.getPitch())>20;
+      this.pitchButton.innerHTML=(pitched?flatGrid:tiltedGrid)+`<span>${pitched?'2D':'3D'}</span>`;
+      this.pitchButton.title=pitched?'Widok 2D z góry':'Widok 3D pochylony';
+    }
+  }
+
+  function attach(map){
+    if(!map||window.__routeCameraController?.map===map)return;
+    const controller=new RouteCameraController(map);
+    window.__routeCameraController=controller;
+    window.__routeEnterManualView=()=>controller.enterManual();
+    window.__routeResumeNavigation=()=>controller.resume();
+    center.onclick=()=>controller.resume();
+  }
+
+  document.addEventListener('trasy:route-map-ready',event=>attach(event.detail?.map));
+  if(window.__routeMap)attach(window.__routeMap);
 })();
