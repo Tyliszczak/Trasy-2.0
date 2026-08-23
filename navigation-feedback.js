@@ -45,7 +45,7 @@
         <button id="routeFeedbackMic" type="button" aria-label="Dyktuj uwagę" title="Dyktuj uwagę">🎤</button>
         <span id="routeFeedbackVoiceStatus">Możesz napisać lub podyktować uwagę.</span>
       </div>
-      <p class="routeFeedbackInfo">Uwaga zostanie zapisana na tym urządzeniu. Możesz wysłać ją przez WhatsApp lub SMS na numer +48 603 666 921. Wiadomość wyślesz samodzielnie w otwartej aplikacji.</p>
+      <p class="routeFeedbackInfo">Uwaga zostanie zapisana na tym urządzeniu. Możesz wysłać ją przez WhatsApp lub SMS na numer +48 603 666 921. Jeśli WhatsApp nie jest dostępny, telefon automatycznie przejdzie do SMS. Wiadomość wyślesz samodzielnie.</p>
       <div class="routeFeedbackActions">
         <button id="routeFeedbackSave" type="button">ZAPISZ</button>
         <button id="routeFeedbackWhatsApp" class="whatsapp" type="button">WHATSAPP</button>
@@ -193,15 +193,34 @@
     }catch(error){message.textContent=error.message}
   };
 
+  function openWhatsAppOrSms(text){
+    const phone=FEEDBACK_PHONE.replace(/\D/g,'');
+    const encoded=encodeURIComponent(text);
+    const whatsAppUrl=`whatsapp://send?phone=${phone}&text=${encoded}`;
+    const smsUrl=`sms:${FEEDBACK_PHONE}?body=${encoded}`;
+    let fallbackTimer=0;
+    const cancelFallback=()=>{
+      if(fallbackTimer){clearTimeout(fallbackTimer);fallbackTimer=0}
+    };
+    const onVisibility=()=>{
+      if(document.visibilityState==='hidden')cancelFallback();
+    };
+    document.addEventListener('visibilitychange',onVisibility,{once:true});
+    window.addEventListener('pagehide',cancelFallback,{once:true});
+    fallbackTimer=setTimeout(()=>{
+      fallbackTimer=0;
+      if(document.visibilityState!=='hidden')window.location.assign(smsUrl);
+    },2200);
+    window.location.assign(whatsAppUrl);
+  }
+
   whatsAppButton.onclick=()=>{
     try{
       const record=saveNote(textarea.value);
       const text=formatRecord(record);
-      const phone=FEEDBACK_PHONE.replace(/\D/g,'');
-      const url=`https://api.whatsapp.com/send/?phone=${phone}&text=${encodeURIComponent(text)}&type=phone_number&app_absent=0`;
-      window.location.assign(url);
+      openWhatsAppOrSms(text);
       textarea.value='';
-      message.textContent='Uwaga została zapisana. Dokończ wysyłanie w WhatsApp.';
+      message.textContent='Otwieram WhatsApp. Jeśli nie jest dostępny, otworzę SMS.';
     }catch(error){message.textContent=error.message||'Nie udało się otworzyć WhatsApp.'}
   };
 

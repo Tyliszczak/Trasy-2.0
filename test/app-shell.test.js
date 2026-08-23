@@ -38,7 +38,7 @@ test('service worker nie przeładowuje aplikacji natychmiast po instalacji',asyn
 test('pełna lokalna powłoka mapy znajduje się w cache PWA',async()=>{
   const source=await readSource('sw.js');
   assert.match(source,/\.\/maplibre-route-hook\.js/);
-  assert.match(source,/trasy-2\.0-v100/);
+  assert.match(source,/trasy-2\.0-v101/);
   assert.match(source,/\.\/gps-hub\.js/);
   assert.match(source,/\.\/route-data-service\.js/);
   assert.match(source,/\.\/parking-data\.js/);
@@ -196,8 +196,10 @@ test('uwagę można przekazać przez WhatsApp lub SMS z wymaganym początkiem wi
   const feedback=await readSource('navigation-feedback.js');
   assert.match(feedback,/FEEDBACK_PHONE='\+48603666921'/);
   assert.match(feedback,/return `Trasy 2\.0\\n\\n/);
-  assert.match(feedback,/https:\/\/api\.whatsapp\.com\/send\/\?phone=\$\{phone\}/);
-  assert.match(feedback,/type=phone_number&app_absent=0/);
+  assert.match(feedback,/whatsapp:\/\/send\?phone=\$\{phone\}/);
+  assert.match(feedback,/const smsUrl=`sms:\$\{FEEDBACK_PHONE\}\?body=/);
+  assert.match(feedback,/document\.visibilityState!=='hidden'/);
+  assert.match(feedback,/2200/);
   assert.doesNotMatch(feedback,/window\.open\(url/);
   assert.match(feedback,/sms:\$\{FEEDBACK_PHONE\}\?body=/);
 });
