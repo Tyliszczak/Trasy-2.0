@@ -4,7 +4,7 @@
   style.textContent=`
     #scheduleView .scheduleHeading{
       display:grid!important;
-      grid-template-columns:38px minmax(88px,1fr) auto minmax(118px,auto)!important;
+      grid-template-columns:38px minmax(88px,1fr) minmax(0,auto) minmax(118px,auto)!important;
       grid-template-rows:auto auto auto!important;
       align-items:center!important;
       gap:3px 10px!important;
@@ -19,7 +19,7 @@
       display:contents!important;
     }
     #scheduleView #scheduleRouteName{
-      grid-column:2 / 5!important;
+      grid-column:2 / 4!important;
       grid-row:1!important;
       justify-self:start!important;
       min-width:0!important;
@@ -44,8 +44,8 @@
       color:#63d7ff!important;
     }
     #scheduleView #scheduleSpeedBox{
-      grid-column:3!important;
-      grid-row:2 / 4!important;
+      grid-column:4!important;
+      grid-row:1!important;
       align-self:center!important;
       justify-self:end!important;
       margin:0!important;
@@ -90,7 +90,7 @@
     }
     @media(max-width:520px){
       #scheduleView .scheduleHeading{
-        grid-template-columns:38px minmax(82px,1fr) auto minmax(104px,auto)!important;
+        grid-template-columns:38px minmax(62px,1fr) minmax(0,auto) minmax(108px,auto)!important;
         gap:2px 7px!important;
       }
       #scheduleView #scheduleRouteName{font-size:1.12rem!important}
@@ -99,7 +99,6 @@
         width:100%!important;
         max-width:100%!important;
       }
-      #scheduleView #scheduleSpeedBox{transform:scale(.9);transform-origin:right center}
       #scheduleView .routeModeSwitches{gap:8px!important}
       #scheduleView #scheduleVehicleButton{
         max-width:38vw!important;

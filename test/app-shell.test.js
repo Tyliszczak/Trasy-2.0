@@ -38,7 +38,7 @@ test('service worker nie przeładowuje aplikacji natychmiast po instalacji',asyn
 test('pełna lokalna powłoka mapy znajduje się w cache PWA',async()=>{
   const source=await readSource('sw.js');
   assert.match(source,/\.\/maplibre-route-hook\.js/);
-  assert.match(source,/trasy-2\.0-v107/);
+  assert.match(source,/trasy-2\.0-v108/);
   assert.match(source,/\.\/gps-hub\.js/);
   assert.match(source,/\.\/gps-stop-engine\.js/);
   assert.match(source,/\.\/schedule-time\.js/);
@@ -243,14 +243,17 @@ test('dymek mapy pokazuje minuty za wcześnie, opóźnienie albo kciuk',async()=
   assert.doesNotMatch(worker,/planned-stop-time-ui\.js/);
 });
 
-test('prędkościomierz nie przerywa uruchamiania przez zagnieżdżone przełączniki',async()=>{
-  const [html,speed,worker]=await Promise.all([
-    readSource('index.html'),readSource('speed-display.js'),readSource('sw.js')
+test('powiększony prędkościomierz harmonogramu znajduje się na górnej belce po prawej',async()=>{
+  const [html,speed,layout,worker]=await Promise.all([
+    readSource('index.html'),readSource('speed-display.js'),readSource('return-layout-fix.js'),readSource('sw.js')
   ]);
-  assert.match(html,/speed-display\.js\?v=4/);
+  assert.match(html,/speed-display\.js\?v=5/);
+  assert.match(html,/return-layout-fix\.js\?v=4/);
   assert.match(worker,/speed-display\.js/);
-  assert.match(speed,/switchGroup\?\.parentElement===controls/);
-  assert.doesNotMatch(speed,/insertBefore\(box,returnLabel\)/);
+  assert.match(speed,/heading\.append\(box\)/);
+  assert.match(speed,/#scheduleSpeedBox \.routeSpeedLimit\{width:54px;height:54px/);
+  assert.match(speed,/#scheduleSpeedBox \.routeCurrentSpeed\{min-width:68px;font-size:30px/);
+  assert.match(layout,/#scheduleView #scheduleSpeedBox\{\s*grid-column:4!important;\s*grid-row:1!important;/);
   assert.match(speed,/document\.addEventListener\('trasy:gps-speed',render\)/);
   assert.match(speed,/id='routeMapSpeedBox'/);
   assert.match(speed,/Brak danych o ograniczeniu prędkości/);
