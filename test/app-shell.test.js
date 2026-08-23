@@ -38,7 +38,7 @@ test('service worker nie przeładowuje aplikacji natychmiast po instalacji',asyn
 test('pełna lokalna powłoka mapy znajduje się w cache PWA',async()=>{
   const source=await readSource('sw.js');
   assert.match(source,/\.\/maplibre-route-hook\.js/);
-  assert.match(source,/trasy-2\.0-v97/);
+  assert.match(source,/trasy-2\.0-v98/);
   assert.match(source,/\.\/gps-hub\.js/);
   assert.match(source,/\.\/route-data-service\.js/);
   assert.match(source,/\.\/parking-data\.js/);
@@ -177,6 +177,19 @@ test('ręczne oddalenie zatrzymuje śledzenie i po 15 sekundach je przywraca',as
   assert.equal(moves.at(-1).eventData.trasyCamera,true);
   mapEvents.moveend[0]({trasyCamera:true});
   assert.equal(center.hidden,true);
+});
+
+test('dymek uwag działa na każdym ekranie i nie zapisuje nagrań głosowych',async()=>{
+  const [html,feedback,worker]=await Promise.all([
+    readSource('index.html'),readSource('navigation-feedback.js'),readSource('sw.js')
+  ]);
+  assert.match(html,/navigation-feedback\.js/);
+  assert.match(worker,/navigation-feedback\.js/);
+  assert.match(feedback,/routeFeedbackButton/);
+  assert.match(feedback,/routeFeedbackNavigation/);
+  assert.match(feedback,/SpeechRecognition\|\|window\.webkitSpeechRecognition/);
+  assert.match(feedback,/localStorage\.setItem\(STORAGE_KEY/);
+  assert.doesNotMatch(feedback,/MediaRecorder|getUserMedia|audio\/webm/);
 });
 
 test('dane zapasowe tworzą kompletny harmonogram każdej zmiany',()=>{
