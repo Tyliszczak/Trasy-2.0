@@ -577,7 +577,7 @@
     if(diff===null)return '';
 
     if(Math.abs(diff)<=TOLERANCE_SECONDS){
-      return '0 min';
+      return '👍';
     }
 
     const full=Math.max(
@@ -586,8 +586,8 @@
     );
 
     return diff<0
-      ?`+${full} min`
-      :`−${full} min`;
+      ?`za wcześnie ${full} min`
+      :`opóźnienie ${full} min`;
   }
 
   function activeEtaData(){

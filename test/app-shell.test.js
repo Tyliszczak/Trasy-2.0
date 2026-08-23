@@ -38,7 +38,7 @@ test('service worker nie przeładowuje aplikacji natychmiast po instalacji',asyn
 test('pełna lokalna powłoka mapy znajduje się w cache PWA',async()=>{
   const source=await readSource('sw.js');
   assert.match(source,/\.\/maplibre-route-hook\.js/);
-  assert.match(source,/trasy-2\.0-v101/);
+  assert.match(source,/trasy-2\.0-v102/);
   assert.match(source,/\.\/gps-hub\.js/);
   assert.match(source,/\.\/route-data-service\.js/);
   assert.match(source,/\.\/parking-data\.js/);
@@ -202,6 +202,17 @@ test('uwagę można przekazać przez WhatsApp lub SMS z wymaganym początkiem wi
   assert.match(feedback,/2200/);
   assert.doesNotMatch(feedback,/window\.open\(url/);
   assert.match(feedback,/sms:\$\{FEEDBACK_PHONE\}\?body=/);
+});
+
+test('dymek mapy pokazuje minuty za wcześnie, opóźnienie albo kciuk',async()=>{
+  const [html,nav,worker]=await Promise.all([
+    readSource('index.html'),readSource('nav-map.js'),readSource('sw.js')
+  ]);
+  assert.match(nav,/`za wcześnie \$\{full\} min`/);
+  assert.match(nav,/`opóźnienie \$\{full\} min`/);
+  assert.match(nav,/return '👍'/);
+  assert.doesNotMatch(html,/planned-stop-time-ui\.js/);
+  assert.doesNotMatch(worker,/planned-stop-time-ui\.js/);
 });
 
 test('dane zapasowe tworzą kompletny harmonogram każdej zmiany',()=>{
