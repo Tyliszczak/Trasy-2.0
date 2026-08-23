@@ -92,17 +92,33 @@
     return routeRows.find(row=>row.classList.contains('gpsNextStop'))||routeRows[0]||null;
   }
 
+  function planTextFromRow(row){
+    const cell=row?.children?.[1];
+    const source=String(
+      cell?.dataset.routeRolePlan||
+      cell?.dataset.finalStopPlan||
+      cell?.textContent||''
+    ).trim();
+    return source.match(/\b\d{1,2}:\d{2}\b/)?.[0]||'';
+  }
+
+  function alarmEligible(row=activeRow()){
+    const routeRows=rows();
+    return Boolean(
+      row&&
+      routeRows.length&&
+      row!==routeRows[routeRows.length-1]&&
+      planTextFromRow(row)
+    );
+  }
+
   function dataFromRow(row){
     if(!row)return null;
     const name=(
       row.querySelector('td:first-child')?.childNodes[0]?.textContent||
       row.querySelector('td:first-child')?.innerText||''
     ).trim();
-    const plan=(
-      row.children[1]?.firstChild?.textContent||
-      row.children[1]?.textContent||''
-    ).trim().match(/\b\d{1,2}:\d{2}\b/)?.[0]||'';
-    return{name,plan};
+    return{name,plan:planTextFromRow(row)};
   }
 
   function coord(value){
@@ -123,11 +139,7 @@
   }
 
   function timeParts(row){
-    const text=String(
-      row?.children?.[1]?.firstChild?.textContent||
-      row?.children?.[1]?.textContent||''
-    ).trim();
-    const match=text.match(/^(\d{1,2}):(\d{2})/);
+    const match=planTextFromRow(row).match(/^(\d{1,2}):(\d{2})/);
     return match?{hours:Number(match[1]),minutes:Number(match[2])}:null;
   }
 
@@ -189,6 +201,7 @@
   }
 
   function guardData(){
+    if(!alarmEligible())return null;
     const state=lastGuardDetail?.state||'';
     if(state!=='hold'&&state!=='ready')return null;
 
@@ -224,7 +237,7 @@
       guardEl.classList.toggle('ready',guard.state==='ready');
       guardEl.textContent=guard.message;
       statusEl.hidden=true;
-    }else if(activeApproachKey){
+    }else if(activeApproachKey&&alarmEligible()){
       guardEl.hidden=false;
       guardEl.classList.remove('hold','ready','flash3');
       guardEl.classList.add('approach');
@@ -342,7 +355,7 @@
 
     const row=activeRow();
     const target=coord(row?.dataset.coordinate);
-    if(!row||!target){
+    if(!row||!target||!alarmEligible(row)){
       clearApproach();
       return;
     }
@@ -403,6 +416,13 @@
 
   body.addEventListener('stop-guard-change',event=>{
     lastGuardDetail=event.detail||null;
+    if(!alarmEligible()){
+      activeApproachKey='';
+      activeHoldKey='';
+      render();
+      return;
+    }
+
     const state=lastGuardDetail?.state||'';
     const key=stopKey(activeRow(),lastGuardDetail);
 
