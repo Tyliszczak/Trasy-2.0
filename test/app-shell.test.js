@@ -38,7 +38,7 @@ test('service worker nie przeładowuje aplikacji natychmiast po instalacji',asyn
 test('pełna lokalna powłoka mapy znajduje się w cache PWA',async()=>{
   const source=await readSource('sw.js');
   assert.match(source,/\.\/maplibre-route-hook\.js/);
-  assert.match(source,/trasy-2\.0-v105/);
+  assert.match(source,/trasy-2\.0-v106/);
   assert.match(source,/\.\/gps-hub\.js/);
   assert.match(source,/\.\/gps-stop-engine\.js/);
   assert.match(source,/\.\/schedule-time\.js/);
@@ -56,6 +56,12 @@ test('odświeżenie PWA wymaga działania kierowcy',async()=>{
 test('nagłówek następnego przystanku nie odpytuje DOM co pół sekundy',async()=>{
   const source=await readSource('next-stop-header.js');
   assert.doesNotMatch(source,/setInterval/);
+  assert.match(source,/lastStatusDetail=e\.detail/);
+  assert.match(source,/function render\(detail=lastStatusDetail\)/);
+  assert.match(source,/gps-next-stop-change/);
+  assert.match(source,/text:'👍'/);
+  assert.match(source,/`\$\{min\} min za wcześnie`/);
+  assert.match(source,/`\$\{min\} min opóźnienia`/);
 });
 
 test('jeden moduł utrzymuje fizyczny nasłuch GPS',async()=>{
