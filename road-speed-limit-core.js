@@ -64,7 +64,8 @@ export function nearestRoadLimit(elements,position,{maxDistance=55,heading=null}
   }
 
   if(!best||best.distance>maxDistance)return null;
-  const limit=directionalLimit(best.element.tags,best.bearing,Number.isFinite(Number(heading))?Number(heading):null);
+  const parsedHeading=heading===null||heading===undefined||heading===''?null:Number(heading);
+  const limit=directionalLimit(best.element.tags,best.bearing,Number.isFinite(parsedHeading)?parsedHeading:null);
   return{
     maxspeed:limit,
     roadClass:String(best.element.tags.highway||''),
