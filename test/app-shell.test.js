@@ -74,10 +74,14 @@ test('dane tras są pobierane przez wspólny route-data-service',async()=>{
   assert.match(returnRoute,/__trasyRouteDataService/);
 });
 
-test('ekran główny wybiera najbliższe przyszłe wystąpienie kursu w ciągu 24 godzin',async()=>{
-  const app=await readSource('app.js');
-  assert.match(app,/waitSeconds=\(courseSeconds-nowSeconds\+daySeconds\)%daySeconds/);
-  assert.doesNotMatch(app,/times\.sort\(\(a,b\)=>a\.localeCompare/);
+test('wybór najbliższego przyszłego kursu ma jedno źródło w time-core',async()=>{
+  const [app,returnRoute,timeCore]=await Promise.all([
+    readSource('app.js'),readSource('return-route.js'),readSource('time-core.js')
+  ]);
+  assert.match(app,/nearestFutureTime/);
+  assert.match(returnRoute,/time\.nearestFutureTime/);
+  assert.match(timeCore,/waitSeconds=\(courseSeconds-nowSeconds\+DAY_SECONDS\)%DAY_SECONDS/);
+  assert.doesNotMatch(returnRoute,/Math\.abs\(a\.m-current\)/);
 });
 
 test('status punktualności ma zielony tekst w mapie i harmonogramie, a kolor niesie kropka',async()=>{
