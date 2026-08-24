@@ -150,6 +150,12 @@ test('uwagi nawigacyjne nie zapisują nagrań głosowych',async()=>{
   const feedback=await readSource('navigation-feedback.js');
   assert.match(feedback,/SpeechRecognition\|\|window\.webkitSpeechRecognition/);
   assert.match(feedback,/localStorage\.setItem\(STORAGE_KEY/);
+  assert.match(feedback,/Dodaj zgłoszenie/);
+  assert.match(feedback,/Zgłoś usterkę/);
+  assert.match(feedback,/Zgłoś niewłaściwą prędkość/);
+  assert.match(feedback,/Zgłoś zamknięty odcinek/);
+  assert.match(feedback,/categoryLabel/);
+  assert.doesNotMatch(feedback,/Przekaż uwagę o nawigacji/);
   assert.doesNotMatch(feedback,/MediaRecorder|getUserMedia|audio\/webm/);
 });
 
