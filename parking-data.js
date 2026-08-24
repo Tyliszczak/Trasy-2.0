@@ -9,6 +9,12 @@ export function normalizeCoordinate(value){
 
 export function getParkingRecords(data){
   if(!data||Array.isArray(data))return[];
+  const direct=Array.isArray(data.parkings)?data.parkings:Array.isArray(data.data?.parkings)?data.data.parkings:null;
+  if(direct)return direct.map((parking,index)=>{
+    const coordinates=normalizeCoordinate(parking?.coordinates);
+    if(!coordinates)return null;
+    return{name:String(parking?.name||'').trim()||`Parking ${index+1}`,coordinates,route:String(parking?.routeName||parking?.route||'*').trim()||'*'};
+  }).filter(Boolean);
   const key=Object.keys(data).find(name=>String(name).trim().toUpperCase()==='PARKINGI');
   const table=key?data[key]:null;
   if(!Array.isArray(table)||!Array.isArray(table[0]))return[];

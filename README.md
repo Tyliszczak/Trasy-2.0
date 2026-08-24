@@ -4,7 +4,7 @@ Trasy 2.0 to statyczna aplikacja PWA dla kierowcy: pokazuje harmonogram kursu, p
 
 ## Dane i synchronizacja
 
-Dane tras są pobierane przez `route-data-service.js` z backendu Google Apps Script. `routes.js` pozostaje źródłem zapasowym, dzięki czemu podstawowy harmonogram może działać również wtedy, gdy bieżąca synchronizacja nie jest dostępna.
+Dane tras są pobierane przez `route-data-service.js` z uwierzytelnionego kontraktu `KURSY_DRIVER_API`, który przekazuje panel kierowcy po sprawdzeniu sesji, urządzenia i licencji. Główna aplikacja nie wywołuje już starego publicznego adresu Apps Script, który zwracał 403. `routes.js` pozostaje źródłem testowym i zapasowym, dlatego wersja internetowa od razu pozwala sprawdzić harmonogram oraz nawigację także przed podłączeniem panelu kierowcy.
 
 Źródło danych może zawierać zakładkę `PARKINGI` z kolumnami:
 
@@ -14,7 +14,7 @@ Dane tras są pobierane przez `route-data-service.js` z backendu Google Apps Scr
 
 Po potwierdzonym przez GPS dotarciu do końca trasy powrotnej aplikacja tworzy osobny odcinek do Bazy/Parkingu. Jeden dostępny punkt jest wybierany automatycznie. Przy kilku punktach kierowca wybiera cel. Ręczny przełącznik `NA PUSTO` nadal pozwala uruchomić przejazd bez pasażerów w obu kierunkach.
 
-Administrator wprowadza punkty przez `parking-admin.html`. Może wskazać miejsce na mapie, użyć lokalizacji urządzenia oraz przypisać punkt do wszystkich albo do jednej trasy. Backend musi obsługiwać autoryzowaną akcję `upsertParking` zgodnie z plikiem `PARKING_BACKEND_PATCH.gs.txt`. Akcji nie wolno udostępniać przed weryfikacją administratora.
+Docelowy panel administratora korzysta z operacji `loadParkings` i `saveParkings`, a kierowca z `driverParkings`. Backend zapisuje punkty w osobnej karcie `PARKINGI`, zawsze z identyfikatorem firmy. Lokalny `parking-admin.html` pozostaje ekranem roboczym do czasu osadzenia nowej wersji Tras 2.0 w module administratora.
 
 ## Nawigacja
 

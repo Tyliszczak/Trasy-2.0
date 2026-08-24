@@ -27,6 +27,7 @@ test('stare wyznaczanie trasy jest anulowane po zmianie celu',async()=>{
   assert.match(source,/signal:controller\.signal/);
   assert.match(provider,/externalSignal/);
   assert.match(provider,/googleTrafficData\(coords,init\?\.signal\)/);
+  assert.match(provider,/driverComputeRoute\(coords,\{signal:controller\.signal\}\)/);
 });
 
 test('e-TOLL instaluje się na zdarzenie gotowości mapy bez 30-sekundowego pollingu',async()=>{
