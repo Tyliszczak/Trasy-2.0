@@ -172,6 +172,10 @@ test('zgłoszenia kierowcy trafiają przez bezpieczny kontrakt do panelu i zacho
   assert.match(feedback,/if\(!panelConnected\(\)\)/);
   assert.match(feedback,/mailto:\$\{TEMP_TEST_FEEDBACK_EMAIL\}/);
   assert.match(feedback,/Po nadaniu dostępu z panelu ten tymczasowy sposób zostanie automatycznie wyłączony/);
+  assert.match(feedback,/pl\.tyli\.trasy2\.feedback-archive/);
+  assert.match(feedback,/Trasy2_archiwum_\$\{deviceCode\}_\$\{exportedAt\.slice\(0,10\)\}\.trasy2\.json/);
+  assert.match(feedback,/deliveryStatus!=='sent'/);
+  assert.doesNotMatch(feedback,/driverSessionToken|refreshToken|activationToken|latitude|longitude/);
 });
 
 test('dane zapasowe tworzą kompletny harmonogram każdej zmiany',()=>{
