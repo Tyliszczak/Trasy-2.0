@@ -1,1 +1,1 @@
-trigger stage 7 PR workflows
+trigger guarded stage 7 runner
