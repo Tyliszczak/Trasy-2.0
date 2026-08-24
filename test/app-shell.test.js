@@ -170,8 +170,8 @@ test('zgłoszenia kierowcy trafiają przez bezpieczny kontrakt do panelu i zacho
   assert.doesNotMatch(feedback,/feedbackEmail|adminEmail/);
   assert.doesNotMatch(feedback,/WhatsApp|WHATSAPP|sms:|navigator\.share|navigator\.clipboard|INNA APLIKACJA/);
   assert.match(feedback,/TEMP_TEST_FEEDBACK_EMAIL='kswiderski70@gmail\.com'/);
-  assert.match(feedback,/body\.routeFeedbackNavigation #routeFeedbackButton\{position:absolute;left:12px;right:auto;top:auto;bottom:96px\}/);
-  assert.match(feedback,/const target=navVisible&&canvas\?canvas:document\.body/);
+  assert.match(feedback,/body\.routeFeedbackNavigation #routeFeedbackButton\{position:fixed;left:6px;right:auto;top:158px;bottom:auto\}/);
+  assert.doesNotMatch(feedback,/const target=navVisible&&canvas\?canvas:document\.body/);
   assert.match(feedback,/if\(!panelConnected\(\)\)/);
   assert.match(feedback,/mailto:\$\{TEMP_TEST_FEEDBACK_EMAIL\}/);
   assert.match(feedback,/Po nadaniu dostępu z panelu ten tymczasowy sposób zostanie automatycznie wyłączony/);
