@@ -130,7 +130,7 @@ test('kamera ustawia pierwszy kierunek od razu i szybciej reaguje na jazdę',asy
   const [map,controls]=await Promise.all([readSource('nav-map.js'),readSource('navigation-ui-controls.js')]);
   assert.match(map,/headingFromRoute\(origin\)/);
   assert.match(map,/currentHeading\+d\*\.68/);
-  assert.match(map,/const h=\s*headingFromPosition\(p,ll\)/);
+  assert.match(map,/const heading=headingFromPosition\(position,ll\)/);
   assert.doesNotMatch(map,/lastGpsPoint=ll;\s*\n\s*if\(positionMarker\)/);
   assert.match(controls,/CAMERA_DURATION_MS=360/);
   assert.match(controls,/delta\*\.78/);

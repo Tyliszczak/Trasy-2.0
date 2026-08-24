@@ -29,8 +29,12 @@ Docelowy panel administratora korzysta z operacji `loadParkings` i `saveParkings
 - dla autobusu limit jest dodatkowo ograniczany profilem pojazdu; tryb BUS 100 wymaga jawnego potwierdzenia dopuszczenia oraz braku miejsc stojących,
 - kamera po uruchomieniu przyjmuje kierunek pierwszego odcinka trasy i szybciej reaguje na wiarygodną zmianę kierunku GPS,
 - po ręcznym obróceniu mapy poza kierunek jazdy pojawia się oznaczenie `N` ze strzałką wskazującą północ; znika po powrocie do prowadzenia.
+- podczas prowadzenia aplikacja automatycznie prosi o utrzymanie włączonego ekranu,
+- po odblokowaniu telefonu lub powrocie do aplikacji obserwacja GPS jest uruchamiana ponownie, pobierana jest świeża pozycja, a prowadzenie jest dopasowywane do aktualnego miejsca bez ponownego wybierania trasy; jeśli pojazd zjechał z zapisanej trasy, przebieg jest przeliczany.
 
 Aplikacja nie zgaduje ograniczenia prędkości, gdy danych nie ma.
+
+Przeglądarkowa PWA nie może zagwarantować ciągłego GPS i komunikatów głosowych przy wygaszonym ekranie. Pełna nawigacja działająca w tle wymaga wersji Android z usługą lokalizacji działającą na pierwszym planie i stałym powiadomieniem systemowym.
 
 Opcjonalne kolumny profilu w karcie `POJAZDY`: `BUS 100`, `MIEJSCA STOJĄCE`, `OGRANICZNIK KMH` i `LIMIT POJAZDU KMH`. Brak tych kolumn nie zatrzymuje harmonogramu ani nawigacji — uruchamia opisany wyżej tryb bezpieczny.
 
