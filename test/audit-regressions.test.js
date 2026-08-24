@@ -7,6 +7,7 @@ const readSource=name=>readFile(new URL(`../${name}`,import.meta.url),'utf8');
 // Te testy opisują stan docelowy po audycie. Są oznaczone TODO celowo:
 // etap 1 ma zabezpieczyć obecną aplikację bez zmiany jej działania.
 // W kolejnych etapach TODO jest zdejmowane dopiero po wdrożeniu poprawki.
+// Ten komentarz służy wyłącznie do uruchomienia kontrolnego workflow etapu 1.
 
 test('TODO etap 2: POWRÓT wybiera najbliższy przyszły kurs zamiast najbliższej godziny bezwzględnej',{todo:true},async()=>{
   const source=await readSource('return-route.js');
