@@ -24,8 +24,7 @@
     showBtn.addEventListener('click',()=>setTimeout(()=>{if(!schedule.hidden)push('schedule')},0));
   }
 
-  const originalOpenNavWatcher=setInterval(()=>{
-    const nav=document.getElementById('routeMapNav');
+  function observeNavigationPanel(nav){
     if(!nav||nav.__backHistoryObserved)return;
     nav.__backHistoryObserved=true;
     let wasVisible=!nav.hidden;
@@ -34,9 +33,12 @@
       if(visible&&!wasVisible)push('navigation');
       wasVisible=visible;
     }).observe(nav,{attributes:true,attributeFilter:['hidden']});
-    clearInterval(originalOpenNavWatcher);
-  },200);
-  setTimeout(()=>clearInterval(originalOpenNavWatcher),30000);
+  }
+
+  observeNavigationPanel(document.getElementById('routeMapNav'));
+  document.addEventListener('trasy:route-map-ready',()=>{
+    observeNavigationPanel(document.getElementById('routeMapNav'));
+  });
 
   window.addEventListener('popstate',()=>{
     if(navVisible()){

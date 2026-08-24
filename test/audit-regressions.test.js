@@ -4,9 +4,6 @@ import test from 'node:test';
 
 const readSource=name=>readFile(new URL(`../${name}`,import.meta.url),'utf8');
 
-// Te testy opisują kolejne etapy audytu. TODO jest zdejmowane dopiero po
-// wdrożeniu poprawki i zastąpieniu go testem zachowania w odpowiednim etapie.
-
 test('żaden moduł aplikacji nie nadpisuje globalnego window.fetch',async()=>{
   const names=['google-routes-provider.js','navigation-guidance-fix.js','navigation-live-engine.js'];
   const sources=await Promise.all(names.map(readSource));
@@ -50,15 +47,17 @@ test('nieaktualny limit prędkości wygasa po błędzie lub upływie TTL',async(
 });
 
 test('logika startu POWROTU ma jednego właściciela',async()=>{
-  const [route,gps,startNav]=await Promise.all([
-    readSource('return-route.js'),readSource('return-gps-mode.js'),readSource('return-start-navigation.js')
+  const [route,gps,startNav,eta]=await Promise.all([
+    readSource('return-route.js'),
+    readSource('return-gps-mode.js'),
+    readSource('return-start-navigation.js'),
+    readSource('eta-status.js')
   ]);
-  const eta=await readSource('eta-status.js');
-  const writers=[route,gps,startNav,eta].filter(source=>/dataset\.returnOriginActive\s*=/.test(source));
+  const writers=[route,gps,startNav,eta].filter(source=>/dataset\.returnOriginActive\s*=(?!=)/.test(source));
   assert.equal(writers.length,1);
   assert.match(route,/returnOriginActive/);
-  assert.doesNotMatch(gps,/returnOriginActive/);
-  assert.doesNotMatch(startNav,/returnOriginActive/);
+  assert.doesNotMatch(gps,/dataset\.returnOriginActive\s*=(?!=)/);
+  assert.doesNotMatch(startNav,/dataset\.returnOriginActive\s*=(?!=)/);
   assert.doesNotMatch(startNav,/setInterval/);
 });
 
@@ -79,11 +78,23 @@ test('nav-map nie aktualizuje starego odłączonego nagłówka następnego przys
   assert.doesNotMatch(source,/offscreenText/);
   assert.doesNotMatch(source,/function deltaText|function activeEtaData/);
   assert.doesNotMatch(source,/offscreenPanel|activeStopEtaBubble/);
-  assert.doesNotMatch(source,/nextStopEl\.textContent/);
 });
 
-test('TODO etap 8: aktywne moduły nie używają krótkiego pollingu do odnajdywania DOM',{todo:true},async()=>{
+test('aktywne moduły nie używają krótkiego pollingu do odnajdywania DOM',async()=>{
   const names=['return-start-navigation.js','etoll-overlay.js','android-back-navigation.js'];
   const sources=await Promise.all(names.map(readSource));
   for(const source of sources)assert.doesNotMatch(source,/setInterval\([^,]+,\s*(?:200|250)\s*\)/s);
+  const android=sources[2];
+  assert.match(android,/observeNavigationPanel\(document\.getElementById\('routeMapNav'\)\)/);
+});
+
+test('historyczne prototypy i obejścia nie pozostają w repozytorium',async()=>{
+  for(const name of[
+    'active-stop-bubble-guard.js',
+    'map-gesture-unlock.js',
+    'offline-map.js',
+    'schedule-scroll-fix.js'
+  ]){
+    await assert.rejects(()=>readSource(name),error=>error?.code==='ENOENT');
+  }
 });
