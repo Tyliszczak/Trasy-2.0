@@ -4,27 +4,8 @@ import test from 'node:test';
 
 const readSource=name=>readFile(new URL(`../${name}`,import.meta.url),'utf8');
 
-// Te testy opisują stan docelowy po audycie. Są oznaczone TODO celowo:
-// etap 1 ma zabezpieczyć obecną aplikację bez zmiany jej działania.
-// W kolejnych etapach TODO jest zdejmowane dopiero po wdrożeniu poprawki.
-
-test('TODO etap 2: POWRÓT wybiera najbliższy przyszły kurs zamiast najbliższej godziny bezwzględnej',{todo:true},async()=>{
-  const source=await readSource('return-route.js');
-  assert.doesNotMatch(source,/Math\.abs\(a\.m-current\)/);
-  assert.match(source,/%\s*\(?24\s*\*\s*60\)?|%\s*1440/);
-});
-
-test('TODO etap 2: return-route zachowuje prawdziwy plan końcowego przystanku',{todo:true},async()=>{
-  const source=await readSource('return-route.js');
-  assert.match(source,/routeRolePlan|finalStopPlan/);
-});
-
-test('TODO etap 2: wszystkie główne moduły używają jednego wspólnego czytnika czasu planowego',{todo:true},async()=>{
-  const names=['return-route.js','gps-stop-tracker.js','next-stop-header.js','eta-status.js','nav-map.js'];
-  const sources=await Promise.all(names.map(readSource));
-  const localPlanParsers=sources.filter(source=>/match\(\/\\b\\d\{1,2\}:\\d\{2\}\\b\//.test(source));
-  assert.equal(localPlanParsers.length,0);
-});
+// Te testy opisują kolejne etapy audytu. TODO jest zdejmowane dopiero po
+// wdrożeniu poprawki i zastąpieniu go testem zachowania w odpowiednim etapie.
 
 test('TODO etap 3: przejazd przez promień przystanku bez zatrzymania nie potwierdza przyjazdu',{todo:true},async()=>{
   const source=await readSource('gps-stop-engine.js');
