@@ -32,6 +32,9 @@
   let routeRequestGeneration=0;
   let routeAbortController=null;
   let offRouteFixes=0;
+  let hiddenAt=0;
+  let resumeInstant=false;
+  let resumePromise=null;
 
 
   const PITCH=58;
@@ -296,6 +299,13 @@
   function headingFromRoute(origin){
     const point=routeCoords.find(candidate=>hav(origin,candidate)>=8);
     return point?bearing(origin,point):currentHeading;
+  }
+
+  function headingFromCurrentRoute(origin){
+    for(let i=Math.max(0,progressIndex);i<routeCoords.length;i+=1){
+      if(hav(origin,routeCoords[i])>=8)return bearing(origin,routeCoords[i]);
+    }
+    return headingFromRoute(origin);
   }
 
   function posOnce(){
@@ -1314,6 +1324,74 @@
     stopMarkers=[];
   }
 
+  function applyNavigationPosition(position){
+    const ll=[Number(position?.coords?.latitude),Number(position?.coords?.longitude)];
+    if(!Number.isFinite(ll[0])||!Number.isFinite(ll[1])||panel.hidden)return;
+    const instant=resumeInstant;
+    if(instant){
+      const snap=nearestRoutePoint(ll,progressIndex);
+      const accuracy=Math.max(0,Number(position?.coords?.accuracy)||0);
+      if(snap.distance<=Math.max(MIN_REROUTE_DISTANCE,accuracy*2))progressIndex=Math.max(progressIndex,snap.index);
+      lastGpsPoint=null;
+      headingReady=false;
+    }
+
+    window.__navAcc=position.coords.accuracy||0;
+    positionMarker?.setLngLat([ll[1],ll[0]]);
+
+    const sensorHeading=Number(position.coords.heading);
+    if(instant&&(!Number.isFinite(sensorHeading)||sensorHeading<0)){
+      currentHeading=headingFromCurrentRoute(ll);
+      headingReady=true;
+      lastGpsPoint=ll;
+    }
+    const heading=headingFromPosition(position,ll);
+    followCamera(ll,heading,instant);
+    updateGuidance(ll);
+    resumeInstant=false;
+  }
+
+  async function recoverNavigation(){
+    if(panel.hidden||document.visibilityState!=='visible'||resumePromise)return resumePromise;
+    resumeInstant=true;
+    const previousStatus=status.textContent;
+    status.textContent='Aktualizuję pozycję po wznowieniu…';
+    resumePromise=window.__trasyGps.refresh()
+      .then(async position=>{
+        const origin=[Number(position.coords.latitude),Number(position.coords.longitude)];
+        const remaining=remainingStopsFromGps();
+        if(remaining.length)currentStops=remaining;
+        if(currentStops.length){
+          const accuracy=Math.max(0,Number(position.coords.accuracy)||0);
+          const snap=nearestRoutePoint(origin,progressIndex);
+          const stillOnRoute=routeCoords.length&&snap.distance<=Math.max(MIN_REROUTE_DISTANCE,accuracy*2);
+          if(stillOnRoute){
+            status.textContent=previousStatus;
+            updateGuidance(origin);
+            followCamera(origin,currentHeading,true);
+          }else{
+            try{
+              await buildRoute(origin,currentStops);
+              updateGuidance(origin);
+              followCamera(origin,currentHeading,true);
+            }catch(error){
+              status.textContent='Pozycja zaktualizowana • używam dotychczasowej trasy';
+              console.warn('Wznowienie przebiegu trasy:',error);
+            }
+          }
+        }
+        document.dispatchEvent(new CustomEvent('trasy:navigation-resumed',{detail:{position,hiddenAt}}));
+        return position;
+      })
+      .catch(error=>{
+        status.textContent='Czekam na świeżą pozycję GPS…';
+        console.warn('Wznowienie GPS:',error);
+        return null;
+      })
+      .finally(()=>{resumePromise=null;resumeInstant=false});
+    return resumePromise;
+  }
+
   async function openMapNav(){
     if(!window.maplibregl){
       alert(
@@ -1337,6 +1415,7 @@
     currentStops=stops;
 
     panel.hidden=false;
+    window.__trasyWakeLock?.setNavigation(true);
     window.__routeCameraController?.startGuidance();
 
     status.textContent=
@@ -1485,33 +1564,7 @@
 
       watchId=
         window.__trasyGps.subscribe(
-          p=>{
-            const ll=[
-              p.coords.latitude,
-              p.coords.longitude
-            ];
-
-            window.__navAcc=
-              p.coords.accuracy||0;
-
-            if(positionMarker){
-              positionMarker.setLngLat([
-                ll[1],
-                ll[0]
-              ]);
-            }
-
-            const h=
-              headingFromPosition(p,ll);
-
-            followCamera(
-              ll,
-              h,
-              false
-            );
-
-            updateGuidance(ll);
-          },
+          applyNavigationPosition,
 
           ()=>{
             gpsStatus.textContent=
@@ -1528,6 +1581,7 @@
 
   function closeMapNav(){
     window.__routeCameraController?.startGuidance();
+    window.__trasyWakeLock?.setNavigation(false);
 
     if(watchId!==null){
       window.__trasyGps.unsubscribe(watchId);
@@ -1624,6 +1678,17 @@
     },
     true
   );
+
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState==='hidden'){
+      hiddenAt=Date.now();
+      return;
+    }
+    if(!panel.hidden&&hiddenAt&&Date.now()-hiddenAt>=3000)recoverNavigation();
+  });
+  window.addEventListener('pageshow',event=>{
+    if(event.persisted&&!panel.hidden)recoverNavigation();
+  });
 
   setInterval(()=>{
     if(panel.hidden)return;

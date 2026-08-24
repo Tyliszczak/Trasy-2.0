@@ -47,6 +47,22 @@ test('nieaktualny limit prędkości wygasa po błędzie lub upływie TTL',async(
   assert.match(source,/setTimeout/);
 });
 
+test('nawigacja odzyskuje świeżą pozycję po wybudzeniu bez ponownego wybierania trasy',async()=>{
+  const [gps,map,wake]=await Promise.all([
+    readSource('gps-hub.js'),readSource('nav-map.js'),readSource('wake-style.js')
+  ]);
+  assert.match(gps,/getCurrentPosition/);
+  assert.match(gps,/function refresh/);
+  assert.match(gps,/function restart/);
+  assert.match(map,/recoverNavigation/);
+  assert.match(map,/trasy:navigation-resumed/);
+  assert.match(map,/visibilitychange/);
+  assert.match(map,/buildRoute\(origin,currentStops\)/);
+  assert.match(wake,/setNavigationWake/);
+  assert.match(map,/__trasyWakeLock\?\.setNavigation\(true\)/);
+  assert.match(map,/__trasyWakeLock\?\.setNavigation\(false\)/);
+});
+
 test('logika startu POWROTU ma jednego właściciela',async()=>{
   const [route,gps,startNav,eta]=await Promise.all([
     readSource('return-route.js'),

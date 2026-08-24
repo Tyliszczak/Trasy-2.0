@@ -8,7 +8,7 @@
 
   const bulb=button.querySelector('.wakeBulb'),screenLabel=document.createElement('span'),topRow=document.createElement('span');
   screenLabel.className='wakeScreenLabel';screenLabel.textContent='EKRAN';topRow.className='wakeTopRow';if(bulb)topRow.append(bulb);label.textContent='OFF';topRow.append(label);button.replaceChildren(topRow,screenLabel);
-  let wakeLock=null,wakeWanted=false;
+  let wakeLock=null,manualWanted=false,navigationWanted=false;
 
   const style=document.createElement('style');style.textContent=`
   #wakeLockButton.wakeLockButton{display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;gap:0!important;width:auto!important;min-width:62px!important;min-height:58px!important;padding:0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;color:inherit!important}
@@ -20,9 +20,11 @@
   `;document.head.append(style);
 
   function setWakeState(active){button.classList.toggle('wakeActive',active);label.textContent=active?'ON':'OFF';button.setAttribute('aria-pressed',String(active))}
-  async function releaseWakeLock(){wakeWanted=false;if(wakeLock){try{await wakeLock.release()}catch{}}wakeLock=null;setWakeState(false)}
-  async function requestWakeLock(){if(!('wakeLock'in navigator)){wakeWanted=false;setWakeState(false);return}try{wakeLock=await navigator.wakeLock.request('screen');setWakeState(true);wakeLock.addEventListener('release',()=>{wakeLock=null;setWakeState(false)},{once:true})}catch{wakeLock=null;wakeWanted=false;setWakeState(false)}}
-  button.addEventListener('click',async e=>{e.preventDefault();e.stopImmediatePropagation();if(wakeWanted)await releaseWakeLock();else{wakeWanted=true;await requestWakeLock()}},true);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&wakeWanted&&!wakeLock)requestWakeLock()});setWakeState(false);
+  function wakeWanted(){return manualWanted||navigationWanted}
+  async function releaseWakeLock(){if(wakeLock){try{await wakeLock.release()}catch{}}wakeLock=null;setWakeState(false)}
+  async function requestWakeLock(){if(!wakeWanted()||wakeLock||document.visibilityState!=='visible')return;if(!('wakeLock'in navigator)){setWakeState(false);return}try{wakeLock=await navigator.wakeLock.request('screen');setWakeState(true);wakeLock.addEventListener('release',()=>{wakeLock=null;setWakeState(false)},{once:true})}catch{wakeLock=null;setWakeState(false)}}
+  async function setNavigationWake(active){navigationWanted=!!active;if(wakeWanted())await requestWakeLock();else await releaseWakeLock()}
+  button.addEventListener('click',async e=>{e.preventDefault();e.stopImmediatePropagation();manualWanted=!manualWanted;if(wakeWanted())await requestWakeLock();else await releaseWakeLock()},true);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&wakeWanted()&&!wakeLock)requestWakeLock()});window.__trasyWakeLock={setNavigation:setNavigationWake,isActive:()=>!!wakeLock};setWakeState(false);
 
   function renderClock(){if(!scheduleClock)return;const n=new Date();scheduleClock.textContent=`${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}:${String(n.getSeconds()).padStart(2,'0')}`}
   if(scheduleClock){new MutationObserver(()=>{if(!/^\d{2}:\d{2}:\d{2}$/.test(scheduleClock.textContent.trim()))renderClock()}).observe(scheduleClock,{childList:true,characterData:true,subtree:true});renderClock();setInterval(renderClock,1000)}
