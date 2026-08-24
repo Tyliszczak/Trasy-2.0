@@ -8,6 +8,7 @@
 
   let rawData=null,direction='forward',loading=null,applying=false,forwardCourseTime='',emptyRun=false;
   let forceReturnOriginOnce=false,suppressObserverUntil=0,selectedParking=null,parkingChoicePending=false;
+  let parkingTransitionPending=false,completedReturnArrival='';
   const parkingData=import('./parking-data.js');
 
   const switchGroup=document.createElement('div');
@@ -46,7 +47,7 @@
   function parkingDialog(options){
     return new Promise(resolve=>{
       let dialog=document.getElementById('parkingChoiceDialog');
-      if(!dialog){dialog=document.createElement('div');dialog.id='parkingChoiceDialog';dialog.hidden=true;dialog.innerHTML='<div class="parkingChoiceCard" role="dialog" aria-modal="true" aria-labelledby="parkingChoiceTitle"><h2 id="parkingChoiceTitle">WYBIERZ PARKING</h2><div class="parkingChoiceList"></div><button type="button" class="parkingChoiceCancel">ANULUJ</button></div>';document.body.append(dialog)}
+      if(!dialog){dialog=document.createElement('div');dialog.id='parkingChoiceDialog';dialog.hidden=true;dialog.innerHTML='<div class="parkingChoiceCard" role="dialog" aria-modal="true" aria-labelledby="parkingChoiceTitle"><h2 id="parkingChoiceTitle">WYBIERZ BAZĘ / PARKING</h2><div class="parkingChoiceList"></div><button type="button" class="parkingChoiceCancel">ANULUJ</button></div>';document.body.append(dialog)}
       const list=dialog.querySelector('.parkingChoiceList');
       const finish=value=>{dialog.hidden=true;resolve(value)};
       list.replaceChildren(...options.map(parking=>{const button=document.createElement('button');button.type='button';button.className='parkingChoiceButton';button.textContent=parking.name;button.onclick=()=>finish(parking);return button}));
@@ -64,11 +65,33 @@
     try{
       const {getParkingOptions}=await parkingData;
       const options=getParkingOptions(await loadRaw(),routeNameEl.textContent.trim());
-      if(!options.length){alert('Administrator nie wprowadził parkingu dla tej firmy lub trasy.');selectedParking=null;return false}
+      if(!options.length){alert('Administrator nie wprowadził lokalizacji Bazy/Parkingu dla tej firmy lub trasy.');selectedParking=null;return false}
       selectedParking=options.length===1?options[0]:await parkingDialog(options);
       return !!selectedParking;
     }catch(error){console.error('Parkingi:',error);alert('Nie udało się pobrać parkingów.');selectedParking=null;return false}
     finally{parkingChoicePending=false;returnSwitch.disabled=false;emptySwitch.disabled=false}
+  }
+
+  async function startParkingLegAfterReturn(arrival){
+    if(direction!=='return'||emptyRun||parkingTransitionPending)return;
+    const routeRows=[...body.querySelectorAll('tr:not([data-parking-row])')].filter(row=>row.dataset.coordinate);
+    const index=Number(arrival?.index);
+    if(!routeRows.length||index!==routeRows.length-1)return;
+    const arrivalKey=String(arrival?.key||`${index}:${routeRows[index]?.dataset.coordinate||''}`);
+    if(completedReturnArrival===arrivalKey)return;
+    completedReturnArrival=arrivalKey;
+    parkingTransitionPending=true;
+    try{
+      if(!(await chooseReturnParking()))return;
+      emptyRun=true;
+      emptySwitch.checked=true;
+      body.dataset.emptyRun='1';
+      applyDirection();
+      body.dispatchEvent(new CustomEvent('route-mode-change',{
+        bubbles:true,
+        detail:{direction,emptyRun,parking:selectedParking,reason:'return-completed'}
+      }));
+    }finally{parkingTransitionPending=false}
   }
 
   function createParkingRow(parking,sampleRow){
@@ -136,8 +159,9 @@
     if(direction==='return'){
       forwardCourseTime=resolveOutboundCourse();
       forceReturnOriginOnce=true;
+      completedReturnArrival='';
       if(emptyRun&&!(await chooseReturnParking())){emptyRun=false;emptySwitch.checked=false;body.dataset.emptyRun=''}
-    }else selectedParking=null;
+    }else{selectedParking=null;completedReturnArrival=''}
     applyDirection();
   });
   emptySwitch.addEventListener('change',async()=>{
@@ -151,6 +175,8 @@
   });
   forwardTimeSelect.addEventListener('change',()=>{if(direction==='forward')forwardCourseTime=forwardTimeSelect.value});
   body.addEventListener('gps-next-stop-change',event=>{if(Number(event.detail?.index)>0)body.dataset.returnOriginActive=''});
+  body.addEventListener('gps-stop-arrival',event=>{startParkingLegAfterReturn(event.detail).catch(error=>console.error('Powrót do Bazy/Parkingu:',error))});
+  document.addEventListener('trasy:route-data-updated',event=>{rawData=event.detail?.data??event.detail??null});
   new MutationObserver(mutations=>{if(applying||Date.now()<suppressObserverUntil)return;if(mutations.some(mutation=>mutation.type==='childList'))setTimeout(enrichRows,60)}).observe(body,{childList:true});
   setTimeout(enrichRows,200);
 })();

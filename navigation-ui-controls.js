@@ -2,9 +2,9 @@
   const AUTO_RESUME_MS=15000;
   const GUIDANCE_PITCH=58;
   const GUIDANCE_ZOOM=17.2;
-  const CAMERA_DURATION_MS=760;
-  const STATIONARY_RADIUS_M=7;
-  const HEADING_MOVE_M=9;
+  const CAMERA_DURATION_MS=360;
+  const STATIONARY_RADIUS_M=3;
+  const HEADING_MOVE_M=4;
 
   const root=document.getElementById('routeNavRoot');
   const close=document.getElementById('routeMapClose');
@@ -21,6 +21,9 @@
     #routePitchToggle{box-sizing:border-box;width:34px;height:48px;padding:2px 1px 1px;border:0;background:#fff;color:#333;display:flex;flex-direction:column;align-items:center;justify-content:center;font:700 9px/1 Arial,sans-serif;cursor:pointer}
     #routePitchToggle svg{display:block}
     #routePitchToggle:hover{background:#f2f2f2}
+    #routeNorthIndicator{position:fixed;right:14px;top:212px;z-index:50100;width:42px;height:42px;border:1px solid #fff8;border-radius:21px;background:#111d;color:#fff;box-shadow:0 2px 9px #000a;pointer-events:none;display:flex;flex-direction:column;align-items:center;justify-content:center;font:1000 12px/1 Arial,sans-serif}
+    #routeNorthIndicator[hidden]{display:none!important}
+    #routeNorthIndicator .northArrow{display:block;margin-top:-1px;color:#ccff33;font-size:23px;line-height:18px;transform-origin:50% 52%}
   `;
   document.head.appendChild(style);
 
@@ -53,6 +56,12 @@
     root.appendChild(voice);
   }
   voice.style.cssText='position:fixed;top:162px;right:14px;z-index:50100;width:38px;height:38px;padding:0;border:1px solid #fff8;border-radius:19px;background:#111d;color:#fff;font-size:19px;box-shadow:0 2px 9px #000a';
+  const northIndicator=document.createElement('div');
+  northIndicator.id='routeNorthIndicator';
+  northIndicator.hidden=true;
+  northIndicator.setAttribute('aria-label','Kierunek północny');
+  northIndicator.innerHTML='<span>N</span><span class="northArrow" aria-hidden="true">↑</span>';
+  root.appendChild(northIndicator);
   window.__routeVoiceMuted=window.__routeVoiceMuted===true;
   const speech=window.speechSynthesis;
   function updateVoice(){
@@ -77,6 +86,7 @@
     close.style.top=`${controlTop}px`;
     center.style.top=`${controlTop}px`;
     voice.style.top=`${controlTop+50}px`;
+    northIndicator.style.top=`${controlTop+100}px`;
   }
   if('ResizeObserver'in window){
     const observer=new ResizeObserver(repositionControls);
@@ -154,6 +164,7 @@
       this.map.on('rotatestart',manual);
       this.map.on('pitchstart',manual);
       this.map.on('moveend',()=>this.finishTransition());
+      this.map.on('rotate',()=>this.renderNorthIndicator());
       this.map.on('pitchend',()=>this.render());
       this.map.on('zoomend',()=>this.render());
       this.map.on('rotateend',()=>this.render());
@@ -178,6 +189,7 @@
     startGuidance(){
       this.clearTimers();
       this.state='following';
+      this.lastNavCenter=null;
       window.__routeManualView=false;
       this.render();
     }
@@ -206,13 +218,16 @@
       const center=target.center;
       const moved=this.lastNavCenter?distanceMetres(this.lastNavCenter,center):Infinity;
       const requested=Number(target.bearing)||0;
-      if(!this.lastNavCenter||moved>=HEADING_MOVE_M){
+      if(!this.lastNavCenter){
+        this.stableBearing=(requested+360)%360;
+        this.lastNavCenter=center.slice();
+      }else if(moved>=HEADING_MOVE_M){
         const delta=((requested-this.stableBearing+540)%360)-180;
-        this.stableBearing=(this.stableBearing+delta*.42+360)%360;
+        this.stableBearing=(this.stableBearing+delta*.78+360)%360;
         this.lastNavCenter=center.slice();
       }else if(moved>STATIONARY_RADIUS_M){
         const delta=((requested-this.stableBearing+540)%360)-180;
-        this.stableBearing=(this.stableBearing+delta*.16+360)%360;
+        this.stableBearing=(this.stableBearing+delta*.42+360)%360;
       }
       return this.stableBearing;
     }
@@ -239,6 +254,8 @@
         bearing:this.map.getBearing(),
         offset:[0,0]
       };
+      this.stableBearing=((Number(target.bearing)||0)+360)%360;
+      this.lastNavCenter=target.center.slice();
       this.moveToTarget(target,650);
       this.transitionTimer=setTimeout(()=>this.finishTransition(),800);
       this.render();
@@ -267,10 +284,21 @@
 
     render(){
       center.hidden=this.state!=='manual';
+      this.renderNorthIndicator();
       if(!this.pitchButton)return;
       const pitched=Number(this.map.getPitch())>20;
       this.pitchButton.innerHTML=(pitched?flatGrid:tiltedGrid)+`<span>${pitched?'2D':'3D'}</span>`;
       this.pitchButton.title=pitched?'Widok 2D z góry':'Widok 3D pochylony';
+    }
+
+    renderNorthIndicator(){
+      const mapBearing=Number(this.map.getBearing?.())||0;
+      const guidanceBearing=Number(this.latestTarget?.bearing);
+      const difference=Number.isFinite(guidanceBearing)
+        ?Math.abs(((mapBearing-guidanceBearing+540)%360)-180)
+        :0;
+      northIndicator.hidden=this.state!=='manual'||difference<8;
+      northIndicator.querySelector('.northArrow').style.transform=`rotate(${-mapBearing}deg)`;
     }
   }
 

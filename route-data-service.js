@@ -2,7 +2,15 @@
   if(window.__trasyRouteDataService)return;
 
   const API_URL='https://script.google.com/macros/s/AKfycbzdG_ARbbPgMdlPteqFLakZHR5EEkT4Lb3YFDbXW_I_OyrDKo8l0_KrQLjnncxj_M9q/exec';
+  const STORAGE_KEY='trasy2.rawRouteData';
   let cached=null,inflight=null;
+
+  function readStored(){try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||'null')}catch{return null}}
+  function store(data){
+    try{localStorage.setItem(STORAGE_KEY,JSON.stringify(data))}catch{}
+    document.dispatchEvent(new CustomEvent('trasy:route-data-updated',{detail:data}));
+    return data;
+  }
 
   function jsonp(){
     return new Promise((resolve,reject)=>{
@@ -38,10 +46,14 @@
   window.__trasyRouteDataService={
     async load({fresh=false}={}){
       if(cached&&!fresh)return cached;
+      if(!fresh){const stored=readStored();if(stored){cached=stored;return stored}}
       if(inflight)return inflight;
-      inflight=request().then(data=>(cached=data,data)).finally(()=>{inflight=null});
+      inflight=request().then(data=>(cached=store(data),data)).finally(()=>{inflight=null});
       return inflight;
     },
-    peek(){return cached}
+    peek(){return cached},
+    stored:readStored,
+    invalidate(){cached=null},
+    url:API_URL
   };
 })();
