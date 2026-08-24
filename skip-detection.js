@@ -110,8 +110,15 @@
   body.addEventListener('route-direction-change',reset);
   body.addEventListener('schedule-rendered',reset);
   document.addEventListener('trasy:navigation-resumed',event=>{
-    const fromIndex=Number(event.detail?.skipFromIndex),toIndex=Number(event.detail?.skipToIndex);
-    if(Number.isInteger(fromIndex)&&Number.isInteger(toIndex)&&toIndex>fromIndex)promptSkip(fromIndex,toIndex,'resume');
+    const position=event.detail?.position;
+    reset();
+    if(!position?.coords)return;
+    const here=[Number(position.coords.latitude),Number(position.coords.longitude)];
+    if(!Number.isFinite(here[0])||!Number.isFinite(here[1]))return;
+    lastPos=here;
+    lastPosAt=Number(position.timestamp)||Date.now();
+    headingAnchor=here;
+    heading=null;
   });
   watch=window.__trasyGps.subscribe(onPos,()=>{});
 })();
