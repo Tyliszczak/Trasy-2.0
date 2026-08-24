@@ -24,10 +24,15 @@ Docelowy panel administratora korzysta z operacji `loadParkings` i `saveParkings
 - odświeżenie danych o ruchu podczas nawigacji: standardowo co 3 minuty,
 - pomiędzy odświeżeniami ETA jest lokalnie korygowane na podstawie postępu GPS po aktualnej trasie,
 - limit prędkości jest odczytywany z danych OpenStreetMap, jeśli dla bieżącej drogi istnieje wiarygodne `maxspeed`.
+- dopasowanie drogi uwzględnia kierunek jazdy i ciągłość poprzedniego odcinka, aby ograniczyć pomyłki na skrzyżowaniach i drogach równoległych,
+- gdy brakuje profilu pojazdu, aplikacja nadal pokazuje znane ograniczenie ogólne z dopiskiem `BRAK DANYCH POJAZDU`; brak danych drogi jest oznaczany osobno i nie jest zastępowany zgadywaną wartością,
+- dla autobusu limit jest dodatkowo ograniczany profilem pojazdu; tryb BUS 100 wymaga jawnego potwierdzenia dopuszczenia oraz braku miejsc stojących,
 - kamera po uruchomieniu przyjmuje kierunek pierwszego odcinka trasy i szybciej reaguje na wiarygodną zmianę kierunku GPS,
 - po ręcznym obróceniu mapy poza kierunek jazdy pojawia się oznaczenie `N` ze strzałką wskazującą północ; znika po powrocie do prowadzenia.
 
 Aplikacja nie zgaduje ograniczenia prędkości, gdy danych nie ma.
+
+Opcjonalne kolumny profilu w karcie `POJAZDY`: `BUS 100`, `MIEJSCA STOJĄCE`, `OGRANICZNIK KMH` i `LIMIT POJAZDU KMH`. Brak tych kolumn nie zatrzymuje harmonogramu ani nawigacji — uruchamia opisany wyżej tryb bezpieczny.
 
 ## PWA i cache
 

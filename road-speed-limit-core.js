@@ -37,6 +37,16 @@ function angleDiff(a,b){
   return Math.abs(((a-b+540)%360)-180);
 }
 
+function headingMismatch(tags,bearing,heading){
+  if(!Number.isFinite(heading))return 0;
+  const forward=angleDiff(heading,bearing);
+  const backward=angleDiff(heading,(bearing+180)%360);
+  const oneway=String(tags?.oneway||'').trim().toLowerCase();
+  if(oneway==='yes'||oneway==='1'||oneway==='true')return forward;
+  if(oneway==='-1')return backward;
+  return Math.min(forward,backward);
+}
+
 function directionalLimit(tags,bearing,heading){
   const base=parseMaxspeed(tags?.maxspeed);
   if(!Number.isFinite(heading))return base;
@@ -45,9 +55,12 @@ function directionalLimit(tags,bearing,heading){
   return directional??base;
 }
 
-export function nearestRoadLimit(elements,position,{maxDistance=55,heading=null}={}){
+export function nearestRoadLimit(elements,position,{maxDistance=55,heading=null,previousWayId=null,maxHeadingMismatch=68}={}){
   const origin={lat:Number(position?.lat),lon:Number(position?.lon)};
   if(!Number.isFinite(origin.lat)||!Number.isFinite(origin.lon))return null;
+
+  const parsedHeading=heading===null||heading===undefined||heading===''?null:Number(heading);
+  const usableHeading=Number.isFinite(parsedHeading)?parsedHeading:null;
 
   let best=null;
   for(const element of elements||[]){
@@ -57,20 +70,24 @@ export function nearestRoadLimit(elements,position,{maxDistance=55,heading=null}
       const b={lat:Number(element.geometry[i]?.lat),lon:Number(element.geometry[i]?.lon)};
       if(!Number.isFinite(a.lat)||!Number.isFinite(a.lon)||!Number.isFinite(b.lat)||!Number.isFinite(b.lon))continue;
       const segment=segmentDistanceAndBearing(origin,a,b);
-      if(!best||segment.distance<best.distance){
-        best={element,distance:segment.distance,bearing:segment.bearing};
+      const mismatch=headingMismatch(element.tags,segment.bearing,usableHeading);
+      if(usableHeading!==null&&mismatch>maxHeadingMismatch)continue;
+      const continuity=previousWayId!==null&&String(previousWayId)===String(element.id);
+      const score=segment.distance+(mismatch*.45)-(continuity?16:0);
+      if(!best||score<best.score){
+        best={element,distance:segment.distance,bearing:segment.bearing,mismatch,score};
       }
     }
   }
 
   if(!best||best.distance>maxDistance)return null;
-  const parsedHeading=heading===null||heading===undefined||heading===''?null:Number(heading);
-  const limit=directionalLimit(best.element.tags,best.bearing,Number.isFinite(parsedHeading)?parsedHeading:null);
+  const limit=directionalLimit(best.element.tags,best.bearing,usableHeading);
   return{
     maxspeed:limit,
     roadClass:String(best.element.tags.highway||''),
     highSpeedRoad:['motorway','motorway_link','trunk','trunk_link'].includes(String(best.element.tags.highway||'')),
     distance:best.distance,
+    headingMismatch:best.mismatch,
     osmWayId:best.element.id??null,
     rawMaxspeed:best.element.tags.maxspeed??'',
     name:String(best.element.tags.name||best.element.tags.ref||'')

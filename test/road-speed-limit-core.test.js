@@ -30,3 +30,22 @@ test('nearestRoadLimit respects directional maxspeed',()=>{
   assert.equal(nearestRoadLimit(elements,{lat:52.0005,lon:15},{heading:180})?.maxspeed,90);
   assert.equal(nearestRoadLimit(elements,{lat:52.0005,lon:15})?.maxspeed,70);
 });
+
+test('nearestRoadLimit rejects a closer perpendicular road while the vehicle is moving',()=>{
+  const elements=[
+    {type:'way',id:10,tags:{highway:'service',maxspeed:'20'},geometry:[{lat:52.0005,lon:14.999},{lat:52.0005,lon:15.001}]},
+    {type:'way',id:11,tags:{highway:'primary',maxspeed:'70'},geometry:[{lat:52,lon:15.00008},{lat:52.001,lon:15.00008}]}
+  ];
+  const result=nearestRoadLimit(elements,{lat:52.0005,lon:15},{heading:0});
+  assert.equal(result?.osmWayId,11);
+  assert.equal(result?.maxspeed,70);
+});
+
+test('nearestRoadLimit keeps the previous parallel way when GPS drifts between roads',()=>{
+  const elements=[
+    {type:'way',id:20,tags:{highway:'primary',maxspeed:'70'},geometry:[{lat:52,lon:15},{lat:52.001,lon:15}]},
+    {type:'way',id:21,tags:{highway:'service',maxspeed:'20'},geometry:[{lat:52,lon:15.00008},{lat:52.001,lon:15.00008}]}
+  ];
+  const result=nearestRoadLimit(elements,{lat:52.0005,lon:15.00006},{heading:0,previousWayId:20});
+  assert.equal(result?.osmWayId,20);
+});
