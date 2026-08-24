@@ -76,6 +76,13 @@ test('po wznowieniu pominięcie wymaga potwierdzenia kierunku i nie obejmuje cel
   assert.doesNotMatch(map,/dispatchEvent\(new CustomEvent\('gps-skip-stop'/);
 });
 
+test('postój po wybudzeniu nie uruchamia pytania o pominięcie przystanku',async()=>{
+  const skip=await readSource('skip-detection.js');
+  assert.match(skip,/if\(speed<MIN_SPEED_MPS\)\{awayFixes=0;lastTargetDistance=Infinity;return\}/);
+  assert.match(skip,/heading=null/);
+  assert.match(skip,/awayFixes<CONFIRM_FIXES/);
+});
+
 test('logika startu POWROTU ma jednego właściciela',async()=>{
   const [route,gps,startNav,eta]=await Promise.all([
     readSource('return-route.js'),
