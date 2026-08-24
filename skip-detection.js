@@ -41,20 +41,22 @@
 
   function closePrompt(){const m=document.getElementById('skipDetectionDialog');if(m)m.hidden=true;window.__routeStopActionsOpen=false}
 
-  function promptSkip(fromIndex,toIndex){
+  function promptSkip(fromIndex,toIndex,reason='detected'){
     const rs=rows();if(!rs[fromIndex]||toIndex<=fromIndex)return;
     const skipped=rs.slice(fromIndex,toIndex).map(rowName);if(!skipped.length)return;
-    const key=`${fromIndex}:${toIndex}:${skipped.join('|')}`;
+    const key=`${reason}:${fromIndex}:${toIndex}:${skipped.join('|')}`;
     if(key===lastPromptKey&&Date.now()-lastPromptAt<COOLDOWN_MS)return;
     lastPromptKey=key;lastPromptAt=Date.now();
     const modal=ensureModal(),text=modal.querySelector('#skipDetectionText'),list=modal.querySelector('#skipDetectionList'),one=modal.querySelector('#skipDetectionOne'),all=modal.querySelector('#skipDetectionAll'),no=modal.querySelector('#skipDetectionNo');
-    text.textContent=skipped.length===1?`Wygląda na to, że omijasz przystanek „${skipped[0]}”. Czy chcesz go pominąć?`:`Wygląda na to, że obecny kierunek jazdy omija ${skipped.length} przystanki. Wybierz, co zrobić:`;
+    text.textContent=reason==='resume'
+      ?(skipped.length===1?`Po wznowieniu nawigacji wygląda na to, że minąłeś przystanek „${skipped[0]}”. Czy chcesz go pominąć?`:`Po wznowieniu nawigacji wygląda na to, że minąłeś ${skipped.length} przystanki. Wybierz, co zrobić:`)
+      :(skipped.length===1?`Wygląda na to, że omijasz przystanek „${skipped[0]}”. Czy chcesz go pominąć?`:`Wygląda na to, że obecny kierunek jazdy omija ${skipped.length} przystanki. Wybierz, co zrobić:`);
     list.innerHTML=skipped.map((n,i)=>`<div>${i+1}. ${String(n).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}</div>`).join('');
     one.textContent=`POMIŃ NASTĘPNY: ${skipped[0]}`;
     all.hidden=skipped.length<2;
     if(skipped.length>1)all.textContent=`POMIŃ WSZYSTKIE (${skipped.length})`;
-    one.onclick=()=>{body.dispatchEvent(new CustomEvent('gps-skip-stop',{bubbles:true,detail:{index:fromIndex+1,skippedIndex:fromIndex,source:'detected'}}));closePrompt()};
-    all.onclick=()=>{body.dispatchEvent(new CustomEvent('gps-skip-stop',{bubbles:true,detail:{index:toIndex,skippedFrom:fromIndex,skippedTo:toIndex-1,source:'detected-multiple'}}));closePrompt()};
+    one.onclick=()=>{body.dispatchEvent(new CustomEvent('gps-skip-stop',{bubbles:true,detail:{index:fromIndex+1,skippedIndex:fromIndex,source:reason}}));closePrompt()};
+    all.onclick=()=>{body.dispatchEvent(new CustomEvent('gps-skip-stop',{bubbles:true,detail:{index:toIndex,skippedFrom:fromIndex,skippedTo:toIndex-1,source:`${reason}-multiple`}}));closePrompt()};
     no.onclick=()=>{closePrompt();lastPromptAt=Date.now()};
     window.__routeStopActionsOpen=true;
     if(typeof window.__routeEnterManualView==='function')window.__routeEnterManualView();
@@ -107,5 +109,9 @@
   body.addEventListener('gps-next-stop-change',reset);
   body.addEventListener('route-direction-change',reset);
   body.addEventListener('schedule-rendered',reset);
+  document.addEventListener('trasy:navigation-resumed',event=>{
+    const fromIndex=Number(event.detail?.skipFromIndex),toIndex=Number(event.detail?.skipToIndex);
+    if(Number.isInteger(fromIndex)&&Number.isInteger(toIndex)&&toIndex>fromIndex)promptSkip(fromIndex,toIndex,'resume');
+  });
   watch=window.__trasyGps.subscribe(onPos,()=>{});
 })();
