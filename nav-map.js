@@ -1503,6 +1503,16 @@
       );
 
     if(oldIndex>0){
+      if(routeBuildInFlight&&lastGpsPoint){
+        currentStops=remaining;
+        legDurations=[];
+        legStartAt=Date.now();
+        buildRoute(lastGpsPoint,currentStops).catch(
+          error=>console.warn('Zmiana przystanku:',error)
+        );
+        return;
+      }
+
       currentStops=
         currentStops.slice(oldIndex);
 

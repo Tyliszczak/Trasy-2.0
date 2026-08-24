@@ -36,8 +36,11 @@
     },0);
   }
 
-  async function googleTrafficData(coords){
+  async function googleTrafficData(coords,externalSignal){
     const controller=new AbortController();
+    const abortFromExternal=()=>controller.abort();
+    if(externalSignal?.aborted)controller.abort();
+    else externalSignal?.addEventListener('abort',abortFromExternal,{once:true});
     const timeout=setTimeout(()=>controller.abort(),GOOGLE_ROUTE_TIMEOUT_MS);
 
     try{
@@ -65,10 +68,14 @@
 
       return data.osrmLike;
     }catch(err){
-      if(err?.name==='AbortError')throw Error('Google Traffic timeout');
+      if(err?.name==='AbortError'){
+        if(externalSignal?.aborted)throw err;
+        throw Error('Google Traffic timeout');
+      }
       throw err;
     }finally{
       clearTimeout(timeout);
+      externalSignal?.removeEventListener?.('abort',abortFromExternal);
     }
   }
 
@@ -134,7 +141,7 @@
     // Zachowujemy możliwość ręcznego przełączenia na pełną trasę Google.
     if(window.__routeMode==='google'&&coords?.length>=2){
       try{
-        const googleData=await googleTrafficData(coords);
+        const googleData=await googleTrafficData(coords,init?.signal);
         window.__routeProvider='google-routes-traffic';
         window.__routeTrafficAvailable=true;
         return jsonResponse(googleData);
@@ -147,7 +154,7 @@
     // Google uruchamiamy równolegle wyłącznie po czasy z ruchem.
     const osrmPromise=nativeFetch(input,init);
     const trafficPromise=coords?.length>=2
-      ?googleTrafficData(coords)
+      ?googleTrafficData(coords,init?.signal)
       :Promise.reject(Error('Brak punktów do Google Traffic'));
 
     const osrmResponse=await osrmPromise;
