@@ -18,3 +18,84 @@ jobs:
           node-version: 22
       - name: Run tests
         run: npm test
+
+  stage7_cleanup:
+    if: github.event_name == 'pull_request' && github.head_ref == 'audit-stage7-ui-cleanup' && github.actor != 'github-actions[bot]'
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout stage 7 branch
+        uses: actions/checkout@v4
+        with:
+          ref: audit-stage7-ui-cleanup
+          fetch-depth: 0
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply exact cleanup
+        run: |
+          sed -i "/^[[:space:]]*offscreenPanel\.hidden=true;$/d" nav-map.js
+          python3 - <<'PY'
+          from pathlib import Path
+          route=Path('return-route.js')
+          s=route.read_text()
+          needle="  new MutationObserver(mutations=>"
+          insert="  body.addEventListener('gps-next-stop-change',event=>{if(Number(event.detail?.index)>0)body.dataset.returnOriginActive=''});\n"
+          if insert not in s:
+              if needle not in s: raise SystemExit('Brak punktu wstawienia listenera POWROTU')
+              route.write_text(s.replace(needle,insert+needle,1))
+          patch=Path('scripts/apply-stage7.mjs')
+          p=patch.read_text()
+          start=p.find("await edit('return-route.js'")
+          end=p.find("await edit('eta-status.js'",start)
+          if start>=0 and end>=0: patch.write_text(p[:start]+p[end:])
+          PY
+          node scripts/apply-stage7.mjs
+          python3 - <<'PY'
+          from pathlib import Path
+          app=Path('test/app-shell.test.js'); s=app.read_text()
+          old="""test('status punktualności ma zielony tekst w mapie i harmonogramie, a kolor niesie kropka',async()=>{
+  const [html,fix,eta]=await Promise.all([
+    readSource('index.html'),readSource('punctuality-text-color-fix.js'),readSource('eta-status.js')
+  ]);
+  assert.match(html,/punctuality-text-color-fix\\.js/);
+  assert.match(fix,/#routeNextStop \\.nextStopStatus\\.early/);
+  assert.match(fix,/#scheduleBody \\.etaPunctuality\\.late/);
+  assert.match(fix,/color:#39ff69!important/);
+  assert.match(eta,/\\.etaPunctuality\\.early:before\\{background:#ffd60a\\}/);
+  assert.match(eta,/\\.etaPunctuality\\.late:before\\{background:#ff3b30\\}/);
+  assert.match(eta,/\\.etaPunctuality\\.onTime:before\\{background:#34c759\\}/);
+});"""
+          new="""test('status punktualności ma zielony tekst w mapie i harmonogramie, a kolor niesie kropka',async()=>{
+  const [html,header,eta]=await Promise.all([
+    readSource('index.html'),readSource('next-stop-header.js'),readSource('eta-status.js')
+  ]);
+  assert.doesNotMatch(html,/punctuality-text-color-fix\\.js/);
+  assert.match(header,/nextStopStatus\\.early,[\\s\\S]*color:#39ff69/);
+  assert.match(eta,/etaPunctuality\\{[^}]*color:#39ff69!important/);
+  assert.match(eta,/\\.etaPunctuality\\.early:before\\{background:#ffd60a\\}/);
+  assert.match(eta,/\\.etaPunctuality\\.late:before\\{background:#ff3b30\\}/);
+  assert.match(eta,/\\.etaPunctuality\\.onTime:before\\{background:#34c759\\}/);
+});"""
+          if old not in s: raise SystemExit('Nie znaleziono starego testu koloru punktualności')
+          app.write_text(s.replace(old,new,1))
+          audit=Path('test/audit-regressions.test.js'); s=audit.read_text()
+          old="source=>/dataset\\.returnOriginActive\\s*=/.test(source)"
+          new="source=>/dataset\\.returnOriginActive\\s*=(?!=)/.test(source)"
+          if old not in s: raise SystemExit('Nie znaleziono regexu właściciela POWROTU')
+          audit.write_text(s.replace(old,new,1))
+          PY
+      - name: Validate diff
+        run: git diff --check
+      - name: Test final stage 7 tree
+        run: npm test
+      - name: Commit final stage 7 tree
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Implement stage 7 UI cleanup"
+          git push origin HEAD:audit-stage7-ui-cleanup
