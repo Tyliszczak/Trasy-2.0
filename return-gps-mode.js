@@ -6,12 +6,13 @@
     if(e.detail?.direction!=='return'||e.detail?.emptyRun)return;
 
     // Godzina START pozostaje informacją w nagłówku, ale nie blokuje logiki GPS.
-    body.dataset.returnOriginActive='';
+    // Właścicielem stanu startu POWROTU jest return-route.js — ten moduł
+    // jedynie przygotowuje tracker do wyboru celu według bieżącej pozycji.
 
     // Usuń godzinę przypisaną do pierwszego wiersza powrotu, żeby tracker
     // nie chronił go sztywno do czasu planowanego odjazdu.
     const first=[...body.querySelectorAll('tr')].find(r=>r.dataset.coordinate);
-    if(first?.children?.[1]) first.children[1].textContent='';
+    if(first?.children?.[1])first.children[1].textContent='';
 
     // Pozwól trackerowi GPS od razu wybrać właściwy punkt według pozycji,
     // kierunku jazdy i odległości.
