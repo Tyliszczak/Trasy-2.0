@@ -1,4 +1,5 @@
 name: Apply stage 7 cleanup
+# Final guarded stage 7 run
 
 on:
   pull_request:
