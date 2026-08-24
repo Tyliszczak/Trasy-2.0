@@ -13,6 +13,7 @@
     #routeFeedbackDialog[hidden]{display:none!important}
     .routeFeedbackCard{width:min(100%,520px);max-height:calc(100dvh - 28px);overflow:auto;box-sizing:border-box;padding:16px;border:1px solid #666;border-radius:16px;background:#1c1c1c;color:#fff;box-shadow:0 10px 35px #000c}
     .routeFeedbackHead{display:flex;align-items:center;gap:10px}.routeFeedbackHead h2{flex:1;margin:0;color:#ccff33;font-size:21px}.routeFeedbackClose{width:38px;height:38px;padding:0;border-radius:19px;background:#333;color:#fff;font-size:24px}
+    .routeFeedbackBack{width:38px;height:38px;padding:0;border-radius:19px;background:#333;color:#fff;font-size:24px}.routeFeedbackBack[hidden]{display:none!important}.routeFeedbackCategories{display:grid;gap:10px;margin-top:16px}.routeFeedbackCategory{display:flex;align-items:center;gap:12px;width:100%;padding:14px;border:1px solid #666;border-radius:12px;background:#292929;color:#fff;text-align:left;font:800 16px/1.2 Arial,sans-serif}.routeFeedbackCategory:hover,.routeFeedbackCategory:focus-visible{border-color:#ccff33}.routeFeedbackCategoryIcon{display:flex;width:38px;height:38px;flex:0 0 38px;align-items:center;justify-content:center;border-radius:19px;background:#ccff33;color:#111;font-size:21px}.routeFeedbackForm[hidden],.routeFeedbackCategories[hidden]{display:none!important}
     #routeFeedbackText{display:block;width:100%;min-height:128px;margin-top:13px;padding:12px;box-sizing:border-box;resize:vertical;border:1px solid #777;border-radius:10px;background:#101010;color:#fff;font:16px/1.4 Arial,sans-serif}
     .routeFeedbackVoice{display:flex;align-items:center;gap:9px;margin-top:10px}.routeFeedbackVoice button{width:46px;height:46px;padding:0;border-radius:23px;font-size:22px}.routeFeedbackVoice button.listening{background:#e53935;color:#fff;animation:routeFeedbackPulse 1.2s infinite}.routeFeedbackVoice span{font-size:13px;color:#ccc}
     .routeFeedbackInfo{margin:11px 0 0;color:#bbb;font-size:12px;line-height:1.35}.routeFeedbackActions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:14px}.routeFeedbackActions button{padding:12px 8px;font-weight:900}.routeFeedbackActions .primary{background:#ccff33;color:#111}.routeFeedbackActions .whatsapp{background:#25d366;color:#071d0f}.routeFeedbackActions .sms{background:#3a86ff;color:#fff}.routeFeedbackMessage{min-height:18px;margin-top:9px;color:#ccff33;font-size:13px}
@@ -24,9 +25,9 @@
   const button=document.createElement('button');
   button.id='routeFeedbackButton';
   button.type='button';
-  button.title='Przekaż uwagę o nawigacji';
-  button.setAttribute('aria-label','Przekaż uwagę o nawigacji');
-  button.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4.8h16v11.4H9l-5 3V4.8Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M7.5 9h9M7.5 12.5h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+  button.title='Dodaj zgłoszenie';
+  button.setAttribute('aria-label','Dodaj zgłoszenie');
+  button.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7v10M7 12h10" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>';
 
   const dialog=document.createElement('div');
   dialog.id='routeFeedbackDialog';
@@ -37,28 +38,40 @@
   dialog.innerHTML=`
     <section class="routeFeedbackCard">
       <div class="routeFeedbackHead">
-        <h2 id="routeFeedbackTitle">Uwaga o nawigacji</h2>
+        <button class="routeFeedbackBack" type="button" aria-label="Wróć do rodzajów zgłoszeń" hidden>‹</button>
+        <h2 id="routeFeedbackTitle">Dodaj zgłoszenie</h2>
         <button class="routeFeedbackClose" type="button" aria-label="Zamknij">×</button>
       </div>
-      <textarea id="routeFeedbackText" maxlength="${MAX_NOTE_LENGTH}" placeholder="Napisz, co działa źle lub co warto poprawić…"></textarea>
-      <div class="routeFeedbackVoice">
-        <button id="routeFeedbackMic" type="button" aria-label="Dyktuj uwagę" title="Dyktuj uwagę">🎤</button>
-        <span id="routeFeedbackVoiceStatus">Możesz napisać lub podyktować uwagę.</span>
+      <div class="routeFeedbackCategories">
+        <button class="routeFeedbackCategory" type="button" data-category="fault"><span class="routeFeedbackCategoryIcon">⚠</span><span>Zgłoś usterkę</span></button>
+        <button class="routeFeedbackCategory" type="button" data-category="speed"><span class="routeFeedbackCategoryIcon">50</span><span>Zgłoś niewłaściwą prędkość</span></button>
+        <button class="routeFeedbackCategory" type="button" data-category="closure"><span class="routeFeedbackCategoryIcon">⛔</span><span>Zgłoś zamknięty odcinek</span></button>
       </div>
-      <p class="routeFeedbackInfo">Uwaga zostanie zapisana na tym urządzeniu. Możesz wysłać ją przez WhatsApp lub SMS na numer +48 603 666 921. Jeśli WhatsApp nie jest dostępny, telefon automatycznie przejdzie do SMS. Wiadomość wyślesz samodzielnie.</p>
-      <div class="routeFeedbackActions">
-        <button id="routeFeedbackSave" type="button">ZAPISZ</button>
-        <button id="routeFeedbackWhatsApp" class="whatsapp" type="button">WHATSAPP</button>
-        <button id="routeFeedbackSms" class="sms" type="button">SMS</button>
-        <button id="routeFeedbackShare" class="primary" type="button">INNA APLIKACJA</button>
+      <div class="routeFeedbackForm" hidden>
+        <textarea id="routeFeedbackText" maxlength="${MAX_NOTE_LENGTH}" placeholder="Opisz zgłoszenie…"></textarea>
+        <div class="routeFeedbackVoice">
+          <button id="routeFeedbackMic" type="button" aria-label="Dyktuj uwagę" title="Dyktuj uwagę">🎤</button>
+          <span id="routeFeedbackVoiceStatus">Możesz napisać lub podyktować uwagę.</span>
+        </div>
+        <p class="routeFeedbackInfo">Zgłoszenie zostanie zapisane na tym urządzeniu. Możesz wysłać je przez WhatsApp lub SMS na numer +48 603 666 921. Jeśli WhatsApp nie jest dostępny, telefon automatycznie przejdzie do SMS. Wiadomość wyślesz samodzielnie.</p>
+        <div class="routeFeedbackActions">
+          <button id="routeFeedbackSave" type="button">ZAPISZ</button>
+          <button id="routeFeedbackWhatsApp" class="whatsapp" type="button">WHATSAPP</button>
+          <button id="routeFeedbackSms" class="sms" type="button">SMS</button>
+          <button id="routeFeedbackShare" class="primary" type="button">INNA APLIKACJA</button>
+        </div>
+        <div id="routeFeedbackMessage" class="routeFeedbackMessage" aria-live="polite"></div>
       </div>
-      <div id="routeFeedbackMessage" class="routeFeedbackMessage" aria-live="polite"></div>
     </section>
   `;
 
   document.body.append(button,dialog);
 
   const textarea=dialog.querySelector('#routeFeedbackText');
+  const title=dialog.querySelector('#routeFeedbackTitle');
+  const categories=dialog.querySelector('.routeFeedbackCategories');
+  const form=dialog.querySelector('.routeFeedbackForm');
+  const backButton=dialog.querySelector('.routeFeedbackBack');
   const closeButton=dialog.querySelector('.routeFeedbackClose');
   const micButton=dialog.querySelector('#routeFeedbackMic');
   const voiceStatus=dialog.querySelector('#routeFeedbackVoiceStatus');
@@ -69,6 +82,12 @@
   const message=dialog.querySelector('#routeFeedbackMessage');
   let recognition=null;
   let listening=false;
+  let selectedCategory=null;
+  const categoryDetails={
+    fault:{label:'Zgłoś usterkę',placeholder:'Opisz, co nie działa i na którym ekranie…'},
+    speed:{label:'Zgłoś niewłaściwą prędkość',placeholder:'Podaj prawidłowe ograniczenie i opisz miejsce…'},
+    closure:{label:'Zgłoś zamknięty odcinek',placeholder:'Opisz zamknięty odcinek lub przeszkodę na drodze…'}
+  };
 
   function navigationVisible(){
     const nav=document.getElementById('routeMapNav');
@@ -100,7 +119,8 @@
   function saveNote(text){
     const note=String(text||'').trim().slice(0,MAX_NOTE_LENGTH);
     if(!note)throw new Error('Wpisz lub podyktuj uwagę.');
-    const record={id:`feedback_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,text:note,...currentContext()};
+    if(!selectedCategory||!categoryDetails[selectedCategory])throw new Error('Wybierz rodzaj zgłoszenia.');
+    const record={id:`feedback_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,category:selectedCategory,categoryLabel:categoryDetails[selectedCategory].label,text:note,...currentContext()};
     const notes=readNotes();
     notes.push(record);
     localStorage.setItem(STORAGE_KEY,JSON.stringify(notes.slice(-MAX_SAVED_NOTES)));
@@ -110,6 +130,7 @@
 
   function formatRecord(record){
     const details=[
+      `Rodzaj: ${record.categoryLabel}`,
       `Ekran: ${record.screen}`,
       record.route&&`Trasa: ${record.route}`,
       record.shift&&`Zmiana: ${record.shift}`,
@@ -138,12 +159,37 @@
   function close(){
     stopListening();
     dialog.hidden=true;
+    showCategories();
     message.textContent='';
     button.focus();
   }
 
   function open(){
     dialog.hidden=false;
+    message.textContent='';
+    showCategories();
+    requestAnimationFrame(()=>dialog.querySelector('.routeFeedbackCategory')?.focus());
+  }
+
+  function showCategories(){
+    stopListening();
+    selectedCategory=null;
+    categories.hidden=false;
+    form.hidden=true;
+    backButton.hidden=true;
+    title.textContent='Dodaj zgłoszenie';
+    message.textContent='';
+  }
+
+  function chooseCategory(category){
+    const details=categoryDetails[category];
+    if(!details)return;
+    selectedCategory=category;
+    categories.hidden=true;
+    form.hidden=false;
+    backButton.hidden=false;
+    title.textContent=details.label;
+    textarea.placeholder=details.placeholder;
     message.textContent='';
     requestAnimationFrame(()=>textarea.focus());
   }
@@ -172,6 +218,8 @@
   }
 
   button.onclick=open;
+  categories.addEventListener('click',event=>chooseCategory(event.target.closest?.('[data-category]')?.dataset.category));
+  backButton.onclick=showCategories;
   closeButton.onclick=close;
   dialog.addEventListener('click',event=>{if(event.target===dialog)close()});
   document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!dialog.hidden)close()});
@@ -239,7 +287,7 @@
       const record=saveNote(textarea.value);
       const text=formatRecord(record);
       if(typeof navigator.share==='function'){
-        await navigator.share({title:'Uwaga o nawigacji Trasy 2.0',text});
+        await navigator.share({title:`${categoryDetails[selectedCategory]?.label||'Zgłoszenie'} — Trasy 2.0`,text});
         message.textContent='Uwaga została zapisana i udostępniona.';
       }else if(navigator.clipboard?.writeText){
         await navigator.clipboard.writeText(text);
