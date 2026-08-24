@@ -26,6 +26,24 @@ jobs:
       - name: Apply exact cleanup
         run: |
           sed -i "/^[[:space:]]*offscreenPanel\.hidden=true;$/d" nav-map.js
+          python3 - <<'PY'
+          from pathlib import Path
+          route=Path('return-route.js')
+          s=route.read_text()
+          needle="  new MutationObserver(mutations=>"
+          insert="  body.addEventListener('gps-next-stop-change',event=>{if(Number(event.detail?.index)>0)body.dataset.returnOriginActive=''});\n"
+          if needle not in s:
+              raise SystemExit('Brak punktu wstawienia listenera POWROTU')
+          route.write_text(s.replace(needle,insert+needle,1))
+
+          patch=Path('scripts/apply-stage7.mjs')
+          p=patch.read_text()
+          start=p.find("await edit('return-route.js'")
+          end=p.find("await edit('eta-status.js'",start)
+          if start<0 or end<0:
+              raise SystemExit('Brak bloku return-route w skrypcie etapu 7')
+          patch.write_text(p[:start]+p[end:])
+          PY
           node scripts/apply-stage7.mjs
       - name: Validate diff
         run: git diff --check
