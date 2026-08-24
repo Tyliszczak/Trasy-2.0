@@ -53,9 +53,9 @@
           <button id="routeFeedbackMic" type="button" aria-label="Dyktuj uwagę" title="Dyktuj uwagę">🎤</button>
           <span id="routeFeedbackVoiceStatus">Możesz napisać lub podyktować uwagę.</span>
         </div>
-        <p class="routeFeedbackInfo">Zgłoszenie zostanie zapisane na tym urządzeniu. Możesz wysłać je przez WhatsApp lub SMS na numer +48 603 666 921. Jeśli WhatsApp nie jest dostępny, telefon automatycznie przejdzie do SMS. Wiadomość wyślesz samodzielnie.</p>
+        <p class="routeFeedbackInfo">Przycisk WYŚLIJ przekaże zgłoszenie do panelu administratora i na ustawiony przez niego adres e-mail. Przy braku internetu zgłoszenie pozostanie na urządzeniu i zostanie wysłane po odzyskaniu połączenia. WhatsApp, SMS i inna aplikacja pozostają sposobami dodatkowymi.</p>
         <div class="routeFeedbackActions">
-          <button id="routeFeedbackSave" type="button">ZAPISZ</button>
+          <button id="routeFeedbackSave" type="button">WYŚLIJ</button>
           <button id="routeFeedbackWhatsApp" class="whatsapp" type="button">WHATSAPP</button>
           <button id="routeFeedbackSms" class="sms" type="button">SMS</button>
           <button id="routeFeedbackShare" class="primary" type="button">INNA APLIKACJA</button>
@@ -120,12 +120,39 @@
     const note=String(text||'').trim().slice(0,MAX_NOTE_LENGTH);
     if(!note)throw new Error('Wpisz lub podyktuj uwagę.');
     if(!selectedCategory||!categoryDetails[selectedCategory])throw new Error('Wybierz rodzaj zgłoszenia.');
-    const record={id:`feedback_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,category:selectedCategory,categoryLabel:categoryDetails[selectedCategory].label,text:note,...currentContext()};
+    const record={id:`feedback_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,category:selectedCategory,categoryLabel:categoryDetails[selectedCategory].label,text:note,deliveryStatus:'pending',...currentContext()};
     const notes=readNotes();
     notes.push(record);
     localStorage.setItem(STORAGE_KEY,JSON.stringify(notes.slice(-MAX_SAVED_NOTES)));
     document.dispatchEvent(new CustomEvent('trasy:navigation-feedback-saved',{detail:record}));
     return record;
+  }
+
+  function updateNote(id,patch){
+    const notes=readNotes(),index=notes.findIndex(note=>note.id===id);
+    if(index<0)return;
+    notes[index]={...notes[index],...patch};
+    localStorage.setItem(STORAGE_KEY,JSON.stringify(notes.slice(-MAX_SAVED_NOTES)));
+  }
+
+  async function deliverRecord(record){
+    const api=window.KURSY_DRIVER_API;
+    if(!api||typeof api.driverFeedback!=='function')throw new Error('Panel administratora nie jest jeszcze połączony z tą wersją aplikacji. Zgłoszenie pozostaje bezpiecznie zapisane na urządzeniu.');
+    await api.driverFeedback(record);
+    updateNote(record.id,{deliveryStatus:'sent',deliveredAt:new Date().toISOString(),lastDeliveryError:''});
+  }
+
+  let flushing=false;
+  async function flushPending(){
+    if(flushing||!navigator.onLine)return;
+    const api=window.KURSY_DRIVER_API;
+    if(!api||typeof api.driverFeedback!=='function')return;
+    flushing=true;
+    try{
+      for(const record of readNotes().filter(note=>note.deliveryStatus!=='sent')){
+        try{await deliverRecord(record)}catch(error){updateNote(record.id,{lastDeliveryError:String(error?.message||'Błąd wysyłania').slice(0,200)});break}
+      }
+    }finally{flushing=false}
   }
 
   function formatRecord(record){
@@ -233,12 +260,17 @@
     try{recognition.start();setListening(true)}catch{setListening(false)}
   };
 
-  saveButton.onclick=()=>{
+  saveButton.onclick=async()=>{
     try{
-      saveNote(textarea.value);
+      saveButton.disabled=true;
+      const record=saveNote(textarea.value);
+      await deliverRecord(record);
       textarea.value='';
-      message.textContent='Uwaga została zapisana na tym urządzeniu.';
-    }catch(error){message.textContent=error.message}
+      message.textContent='Zgłoszenie wysłano do panelu administratora i przekazano do wysyłki e-mail.';
+    }catch(error){
+      textarea.value='';
+      message.textContent=error.message||'Nie udało się wysłać zgłoszenia. Pozostaje zapisane na urządzeniu.';
+    }finally{saveButton.disabled=false}
   };
 
   function openWhatsAppOrSms(text){
@@ -304,9 +336,12 @@
   const nav=document.getElementById('routeMapNav');
   if(nav)new MutationObserver(updatePosition).observe(nav,{attributes:true,attributeFilter:['hidden']});
   updatePosition();
+  window.addEventListener('online',flushPending);
+  setTimeout(flushPending,1000);
 
   window.__trasyNavigationFeedback={
     open,
-    list:readNotes
+    list:readNotes,
+    flush:flushPending
   };
 })();

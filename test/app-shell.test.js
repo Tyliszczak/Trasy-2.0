@@ -159,6 +159,16 @@ test('uwagi nawigacyjne nie zapisują nagrań głosowych',async()=>{
   assert.doesNotMatch(feedback,/MediaRecorder|getUserMedia|audio\/webm/);
 });
 
+test('zgłoszenia kierowcy trafiają przez bezpieczny kontrakt do panelu i zachowują kolejkę offline',async()=>{
+  const feedback=await readSource('navigation-feedback.js');
+  assert.match(feedback,/api\.driverFeedback\(record\)/);
+  assert.match(feedback,/deliveryStatus:'pending'/);
+  assert.match(feedback,/deliveryStatus:'sent'/);
+  assert.match(feedback,/window\.addEventListener\('online',flushPending\)/);
+  assert.match(feedback,/panelu administratora i na ustawiony przez niego adres e-mail/);
+  assert.doesNotMatch(feedback,/feedbackEmail|adminEmail/);
+});
+
 test('dane zapasowe tworzą kompletny harmonogram każdej zmiany',()=>{
   assert.ok(ROUTES.length>0);
   for(const route of ROUTES){
