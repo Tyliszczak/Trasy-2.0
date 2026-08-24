@@ -28,6 +28,8 @@
   let legStartAt=0;
   let legDurations=[];
   let routeBuildInFlight=false;
+  let routeRequestGeneration=0;
+  let routeAbortController=null;
   let offRouteFixes=0;
 
   let guardState={
@@ -1070,7 +1072,7 @@
   }
 
   function speak(step,text,d){
-    if(!isVoiceManeuver(step))return;
+    if(!isVoiceManeuver(step)||window.__routeVoiceMuted===true)return;
 
     const bucket=
       d<55
@@ -1082,6 +1084,9 @@
             :'';
 
     if(!bucket)return;
+    if(bucket==='400')return;
+
+    const cleanText=window.__trasyCleanGuidanceText?.(text)||text;
 
     const key=
       (step.maneuver?.type||'')+
@@ -1102,8 +1107,8 @@
       const u=
         new SpeechSynthesisUtterance(
           bucket==='now'
-            ?text
-            :`Za ${bucket==='150'?'150':'400'} metrów. ${text}`
+            ?cleanText
+            :`Za ${bucket==='150'?'150':'400'} metrów. ${cleanText}`
         );
 
       u.lang='pl-PL';
@@ -1349,11 +1354,12 @@
   }
 
   async function buildRoute(origin,stops){
-    if(
-      !stops.length||
-      routeBuildInFlight
-    )return;
+    if(!stops.length)return;
 
+    routeAbortController?.abort();
+    const requestId=++routeRequestGeneration;
+    const controller=new AbortController();
+    routeAbortController=controller;
     routeBuildInFlight=true;
     lastRouteBuildAt=Date.now();
     legStartAt=Date.now();
@@ -1369,17 +1375,21 @@
       status.textContent=
         'Pobieranie przebiegu trasy…';
 
-      const res=await fetch(
+      const routeUrl=
         `https://router.project-osrm.org/route/v1/driving/${coords}`+
-        `?overview=full&geometries=geojson&steps=true&annotations=duration,distance`,
-        {cache:'no-store'}
-      );
+        `?overview=full&geometries=geojson&steps=true&annotations=duration,distance`;
+      const routeFetch=window.__trasyRouteFetch||window.fetch.bind(window);
+      const res=await routeFetch(routeUrl,{cache:'no-store',signal:controller.signal});
 
+      if(requestId!==routeRequestGeneration||controller.signal.aborted)return;
       if(!res.ok){
         throw Error(`HTTP ${res.status}`);
       }
 
-      const data=await res.json();
+      const rawData=await res.json();
+      if(requestId!==routeRequestGeneration||controller.signal.aborted)return;
+      const data=window.__trasyNormalizeRouteResponse?.(rawData)||rawData;
+      window.__trasyCaptureRoute?.(routeUrl,data);
       const route=data.routes?.[0];
 
       if(!route){
@@ -1456,8 +1466,14 @@
       status.textContent=
         `Trasa ${fmtDistance(route.distance)} • `+
         `${Math.round(route.duration/60)} min`;
+    }catch(error){
+      if(error?.name==='AbortError'||requestId!==routeRequestGeneration)return;
+      throw error;
     }finally{
-      routeBuildInFlight=false;
+      if(requestId===routeRequestGeneration){
+        routeBuildInFlight=false;
+        if(routeAbortController===controller)routeAbortController=null;
+      }
     }
   }
 
@@ -1487,6 +1503,16 @@
       );
 
     if(oldIndex>0){
+      if(routeBuildInFlight&&lastGpsPoint){
+        currentStops=remaining;
+        legDurations=[];
+        legStartAt=Date.now();
+        buildRoute(lastGpsPoint,currentStops).catch(
+          error=>console.warn('Zmiana przystanku:',error)
+        );
+        return;
+      }
+
       currentStops=
         currentStops.slice(oldIndex);
 
@@ -1508,7 +1534,7 @@
       currentStops=remaining;
       legDurations=[];
       legStartAt=Date.now();
-      if(lastGpsPoint&&!routeBuildInFlight){
+      if(lastGpsPoint){
         buildRoute(lastGpsPoint,currentStops).catch(
           error=>console.warn('Zmiana przystanku:',error)
         );

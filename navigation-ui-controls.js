@@ -55,13 +55,6 @@
   voice.style.cssText='position:fixed;top:162px;right:14px;z-index:50100;width:38px;height:38px;padding:0;border:1px solid #fff8;border-radius:19px;background:#111d;color:#fff;font-size:19px;box-shadow:0 2px 9px #000a';
   window.__routeVoiceMuted=window.__routeVoiceMuted===true;
   const speech=window.speechSynthesis;
-  if(speech&&typeof speech.speak==='function'&&!speech.__routeMuteWrapped){
-    speech.__routeMuteWrapped=true;
-    const nativeSpeak=speech.speak.bind(speech);
-    speech.speak=utterance=>{
-      if(!window.__routeVoiceMuted)return nativeSpeak(utterance);
-    };
-  }
   function updateVoice(){
     const muted=window.__routeVoiceMuted===true;
     voice.textContent=muted?'🔇':'🔊';

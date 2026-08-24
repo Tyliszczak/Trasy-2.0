@@ -7,22 +7,29 @@ const readSource=name=>readFile(new URL(`../${name}`,import.meta.url),'utf8');
 // Te testy opisują kolejne etapy audytu. TODO jest zdejmowane dopiero po
 // wdrożeniu poprawki i zastąpieniu go testem zachowania w odpowiednim etapie.
 
-test('TODO etap 5: żaden moduł aplikacji nie nadpisuje globalnego window.fetch',{todo:true},async()=>{
+test('żaden moduł aplikacji nie nadpisuje globalnego window.fetch',async()=>{
   const names=['google-routes-provider.js','navigation-guidance-fix.js','navigation-live-engine.js'];
   const sources=await Promise.all(names.map(readSource));
   for(const source of sources)assert.doesNotMatch(source,/window\.fetch\s*=/);
 });
 
-test('TODO etap 5: żaden moduł nie nadpisuje globalnego speechSynthesis.speak',{todo:true},async()=>{
+test('żaden moduł nie nadpisuje globalnego speechSynthesis.speak',async()=>{
   const names=['navigation-guidance-fix.js','navigation-ui-controls.js'];
   const sources=await Promise.all(names.map(readSource));
   for(const source of sources)assert.doesNotMatch(source,/\.speak\s*=|speech\.speak\s*=/);
 });
 
-test('TODO etap 5: stare wyznaczanie trasy jest anulowane po zmianie celu',{todo:true},async()=>{
-  const source=await readSource('nav-map.js');
+test('stare wyznaczanie trasy jest anulowane po zmianie celu',async()=>{
+  const [source,provider]=await Promise.all([
+    readSource('nav-map.js'),
+    readSource('google-routes-provider.js')
+  ]);
   assert.match(source,/AbortController/);
   assert.match(source,/requestId|generation|routeRequest/i);
+  assert.match(source,/routeAbortController\?\.abort\(\)/);
+  assert.match(source,/signal:controller\.signal/);
+  assert.match(provider,/externalSignal/);
+  assert.match(provider,/googleTrafficData\(coords,init\?\.signal\)/);
 });
 
 test('TODO etap 6: e-TOLL instaluje się na zdarzenie gotowości mapy bez 30-sekundowego pollingu',{todo:true},async()=>{
