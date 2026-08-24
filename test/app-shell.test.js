@@ -170,7 +170,9 @@ test('zgłoszenia kierowcy trafiają przez bezpieczny kontrakt do panelu i zacho
   assert.doesNotMatch(feedback,/feedbackEmail|adminEmail/);
   assert.doesNotMatch(feedback,/WhatsApp|WHATSAPP|sms:|navigator\.share|navigator\.clipboard|INNA APLIKACJA/);
   assert.match(feedback,/TEMP_TEST_FEEDBACK_EMAIL='kswiderski70@gmail\.com'/);
-  assert.match(feedback,/body\.routeFeedbackNavigation #routeFeedbackButton\{position:fixed;left:6px;right:auto;top:158px;bottom:auto\}/);
+  assert.match(feedback,/body\.routeFeedbackNavigation #routeFeedbackButton\{position:fixed;right:auto;bottom:auto\}/);
+  assert.match(feedback,/button\.style\.top=`\$\{Math\.round\(backRect\.bottom\+10\)\}px`/);
+  assert.match(feedback,/new MutationObserver\(updatePosition\)\.observe\(navigationBack,\{attributes:true,attributeFilter:\['style'\]\}\)/);
   assert.doesNotMatch(feedback,/const target=navVisible&&canvas\?canvas:document\.body/);
   assert.match(feedback,/if\(!panelConnected\(\)\)/);
   assert.match(feedback,/mailto:\$\{TEMP_TEST_FEEDBACK_EMAIL\}/);

@@ -10,7 +10,7 @@
   style.textContent=`
     #routeFeedbackButton{position:fixed;right:16px;bottom:calc(18px + env(safe-area-inset-bottom));z-index:80500;width:46px;height:46px;padding:0;border:1px solid #fff8;border-radius:23px;background:#ccff33;color:#111;box-shadow:0 3px 12px #0009;display:flex;align-items:center;justify-content:center;cursor:pointer}
     #routeFeedbackButton svg{width:25px;height:25px;display:block}
-    body.routeFeedbackNavigation #routeFeedbackButton{position:fixed;left:6px;right:auto;top:158px;bottom:auto}
+    body.routeFeedbackNavigation #routeFeedbackButton{position:fixed;right:auto;bottom:auto}
     #routeFeedbackDialog{position:fixed;inset:0;z-index:95000;padding:14px;background:#000b;display:flex;align-items:flex-end;justify-content:center;box-sizing:border-box}
     #routeFeedbackDialog[hidden]{display:none!important}
     .routeFeedbackCard{width:min(100%,520px);max-height:calc(100dvh - 28px);overflow:auto;box-sizing:border-box;padding:16px;border:1px solid #666;border-radius:16px;background:#1c1c1c;color:#fff;box-shadow:0 10px 35px #000c}
@@ -97,6 +97,17 @@
     const navVisible=navigationVisible();
     document.body.classList.toggle('routeFeedbackNavigation',navVisible);
     if(button.parentElement!==document.body)document.body.append(button);
+    if(!navVisible){
+      button.style.left='';
+      button.style.top='';
+      return;
+    }
+    const backButton=document.getElementById('routeMapClose');
+    if(!backButton)return;
+    const backRect=backButton.getBoundingClientRect();
+    const buttonWidth=button.offsetWidth||46;
+    button.style.left=`${Math.max(4,Math.round(backRect.left+(backRect.width-buttonWidth)/2))}px`;
+    button.style.top=`${Math.round(backRect.bottom+10)}px`;
   }
 
   function currentContext(){
@@ -326,6 +337,9 @@
 
   const nav=document.getElementById('routeMapNav');
   if(nav)new MutationObserver(updatePosition).observe(nav,{attributes:true,attributeFilter:['hidden']});
+  const navigationBack=document.getElementById('routeMapClose');
+  if(navigationBack)new MutationObserver(updatePosition).observe(navigationBack,{attributes:true,attributeFilter:['style']});
+  window.addEventListener('resize',updatePosition,{passive:true});
   updatePosition();
   window.addEventListener('online',flushPending);
   setTimeout(flushPending,1000);
