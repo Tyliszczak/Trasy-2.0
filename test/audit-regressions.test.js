@@ -32,24 +32,33 @@ test('stare wyznaczanie trasy jest anulowane po zmianie celu',async()=>{
   assert.match(provider,/googleTrafficData\(coords,init\?\.signal\)/);
 });
 
-test('TODO etap 6: e-TOLL instaluje się na zdarzenie gotowości mapy bez 30-sekundowego pollingu',{todo:true},async()=>{
+test('e-TOLL instaluje się na zdarzenie gotowości mapy bez 30-sekundowego pollingu',async()=>{
   const source=await readSource('etoll-overlay.js');
   assert.match(source,/trasy:route-map-ready/);
-  assert.doesNotMatch(source,/setInterval\(\(\)=>\{if\(install\(\)\)/);
+  assert.match(source,/install\(event\.detail\?\.map\|\|window\.__routeMap\)/);
+  assert.doesNotMatch(source,/setInterval/);
   assert.doesNotMatch(source,/30000/);
 });
 
-test('TODO etap 6: nieaktualny limit prędkości wygasa po błędzie lub upływie TTL',{todo:true},async()=>{
+test('nieaktualny limit prędkości wygasa po błędzie lub upływie TTL',async()=>{
   const source=await readSource('road-speed-limit.js');
-  assert.match(source,/TTL|expires|validUntil|stale/i);
+  assert.match(source,/LIMIT_TTL_MS\s*=\s*45000/);
+  assert.match(source,/validUntil/);
+  assert.match(source,/staleReason:'ttl'/);
+  assert.match(source,/staleReason:'error'/);
+  assert.match(source,/setTimeout/);
 });
 
-test('TODO etap 6: logika startu POWROTU ma jednego właściciela',{todo:true},async()=>{
+test('logika startu POWROTU ma jednego właściciela',async()=>{
   const [route,gps,startNav]=await Promise.all([
     readSource('return-route.js'),readSource('return-gps-mode.js'),readSource('return-start-navigation.js')
   ]);
   const owners=[route,gps,startNav].filter(source=>/returnOriginActive/.test(source));
   assert.equal(owners.length,1);
+  assert.match(route,/returnOriginActive/);
+  assert.doesNotMatch(gps,/returnOriginActive/);
+  assert.doesNotMatch(startNav,/returnOriginActive/);
+  assert.doesNotMatch(startNav,/setInterval/);
 });
 
 test('TODO etap 7: główny index nie ładuje modułów typu fix/guard/lock będących wyłącznie łatkami UI',{todo:true},async()=>{
