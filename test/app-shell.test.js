@@ -85,13 +85,12 @@ test('wybór najbliższego przyszłego kursu ma jedno źródło w time-core',asy
 });
 
 test('status punktualności ma zielony tekst w mapie i harmonogramie, a kolor niesie kropka',async()=>{
-  const [html,fix,eta]=await Promise.all([
-    readSource('index.html'),readSource('punctuality-text-color-fix.js'),readSource('eta-status.js')
+  const [html,header,eta]=await Promise.all([
+    readSource('index.html'),readSource('next-stop-header.js'),readSource('eta-status.js')
   ]);
-  assert.match(html,/punctuality-text-color-fix\.js/);
-  assert.match(fix,/#routeNextStop \.nextStopStatus\.early/);
-  assert.match(fix,/#scheduleBody \.etaPunctuality\.late/);
-  assert.match(fix,/color:#39ff69!important/);
+  assert.doesNotMatch(html,/punctuality-text-color-fix\.js/);
+  assert.match(header,/nextStopStatus\.early,[\s\S]*color:#39ff69/);
+  assert.match(eta,/etaPunctuality\{[^}]*color:#39ff69!important/);
   assert.match(eta,/\.etaPunctuality\.early:before\{background:#ffd60a\}/);
   assert.match(eta,/\.etaPunctuality\.late:before\{background:#ff3b30\}/);
   assert.match(eta,/\.etaPunctuality\.onTime:before\{background:#34c759\}/);
