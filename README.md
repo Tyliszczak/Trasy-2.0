@@ -4,7 +4,7 @@ Trasy 2.0 to statyczna aplikacja PWA dla kierowcy: pokazuje harmonogram kursu, p
 
 ## Dane i synchronizacja
 
-Dane tras są pobierane przez `route-data-service.js` z backendu Google Apps Script. `routes.js` pozostaje źródłem zapasowym, dzięki czemu podstawowy harmonogram może działać również wtedy, gdy bieżąca synchronizacja nie jest dostępna.
+Dane tras są pobierane przez `route-data-service.js` z uwierzytelnionego kontraktu `KURSY_DRIVER_API`, który przekazuje panel kierowcy po sprawdzeniu sesji, urządzenia i licencji. Główna aplikacja nie wywołuje już starego publicznego adresu Apps Script, który zwracał 403. `routes.js` pozostaje źródłem testowym i zapasowym, dlatego wersja internetowa od razu pozwala sprawdzić harmonogram oraz nawigację także przed podłączeniem panelu kierowcy.
 
 Źródło danych może zawierać zakładkę `PARKINGI` z kolumnami:
 
@@ -12,7 +12,9 @@ Dane tras są pobierane przez `route-data-service.js` z backendu Google Apps Scr
 - `LOKALIZACJA` — współrzędne `szerokość, długość`,
 - `TRASA` — opcjonalna nazwa trasy; puste pole lub `*` udostępnia parking wszystkim trasom.
 
-Jeden dostępny parking jest wybierany automatycznie. Przy kilku parkingach kierowca wybiera cel przed uruchomieniem trybu POWRÓT + NA PUSTO.
+Po potwierdzonym przez GPS dotarciu do końca trasy powrotnej aplikacja tworzy osobny odcinek do Bazy/Parkingu. Jeden dostępny punkt jest wybierany automatycznie. Przy kilku punktach kierowca wybiera cel. Ręczny przełącznik `NA PUSTO` nadal pozwala uruchomić przejazd bez pasażerów w obu kierunkach.
+
+Docelowy panel administratora korzysta z operacji `loadParkings` i `saveParkings`, a kierowca z `driverParkings`. Backend zapisuje punkty w osobnej karcie `PARKINGI`, zawsze z identyfikatorem firmy. Lokalny `parking-admin.html` pozostaje ekranem roboczym do czasu osadzenia nowej wersji Tras 2.0 w module administratora.
 
 ## Nawigacja
 
@@ -22,6 +24,8 @@ Jeden dostępny parking jest wybierany automatycznie. Przy kilku parkingach kier
 - odświeżenie danych o ruchu podczas nawigacji: standardowo co 3 minuty,
 - pomiędzy odświeżeniami ETA jest lokalnie korygowane na podstawie postępu GPS po aktualnej trasie,
 - limit prędkości jest odczytywany z danych OpenStreetMap, jeśli dla bieżącej drogi istnieje wiarygodne `maxspeed`.
+- kamera po uruchomieniu przyjmuje kierunek pierwszego odcinka trasy i szybciej reaguje na wiarygodną zmianę kierunku GPS,
+- po ręcznym obróceniu mapy poza kierunek jazdy pojawia się oznaczenie `N` ze strzałką wskazującą północ; znika po powrocie do prowadzenia.
 
 Aplikacja nie zgaduje ograniczenia prędkości, gdy danych nie ma.
 

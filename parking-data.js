@@ -7,8 +7,14 @@ export function normalizeCoordinate(value){
     :'';
 }
 
-export function getParkingOptions(data,routeName){
+export function getParkingRecords(data){
   if(!data||Array.isArray(data))return[];
+  const direct=Array.isArray(data.parkings)?data.parkings:Array.isArray(data.data?.parkings)?data.data.parkings:null;
+  if(direct)return direct.map((parking,index)=>{
+    const coordinates=normalizeCoordinate(parking?.coordinates);
+    if(!coordinates)return null;
+    return{name:String(parking?.name||'').trim()||`Parking ${index+1}`,coordinates,route:String(parking?.routeName||parking?.route||'*').trim()||'*'};
+  }).filter(Boolean);
   const key=Object.keys(data).find(name=>String(name).trim().toUpperCase()==='PARKINGI');
   const table=key?data[key]:null;
   if(!Array.isArray(table)||!Array.isArray(table[0]))return[];
@@ -19,15 +25,23 @@ export function getParkingOptions(data,routeName){
   const routeIndex=headers.findIndex(value=>value.includes('TRASA'));
   if(coordinateIndex<0)return[];
 
-  const normalizedRoute=String(routeName||'').trim().toLowerCase();
   const found=table.slice(1).map((row,index)=>{
     const assigned=routeIndex>=0?String(row?.[routeIndex]??'').trim():'';
-    if(assigned&&assigned!=='*'&&assigned.toLowerCase()!==normalizedRoute)return null;
     const coordinates=normalizeCoordinate(row?.[coordinateIndex]);
     if(!coordinates)return null;
     const name=String(nameIndex>=0?row?.[nameIndex]??'':'').trim()||`Parking ${index+1}`;
-    return{name,coordinates};
+    return{name,coordinates,route:assigned||'*'};
   }).filter(Boolean);
 
-  return found.filter((parking,index)=>found.findIndex(other=>other.coordinates===parking.coordinates)===index);
+  return found.filter((parking,index)=>found.findIndex(other=>
+    other.coordinates===parking.coordinates&&other.route.toLowerCase()===parking.route.toLowerCase()
+  )===index);
+}
+
+export function getParkingOptions(data,routeName){
+  const normalizedRoute=String(routeName||'').trim().toLowerCase();
+  return getParkingRecords(data)
+    .filter(parking=>parking.route==='*'||parking.route.toLowerCase()===normalizedRoute)
+    .filter((parking,index,found)=>found.findIndex(other=>other.coordinates===parking.coordinates)===index)
+    .map(({name,coordinates})=>({name,coordinates}));
 }

@@ -186,12 +186,22 @@ import{stopGuardState}from'./stop-alert-core.js';
       emptyRun:body.dataset.emptyRun==='1'
     });
     currentIndex=result.index;
+    let arrivalDetail=null;
 
     if(result.justArrived){
       const routeRows=rows();
       const row=routeRows[currentIndex];
       const plan=alarmEligible(routeRows,currentIndex,row)?rowPlanDate(row):null;
       reachedBeforeTime=Boolean(plan&&Date.now()<plan.getTime());
+      arrivalDetail={
+        index:currentIndex,
+        key:row?.dataset.stopId||`${currentIndex}:${row?.dataset.coordinate||''}`,
+        name:row?.children[0]?.innerText.trim()||'',
+        coordinate:row?.dataset.coordinate||'',
+        final:currentIndex===routeRows.length-1,
+        direction:body.dataset.direction||'forward',
+        emptyRun:body.dataset.emptyRun==='1'
+      };
     }
     if(result.changed&&result.reason==='confirmed-departure'){
       const routeRows=rows();
@@ -203,6 +213,7 @@ import{stopGuardState}from'./stop-alert-core.js';
     }
 
     applyIndex(currentIndex,result.reason,result);
+    if(arrivalDetail)body.dispatchEvent(new CustomEvent('gps-stop-arrival',{bubbles:true,detail:arrivalDetail}));
     updateStopGuard();
   }
 

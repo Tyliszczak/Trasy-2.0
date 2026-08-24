@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 import { ROUTES } from '../routes.js';
-import { getParkingOptions,normalizeCoordinate } from '../parking-data.js';
+import { getParkingOptions,getParkingRecords,normalizeCoordinate } from '../parking-data.js';
 import { getRoute,getSchedule,mapUrl } from '../schedule.js';
 
 const readSource=name=>readFile(new URL(`../${name}`,import.meta.url),'utf8');
@@ -63,15 +63,25 @@ test('blokadą wygaszania zarządza tylko wake-style',async()=>{
   assert.match(wake,/wakeLock\.request\('screen'\)/);
 });
 
-test('dane tras są pobierane przez wspólny route-data-service',async()=>{
+test('dane tras są pobierane przez wspólny bezpieczny kontrakt kierowcy',async()=>{
   const [service,app,returnRoute]=await Promise.all([
     readSource('route-data-service.js'),readSource('app.js'),readSource('return-route.js')
   ]);
-  assert.match(service,/script\.google\.com/);
+  assert.match(service,/KURSY_DRIVER_API/);
+  assert.match(service,/api\.driverRoutes\(\{signal:controller\.signal\}\)/);
+  assert.doesNotMatch(service,/script\.google\.com|jsonp/i);
   assert.doesNotMatch(app,/script\.google\.com/);
   assert.doesNotMatch(returnRoute,/script\.google\.com/);
   assert.match(app,/__trasyRouteDataService/);
   assert.match(returnRoute,/__trasyRouteDataService/);
+});
+
+test('wersja internetowa od razu pokazuje dane testowe bez oczekiwania na stary endpoint 403',async()=>{
+  const [app,vehicles,provider]=await Promise.all([readSource('app.js'),readSource('vehicles.js'),readSource('google-routes-provider.js')]);
+  assert.match(app,/routes=FALLBACK_ROUTES\.filter\(valid\);renderRoutes\(\)/);
+  assert.match(app,/Tryb testowy/);
+  assert.match(vehicles,/standaloneTestVehicle/);
+  for(const source of [app,vehicles,provider])assert.doesNotMatch(source,/AKfycbzdG_ARbbPgMdlPteqFLakZHR5EEkT4Lb3YFDbXW_I_OyrDKo8l0_KrQLjnncxj_M9q/);
 });
 
 test('wybór najbliższego przyszłego kursu ma jedno źródło w time-core',async()=>{
@@ -107,10 +117,23 @@ test('kamera ma jeden jawny kontroler i wraca do prowadzenia po 15 sekundach',as
   assert.match(controls,/if\(this\.state===['"]manual['"]\)return/);
 });
 
-test('przycisk 2D/3D jest kontrolką MapLibre i nie ma starego kompasu',async()=>{
+test('przycisk 2D/3D pozostaje kontrolką MapLibre, a północ pokazuje się tylko po ręcznym obrocie',async()=>{
   const controls=await readSource('navigation-ui-controls.js');
   assert.match(controls,/this\.map\.addControl\(control,['"]bottom-right['"]\)/);
   assert.doesNotMatch(controls,/compassIcon|Kompas \/ widok prowadzenia|routePitchFallback/);
+  assert.match(controls,/routeNorthIndicator/);
+  assert.match(controls,/this\.state!==['"]manual['"]\|\|difference<8/);
+  assert.match(controls,/rotate\(\$\{-mapBearing\}deg\)/);
+});
+
+test('kamera ustawia pierwszy kierunek od razu i szybciej reaguje na jazdę',async()=>{
+  const [map,controls]=await Promise.all([readSource('nav-map.js'),readSource('navigation-ui-controls.js')]);
+  assert.match(map,/headingFromRoute\(origin\)/);
+  assert.match(map,/currentHeading\+d\*\.68/);
+  assert.match(map,/const h=\s*headingFromPosition\(p,ll\)/);
+  assert.doesNotMatch(map,/lastGpsPoint=ll;\s*\n\s*if\(positionMarker\)/);
+  assert.match(controls,/CAMERA_DURATION_MS=360/);
+  assert.match(controls,/delta\*\.78/);
 });
 
 test('informacje o prędkości używają jednego zdarzenia limitu drogi',async()=>{
@@ -153,7 +176,43 @@ test('parkingi wspólne i przypisane do trasy są poprawnie wybierane',()=>{
     {name:'Baza',coordinates:'51.1, 15.2'},
     {name:'Sulechów',coordinates:'51.2, 15.3'}
   ]);
+  assert.deepEqual(getParkingRecords(data).map(record=>record.route),['*','SAS Sulechów','TopPoint']);
+  assert.deepEqual(getParkingOptions({parkings:[
+    {name:'Baza API',coordinates:'51.4,15.5',routeName:'SAS Sulechów'},
+    {name:'Wspólny API',coordinates:'51.5,15.6',routeName:'*'}
+  ]},'SAS Sulechów'),[
+    {name:'Baza API',coordinates:'51.4, 15.5'},
+    {name:'Wspólny API',coordinates:'51.5, 15.6'}
+  ]);
   assert.equal(normalizeCoordinate('91, 15'),'');
+});
+
+test('lokalizacja POWRÓT przechodzi z kontraktu API do wiersza harmonogramu',async()=>{
+  const [app,returnRoute]=await Promise.all([readSource('app.js'),readSource('return-route.js')]);
+  assert.match(app,/returnCoordinates/);
+  assert.match(app,/dataset\.returnCoordinate=s\.returnCoordinates\|\|s\.coordinates/);
+  assert.match(returnRoute,/row\.dataset\.returnCoordinate\|\|row\.dataset\.forwardCoordinate/);
+});
+
+test('koniec trasy powrotnej uruchamia osobny odcinek do Bazy lub Parkingu',async()=>{
+  const [tracker,returnRoute]=await Promise.all([readSource('gps-stop-tracker.js'),readSource('return-route.js')]);
+  assert.match(tracker,/gps-stop-arrival/);
+  assert.match(tracker,/final:currentIndex===routeRows\.length-1/);
+  assert.match(returnRoute,/startParkingLegAfterReturn/);
+  assert.match(returnRoute,/reason:'return-completed'/);
+  assert.match(returnRoute,/options\.length===1\?options\[0\]:await parkingDialog/);
+});
+
+test('administrator ma edytor Bazy i Parkingu oraz autoryzowany zapis backendu',async()=>{
+  const [html,editor,mapEditor,backendPatch]=await Promise.all([
+    readSource('parking-admin.html'),readSource('parking-admin.js'),readSource('map-editor.html'),readSource('PARKING_BACKEND_PATCH.gs.txt')
+  ]);
+  assert.match(html,/Bazy i parkingi/);
+  assert.match(editor,/action:'upsertParking'/);
+  assert.match(editor,/getParkingRecords/);
+  assert.match(mapEditor,/href="\.\/parking-admin\.html"/);
+  assert.match(backendPatch,/wyłącznie PO istniejącej, poprawnej autoryzacji/);
+  assert.match(backendPatch,/getSheetByName\('PARKINGI'\)/);
 });
 
 test('link mapy zachowuje współrzędne',()=>{

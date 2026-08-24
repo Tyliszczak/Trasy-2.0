@@ -1,5 +1,4 @@
 (()=>{
-  const API_URL='https://script.google.com/macros/s/AKfycbzdG_ARbbPgMdlPteqFLakZHR5EEkT4Lb3YFDbXW_I_OyrDKo8l0_KrQLjnncxj_M9q/exec';
   const nativeFetch=window.fetch.bind(window);
   const GOOGLE_ROUTE_TIMEOUT_MS=6500;
 
@@ -28,9 +27,13 @@
   }
 
   function staticGoogleDuration(route){
+    const routeStatic=numberDuration(route?.staticDuration);
+    if(routeStatic>0)return routeStatic;
     return (route?.legs||[]).reduce((total,leg)=>{
+      const legStatic=numberDuration(leg?.staticDuration);
+      if(legStatic>0)return total+legStatic;
       return total+(leg.steps||[]).reduce(
-        (sum,step)=>sum+numberDuration(step.duration),
+        (sum,step)=>sum+numberDuration(step.staticDuration),
         0
       );
     },0);
@@ -44,29 +47,12 @@
     const timeout=setTimeout(()=>controller.abort(),GOOGLE_ROUTE_TIMEOUT_MS);
 
     try{
-      const res=await nativeFetch(API_URL,{
-        method:'POST',
-        headers:{'Content-Type':'text/plain;charset=utf-8'},
-        body:JSON.stringify({
-          action:'computeGoogleRoute',
-          coordinates:coords,
-          trafficAware:true
-        }),
-        cache:'no-store',
-        redirect:'follow',
-        signal:controller.signal
-      });
-
-      if(!res.ok)throw Error(`Google proxy HTTP ${res.status}`);
-
-      const data=await res.json();
-      const route=data?.osrmLike?.routes?.[0];
-
-      if(data?.status!=='success'||!route){
-        throw Error(data?.message||'Brak danych Google Traffic');
-      }
-
-      return data.osrmLike;
+      const api=window.KURSY_DRIVER_API;
+      if(!api||typeof api.driverComputeRoute!=='function')throw Error('Bezpieczne Google Traffic nie jest jeszcze podłączone.');
+      const data=await api.driverComputeRoute(coords,{signal:controller.signal});
+      const google=data?.google??data?.osrmLike??data;
+      if(!Array.isArray(google?.routes)||!google.routes.length)throw Error(data?.message||'Brak danych Google Traffic');
+      return google;
     }catch(err){
       if(err?.name==='AbortError'){
         if(externalSignal?.aborted)throw err;

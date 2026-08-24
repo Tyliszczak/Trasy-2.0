@@ -19,6 +19,7 @@
   let currentStops=[];
   let lastGpsPoint=null;
   let currentHeading=0;
+  let headingReady=false;
 
   let stopMarkers=[];
   let progressIndex=0;
@@ -253,11 +254,17 @@
       return currentHeading;
     }
 
+    if(!headingReady){
+      currentHeading=(next+360)%360;
+      headingReady=true;
+      return currentHeading;
+    }
+
     const d=
       ((next-currentHeading+540)%360)-180;
 
     currentHeading=
-      (currentHeading+d*.28+360)%360;
+      (currentHeading+d*.68+360)%360;
 
     return currentHeading;
   }
@@ -284,6 +291,11 @@
     }
 
     return smoothHeading(h);
+  }
+
+  function headingFromRoute(origin){
+    const point=routeCoords.find(candidate=>hav(origin,candidate)>=8);
+    return point?bearing(origin,point):currentHeading;
   }
 
   function posOnce(){
@@ -1340,6 +1352,7 @@
     lastSpoken='';
     lastGpsPoint=null;
     currentHeading=0;
+    headingReady=false;
     progressIndex=0;
     offRouteFixes=0;
     lastRerouteAt=0;
@@ -1452,9 +1465,15 @@
 
       updateGuidance(origin);
 
+      const sensorHeading=Number(pos.coords.heading);
+      currentHeading=Number.isFinite(sensorHeading)&&sensorHeading>=0
+        ?sensorHeading
+        :headingFromRoute(origin);
+      headingReady=true;
+
       followCamera(
         origin,
-        0,
+        currentHeading,
         true
       );
 
@@ -1474,8 +1493,6 @@
 
             window.__navAcc=
               p.coords.accuracy||0;
-
-            lastGpsPoint=ll;
 
             if(positionMarker){
               positionMarker.setLngLat([
@@ -1531,6 +1548,7 @@
 
     lastGpsPoint=null;
     currentHeading=0;
+    headingReady=false;
     progressIndex=0;
     offRouteFixes=0;
     routeBuildInFlight=false;
