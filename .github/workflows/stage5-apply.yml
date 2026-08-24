@@ -1,17 +1,16 @@
-# follow-up trigger
 name: Apply stage 5 patch
 
 on:
-  push:
+  pull_request:
     branches:
-      - audit-stage5-globals-routing
+      - main
 
 permissions:
   contents: write
 
 jobs:
   apply:
-    if: github.actor != 'github-actions[bot]'
+    if: github.head_ref == 'audit-stage5-globals-routing' && github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -33,6 +32,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add google-routes-provider.js navigation-guidance-fix.js navigation-live-engine.js navigation-ui-controls.js nav-map.js test/audit-regressions.test.js index.html sw.js
-          git commit -m "Implement stage 5 routing isolation"
+          git add google-routes-provider.js nav-map.js test/audit-regressions.test.js
+          git commit -m "Harden stage 5 request cancellation"
           git push origin HEAD:audit-stage5-globals-routing
