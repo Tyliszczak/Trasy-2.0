@@ -20,11 +20,16 @@ test('żaden moduł nie nadpisuje globalnego speechSynthesis.speak',async()=>{
 });
 
 test('stare wyznaczanie trasy jest anulowane po zmianie celu',async()=>{
-  const source=await readSource('nav-map.js');
+  const [source,provider]=await Promise.all([
+    readSource('nav-map.js'),
+    readSource('google-routes-provider.js')
+  ]);
   assert.match(source,/AbortController/);
   assert.match(source,/requestId|generation|routeRequest/i);
-  assert.match(source,/.abort()/);
-  assert.match(source,/signal:controller.signal/);
+  assert.match(source,/routeAbortController\?\.abort\(\)/);
+  assert.match(source,/signal:controller\.signal/);
+  assert.match(provider,/externalSignal/);
+  assert.match(provider,/googleTrafficData\(coords,init\?\.signal\)/);
 });
 
 test('TODO etap 6: e-TOLL instaluje się na zdarzenie gotowości mapy bez 30-sekundowego pollingu',{todo:true},async()=>{
