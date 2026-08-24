@@ -4,10 +4,10 @@ import { nearestRoadLimit } from './road-speed-limit-core.js';
   const gps=window.__trasyGps;
   if(!gps?.subscribe)return;
 
-  const ENDPOINT='https://overpass-api.de/api/interpreter';
-  const QUERY_RADIUS_M=55;
-  const MIN_QUERY_MS=12000;
-  const MIN_MOVE_M=35;
+  const ENDPOINTS=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'];
+  const QUERY_RADIUS_M=90;
+  const MIN_QUERY_MS=15000;
+  const MIN_MOVE_M=65;
   const MAX_GPS_ACCURACY_M=55;
   const REQUEST_TIMEOUT_MS=6500;
   const LIMIT_TTL_MS=45000;
@@ -19,6 +19,10 @@ import { nearestRoadLimit } from './road-speed-limit-core.js';
   let lastHeading=null;
   let staleTimer=0;
   let validUntil=0;
+  let cachedElements=[];
+  let cachedAt=0;
+  let previousWayId=null;
+  let endpointIndex=0;
 
   function haversine(a,b){
     const R=6371000,p=Math.PI/180;
@@ -69,12 +73,16 @@ import { nearestRoadLimit } from './road-speed-limit-core.js';
     return `[out:json][timeout:5];way(around:${QUERY_RADIUS_M},${lat.toFixed(6)},${lon.toFixed(6)})[highway~"^(${DRIVABLE})$"];out tags geom;`;
   }
 
-  async function lookup(point,heading){
+  function match(point,heading){
+    return nearestRoadLimit(cachedElements,point,{maxDistance:MAX_GPS_ACCURACY_M,heading,previousWayId});
+  }
+
+  async function requestElements(point){
     const controller=new AbortController();
     const timeout=setTimeout(()=>controller.abort(),REQUEST_TIMEOUT_MS);
     try{
       const body=new URLSearchParams({data:queryText(point.lat,point.lon)});
-      const response=await fetch(ENDPOINT,{
+      const response=await fetch(ENDPOINTS[endpointIndex],{
         method:'POST',
         headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},
         body,
@@ -83,14 +91,18 @@ import { nearestRoadLimit } from './road-speed-limit-core.js';
       });
       if(!response.ok)throw Error(`Overpass HTTP ${response.status}`);
       const data=await response.json();
-      return nearestRoadLimit(data?.elements||[],point,{maxDistance:MAX_GPS_ACCURACY_M,heading});
+      endpointIndex=0;
+      return Array.isArray(data?.elements)?data.elements:[];
+    }catch(error){
+      endpointIndex=(endpointIndex+1)%ENDPOINTS.length;
+      throw error;
     }finally{
       clearTimeout(timeout);
     }
   }
 
   async function onPosition(position){
-    if(!active()||inFlight)return;
+    if(!active())return;
     const coords=position?.coords;
     const lat=Number(coords?.latitude),lon=Number(coords?.longitude),accuracy=Number(coords?.accuracy);
     if(!Number.isFinite(lat)||!Number.isFinite(lon)||!Number.isFinite(accuracy)||accuracy>MAX_GPS_ACCURACY_M)return;
@@ -101,6 +113,9 @@ import { nearestRoadLimit } from './road-speed-limit-core.js';
     const point={lat,lon};
     const moved=lastQueryPoint?haversine(lastQueryPoint,point):Infinity;
     const elapsed=Date.now()-lastQueryAt;
+    const local=cachedElements.length&&Date.now()-cachedAt<LIMIT_TTL_MS?match(point,lastHeading):null;
+    if(local){previousWayId=local.osmWayId;publish(local)}
+    if(inFlight)return;
     if(lastQueryPoint&&elapsed<MIN_QUERY_MS)return;
     if(lastQueryPoint&&moved<MIN_MOVE_M&&elapsed<30000)return;
 
@@ -108,10 +123,13 @@ import { nearestRoadLimit } from './road-speed-limit-core.js';
     lastQueryAt=Date.now();
     lastQueryPoint=point;
     try{
-      const result=await lookup(point,lastHeading);
+      cachedElements=await requestElements(point);
+      cachedAt=Date.now();
+      const result=match(point,lastHeading);
+      previousWayId=result?.osmWayId??previousWayId;
       publish(result||{});
     }catch(error){
-      publish({},{staleReason:'error'});
+      if(!local&&Date.now()>=validUntil)publish({},{staleReason:'error'});
       console.warn('Limit prędkości OSM:',error);
     }finally{
       inFlight=false;
@@ -122,6 +140,9 @@ import { nearestRoadLimit } from './road-speed-limit-core.js';
   document.addEventListener('route-direction-change',()=>{
     lastQueryAt=0;
     lastQueryPoint=null;
+    cachedElements=[];
+    cachedAt=0;
+    previousWayId=null;
     publish({},{staleReason:'route-change'});
   });
 })();

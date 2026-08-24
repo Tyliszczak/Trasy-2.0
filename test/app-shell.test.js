@@ -137,11 +137,13 @@ test('kamera ustawia pierwszy kierunek od razu i szybciej reaguje na jazdę',asy
 });
 
 test('informacje o prędkości używają jednego zdarzenia limitu drogi',async()=>{
-  const [speed,limit]=await Promise.all([readSource('speed-display.js'),readSource('road-speed-limit.js')]);
+  const [speed,limit,profile]=await Promise.all([readSource('speed-display.js'),readSource('road-speed-limit.js'),readSource('vehicle-speed-profile-core.js')]);
   assert.match(speed,/trasy:road-speed-limit/);
   assert.match(speed,/Brak danych o ograniczeniu prędkości/);
   assert.match(limit,/trasy:road-speed-limit/);
   assert.match(limit,/source:'openstreetmap'/);
+  assert.match(profile,/BRAK DANYCH POJAZDU/);
+  assert.match(profile,/BRAK DANYCH DROGI/);
 });
 
 test('uwagi nawigacyjne nie zapisują nagrań głosowych',async()=>{
