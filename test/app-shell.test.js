@@ -167,6 +167,7 @@ test('zgłoszenia kierowcy trafiają przez bezpieczny kontrakt do panelu i zacho
   assert.match(feedback,/window\.addEventListener\('online',flushPending\)/);
   assert.match(feedback,/panelu administratora i na ustawiony przez niego adres e-mail/);
   assert.doesNotMatch(feedback,/feedbackEmail|adminEmail/);
+  assert.doesNotMatch(feedback,/WhatsApp|WHATSAPP|sms:|navigator\.share|navigator\.clipboard|INNA APLIKACJA/);
 });
 
 test('dane zapasowe tworzą kompletny harmonogram każdej zmiany',()=>{
