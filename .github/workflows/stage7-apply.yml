@@ -24,7 +24,9 @@ jobs:
         with:
           node-version: 22
       - name: Apply exact cleanup
-        run: node scripts/apply-stage7.mjs
+        run: |
+          sed -i "/^[[:space:]]*offscreenPanel\.hidden=true;$/d" nav-map.js
+          node scripts/apply-stage7.mjs
       - name: Validate diff
         run: git diff --check
       - name: Run tests before commit
