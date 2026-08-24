@@ -1,21 +1,46 @@
 # Trasy 2.0
 
-Statyczna aplikacja PWA do prezentowania rozkładów tras pracowniczych. Dane w `routes.js` pochodzą z `BAZA_TRAS.xlsx`.
+Trasy 2.0 to statyczna aplikacja PWA dla kierowcy: pokazuje harmonogram kursu, prowadzi po trasie i pilnuje następnego przystanku oraz punktualności.
 
-## Parkingi dla trybu POWRÓT + NA PUSTO
+## Dane i synchronizacja
 
-Źródło danych Google może zawierać zakładkę `PARKINGI` z kolumnami:
+Dane tras są pobierane przez `route-data-service.js` z backendu Google Apps Script. `routes.js` pozostaje źródłem zapasowym, dzięki czemu podstawowy harmonogram może działać również wtedy, gdy bieżąca synchronizacja nie jest dostępna.
+
+Źródło danych może zawierać zakładkę `PARKINGI` z kolumnami:
 
 - `NAZWA` — nazwa widoczna dla kierowcy,
 - `LOKALIZACJA` — współrzędne `szerokość, długość`,
 - `TRASA` — opcjonalna nazwa trasy; puste pole lub `*` udostępnia parking wszystkim trasom.
 
-Jeden dostępny parking jest wybierany automatycznie. Przy kilku parkingach kierowca wybiera cel przed uruchomieniem powrotu na pusto.
+Jeden dostępny parking jest wybierany automatycznie. Przy kilku parkingach kierowca wybiera cel przed uruchomieniem trybu POWRÓT + NA PUSTO.
 
-## Uruchomienie lokalne
+## Nawigacja
 
-Otwórz katalog przez dowolny serwer HTTP, a następnie wejdź na `index.html`. Test danych uruchomisz poleceniem `npm test` (nie wymaga dodatkowych pakietów).
+- mapa: MapLibre + kafle OpenStreetMap,
+- geometria i manewry: OSRM,
+- czasy z ruchem: Google Routes przez backend,
+- odświeżenie danych o ruchu podczas nawigacji: standardowo co 3 minuty,
+- pomiędzy odświeżeniami ETA jest lokalnie korygowane na podstawie postępu GPS po aktualnej trasie,
+- limit prędkości jest odczytywany z danych OpenStreetMap, jeśli dla bieżącej drogi istnieje wiarygodne `maxspeed`.
 
-## Aktualizacja tras
+Aplikacja nie zgaduje ograniczenia prędkości, gdy danych nie ma.
 
-Na ten moment dane są zapisane lokalnie, aby aplikacja działała również offline. Kolejny etap to podłączenie importu z arkusza lub Google Apps Script po uzyskaniu dostępu do skryptu.
+## PWA i cache
+
+`sw.js` utrzymuje APP_SHELL potrzebny do uruchomienia aplikacji. Nowa wersja service workera nie przełącza się samoczynnie w czasie jazdy — użytkownik dostaje informację o dostępnej aktualizacji i może ją zastosować świadomie.
+
+## Testy
+
+Uruchomienie lokalne:
+
+```bash
+npm test
+```
+
+Testy obejmują m.in. GPS i potwierdzanie postoju, przejście przez północ, ETA i punktualność, anulowanie starych żądań trasy, e-TOLL, limit prędkości oraz spójność APP_SHELL.
+
+Repozytorium ma również workflow GitHub Actions uruchamiający `npm test` dla zmian i `main`.
+
+## Edytor lokalizacji
+
+`map-editor.html` jest osobnym narzędziem do ustawiania współrzędnych przystanków i zapisu ich do backendu. Nie jest częścią głównego ekranu kierowcy.
