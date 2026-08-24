@@ -1,1 +1,1 @@
-trigger trusted final stage 7 cleanup
+trigger synchronized stage 7 cleanup now
