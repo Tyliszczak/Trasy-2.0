@@ -63,6 +63,18 @@ test('nawigacja odzyskuje świeżą pozycję po wybudzeniu bez ponownego wybiera
   assert.match(map,/__trasyWakeLock\?\.setNavigation\(false\)/);
 });
 
+test('po wznowieniu nawigacja pyta przed pominięciem jednego lub wielu przystanków',async()=>{
+  const [map,skip]=await Promise.all([readSource('nav-map.js'),readSource('skip-detection.js')]);
+  assert.match(map,/resumeSkipSuggestion/);
+  assert.match(map,/skipFromIndex/);
+  assert.match(map,/skipToIndex/);
+  assert.match(skip,/trasy:navigation-resumed/);
+  assert.match(skip,/promptSkip\(fromIndex,toIndex,'resume'\)/);
+  assert.match(skip,/POMIŃ NASTĘPNY/);
+  assert.match(skip,/POMIŃ WSZYSTKIE/);
+  assert.doesNotMatch(map,/dispatchEvent\(new CustomEvent\('gps-skip-stop'/);
+});
+
 test('logika startu POWROTU ma jednego właściciela',async()=>{
   const [route,gps,startNav,eta]=await Promise.all([
     readSource('return-route.js'),

@@ -43,6 +43,7 @@
   const TOLERANCE_SECONDS=30;
   const TRAFFIC_REFRESH_MS=180000;
   const MIN_REROUTE_DISTANCE=85;
+  const RESUME_PASSED_DISTANCE=160;
   const REROUTE_CONFIRM_FIXES=3;
   const REROUTE_COOLDOWN_MS=30000;
 
@@ -860,6 +861,53 @@
     };
   }
 
+  function routeDistanceBetween(fromIndex,toIndex){
+    let distance=0;
+    for(let i=Math.max(1,fromIndex+1);i<=toIndex&&i<routeCoords.length;i+=1){
+      distance+=hav(routeCoords[i-1],routeCoords[i]);
+    }
+    return distance;
+  }
+
+  function routeIndexForStop(stop,startIndex){
+    let best=-1;
+    let bestDistance=Infinity;
+    for(let i=Math.max(0,startIndex);i<routeCoords.length;i+=1){
+      const distance=hav(stop.coord,routeCoords[i]);
+      if(distance<bestDistance){
+        bestDistance=distance;
+        best=i;
+      }
+    }
+    return best;
+  }
+
+  function resumeSkipSuggestion(origin){
+    if(body.dataset.emptyRun==='1'||currentStops.length<2||!routeCoords.length)return null;
+
+    const rows=routeRows();
+    const fromIndex=rows.findIndex((row,index)=>stopKey(row,index)===currentStops[0].key);
+    if(fromIndex<0)return null;
+
+    let searchFrom=0;
+    let passed=0;
+    for(let i=0;i<currentStops.length-1;i+=1){
+      const stop=currentStops[i];
+      const stopRouteIndex=routeIndexForStop(stop,searchFrom);
+      if(stopRouteIndex<0)break;
+      searchFrom=stopRouteIndex;
+
+      if(stopRouteIndex>=progressIndex)break;
+      const distanceAfterStop=routeDistanceBetween(stopRouteIndex,progressIndex);
+      if(distanceAfterStop<RESUME_PASSED_DISTANCE||hav(origin,stop.coord)<RESUME_PASSED_DISTANCE)break;
+      passed+=1;
+    }
+
+    return passed>0
+      ?{skipFromIndex:fromIndex,skipToIndex:fromIndex+passed}
+      :null;
+  }
+
   function mapStepsToProgress(){
     stepProgress=steps.map(s=>{
       const loc=s.maneuver?.location;
@@ -1365,6 +1413,8 @@
           const accuracy=Math.max(0,Number(position.coords.accuracy)||0);
           const snap=nearestRoutePoint(origin,progressIndex);
           const stillOnRoute=routeCoords.length&&snap.distance<=Math.max(MIN_REROUTE_DISTANCE,accuracy*2);
+          if(stillOnRoute)progressIndex=Math.max(progressIndex,snap.index);
+          const skipSuggestion=stillOnRoute?resumeSkipSuggestion(origin):null;
           if(stillOnRoute){
             status.textContent=previousStatus;
             updateGuidance(origin);
@@ -1379,8 +1429,10 @@
               console.warn('Wznowienie przebiegu trasy:',error);
             }
           }
+          document.dispatchEvent(new CustomEvent('trasy:navigation-resumed',{detail:{position,hiddenAt,...skipSuggestion}}));
+        }else{
+          document.dispatchEvent(new CustomEvent('trasy:navigation-resumed',{detail:{position,hiddenAt}}));
         }
-        document.dispatchEvent(new CustomEvent('trasy:navigation-resumed',{detail:{position,hiddenAt}}));
         return position;
       })
       .catch(error=>{
