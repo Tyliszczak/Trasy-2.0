@@ -67,15 +67,7 @@ function captureRoute(url,data){
   liveEtaLeg=-1;
 }
 
-const previousFetch=window.fetch.bind(window);
-window.fetch=async function(input,init){
-  const response=await previousFetch(input,init);
-  const url=typeof input==='string'?input:input?.url||'';
-  if(response?.ok&&url.includes('/route/v1/driving/')&&url.includes('overview=full')){
-    response.clone().json().then(data=>captureRoute(url,data)).catch(()=>{});
-  }
-  return response;
-};
+window.__trasyCaptureRoute=captureRoute;
 
 function activeRow(){
   if(!body)return null;

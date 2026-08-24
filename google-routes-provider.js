@@ -122,7 +122,7 @@
     });
   }
 
-  window.fetch=async function(input,init){
+  window.__trasyRouteFetch=async function(input,init){
     const url=typeof input==='string'?input:input?.url||'';
 
     if(!url.includes('router.project-osrm.org/route/v1/driving/')){
