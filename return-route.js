@@ -150,6 +150,7 @@
     body.dispatchEvent(new CustomEvent('route-mode-change',{bubbles:true,detail:{direction,emptyRun,parking:selectedParking}}));
   });
   forwardTimeSelect.addEventListener('change',()=>{if(direction==='forward')forwardCourseTime=forwardTimeSelect.value});
+  body.addEventListener('gps-next-stop-change',event=>{if(Number(event.detail?.index)>0)body.dataset.returnOriginActive=''});
   new MutationObserver(mutations=>{if(applying||Date.now()<suppressObserverUntil)return;if(mutations.some(mutation=>mutation.type==='childList'))setTimeout(enrichRows,60)}).observe(body,{childList:true});
   setTimeout(enrichRows,200);
 })();

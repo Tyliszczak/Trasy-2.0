@@ -12,7 +12,6 @@
   header.replaceWith(ownedHeader);
   header=ownedHeader;
   header.setAttribute('aria-live','polite');
-  document.getElementById('offscreenText')?.closest('button')?.remove();
 
   const labelEl=document.createElement('span');
   labelEl.className='nextStopLabel';
@@ -34,9 +33,9 @@
     #routeNextStop .nextStopMain{display:block;color:#fff;font-size:14px;font-weight:900}
     #routeNextStop .nextStopStatus{display:block;margin-top:2px;font-size:13px;font-weight:1000}
     #routeNextStop .nextStopStatus[hidden],#routeNextStop .nextStopGuard[hidden]{display:none!important}
-    #routeNextStop .nextStopStatus.early{color:#ffd60a}
-    #routeNextStop .nextStopStatus.onTime{color:#34c759}
-    #routeNextStop .nextStopStatus.late{color:#ff3b30}
+    #routeNextStop .nextStopStatus.early,
+    #routeNextStop .nextStopStatus.onTime,
+    #routeNextStop .nextStopStatus.late{color:#39ff69}
     #routeNextStop .nextStopGuard{display:block;margin-top:5px;padding:7px 10px;border-radius:7px;font-size:14px;line-height:1.15;font-weight:1000;text-align:center;white-space:normal}
     #routeNextStop .nextStopGuard.approach{background:#ffd60a;color:#111}
     #routeNextStop .nextStopGuard.hold{background:#ff3b30;color:#fff}

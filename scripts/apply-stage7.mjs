@@ -111,12 +111,6 @@ await edit('nav-map.js',source=>{
   return source;
 });
 
-await edit('return-route.js',source=>once(source,
-  "  body.addEventListener('route-mode-change'",
-  "  body.addEventListener('gps-next-stop-change',event=>{if(Number(event.detail?.index)>0)body.dataset.returnOriginActive=''});\n  body.addEventListener('route-mode-change'",
-  'właściciel czyszczenia startu POWROTU'
-));
-
 await edit('eta-status.js',source=>once(source,
   "  body.addEventListener('gps-next-stop-change',event=>{if(Number(event.detail?.index)>0)body.dataset.returnOriginActive='';lastTarget=null;etaSeconds=null;etaMeasuredAt=0;clearInfo();refreshEta(true).then(render)});",
   "  body.addEventListener('gps-next-stop-change',()=>{lastTarget=null;etaSeconds=null;etaMeasuredAt=0;clearInfo();refreshEta(true).then(render)});",

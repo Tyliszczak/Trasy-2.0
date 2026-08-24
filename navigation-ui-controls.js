@@ -69,6 +69,23 @@
   };
   updateVoice();
 
+  const infoPanel=maneuver.parentElement;
+  function repositionControls(){
+    if(!infoPanel)return;
+    const rect=infoPanel.getBoundingClientRect();
+    const controlTop=Math.max(10,Math.ceil(rect.bottom)+10);
+    close.style.top=`${controlTop}px`;
+    center.style.top=`${controlTop}px`;
+    voice.style.top=`${controlTop+50}px`;
+  }
+  if('ResizeObserver'in window){
+    const observer=new ResizeObserver(repositionControls);
+    observer.observe(infoPanel);
+  }
+  window.addEventListener('resize',repositionControls,{passive:true});
+  document.addEventListener('trasy:route-map-ready',repositionControls);
+  requestAnimationFrame(repositionControls);
+
   const navIcon='<svg viewBox="0 0 32 32" width="29" height="29"><path d="M27.4 4.7 17.8 27c-.7 1.7-3.1 1.5-3.5-.3l-1.9-8.8-8.8-1.9c-1.8-.4-2-2.8-.3-3.5L25.6 3c1.2-.5 2.3.6 1.8 1.7Z" fill="#fff"/><path d="m13.2 17.1 7.8-7.8" stroke="#111" stroke-width="2.4"/></svg>';
   const flatGrid='<svg viewBox="0 0 28 22" width="25" height="20"><rect x="3" y="2" width="22" height="17" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10.3 2v17M17.7 2v17M3 7.7h22M3 13.3h22" stroke="currentColor"/></svg>';
   const tiltedGrid='<svg viewBox="0 0 28 22" width="25" height="20"><path d="M7 2h14l4 17H3L7 2Z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="m11.7 2-2 17M16.3 2l2 17M5.7 7.7h16.6M4.3 13.3h19.4" stroke="currentColor"/></svg>';
