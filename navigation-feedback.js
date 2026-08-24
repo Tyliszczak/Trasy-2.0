@@ -2,6 +2,7 @@
   const STORAGE_KEY='trasy2.navigationFeedback.v1';
   const MAX_SAVED_NOTES=50;
   const MAX_NOTE_LENGTH=2000;
+  const TEMP_TEST_FEEDBACK_EMAIL='kswiderski70@gmail.com';
 
   const style=document.createElement('style');
   style.textContent=`
@@ -52,7 +53,7 @@
           <button id="routeFeedbackMic" type="button" aria-label="Dyktuj uwagę" title="Dyktuj uwagę">🎤</button>
           <span id="routeFeedbackVoiceStatus">Możesz napisać lub podyktować uwagę.</span>
         </div>
-        <p class="routeFeedbackInfo">Przycisk WYŚLIJ przekaże zgłoszenie do panelu administratora i na ustawiony przez niego adres e-mail. Dopóki panel nie jest połączony lub nie ma internetu, zgłoszenie pozostanie zapisane na tym urządzeniu i zostanie wysłane automatycznie po utworzeniu połączenia.</p>
+        <p id="routeFeedbackInfo" class="routeFeedbackInfo"></p>
         <div class="routeFeedbackActions">
           <button id="routeFeedbackSave" type="button">WYŚLIJ</button>
         </div>
@@ -72,6 +73,7 @@
   const micButton=dialog.querySelector('#routeFeedbackMic');
   const voiceStatus=dialog.querySelector('#routeFeedbackVoiceStatus');
   const saveButton=dialog.querySelector('#routeFeedbackSave');
+  const deliveryInfo=dialog.querySelector('#routeFeedbackInfo');
   const message=dialog.querySelector('#routeFeedbackMessage');
   let recognition=null;
   let listening=false;
@@ -128,6 +130,36 @@
     localStorage.setItem(STORAGE_KEY,JSON.stringify(notes.slice(-MAX_SAVED_NOTES)));
   }
 
+  function panelConnected(){
+    return typeof window.KURSY_DRIVER_API?.driverFeedback==='function';
+  }
+
+  function updateDeliveryUi(){
+    if(panelConnected()){
+      saveButton.textContent='WYŚLIJ';
+      deliveryInfo.textContent='Zgłoszenie zostanie wysłane do panelu administratora i na ustawiony przez niego adres e-mail.';
+      return;
+    }
+    saveButton.textContent='WYŚLIJ TESTOWO E-MAILEM';
+    deliveryInfo.textContent='Panel administratora nie jest jeszcze połączony. Zgłoszenie zostanie zapisane na tym urządzeniu, a następnie otworzy się gotowa wiadomość e-mail. Po nadaniu dostępu z panelu ten tymczasowy sposób zostanie automatycznie wyłączony.';
+  }
+
+  function temporaryEmailUrl(record){
+    const details=[
+      `Rodzaj: ${record.categoryLabel}`,
+      `Ekran: ${record.screen}`,
+      record.route&&`Trasa: ${record.route}`,
+      record.shift&&`Zmiana: ${record.shift}`,
+      record.vehicle&&`Pojazd: ${record.vehicle}`,
+      record.nextStop&&`Następny przystanek: ${record.nextStop}`,
+      record.version&&`Wersja: ${record.version}`,
+      `Czas: ${record.createdAt}`
+    ].filter(Boolean).join('\n');
+    const subject=`Trasy 2.0 — ${record.categoryLabel}`;
+    const body=`${record.text.slice(0,1600)}\n\n${details}\n\nId zgłoszenia: ${record.id}`;
+    return `mailto:${TEMP_TEST_FEEDBACK_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  }
+
   async function deliverRecord(record){
     const api=window.KURSY_DRIVER_API;
     if(!api||typeof api.driverFeedback!=='function')throw new Error('Panel administratora nie jest jeszcze połączony z tą wersją aplikacji. Zgłoszenie pozostaje bezpiecznie zapisane na urządzeniu.');
@@ -173,6 +205,7 @@
   function open(){
     dialog.hidden=false;
     message.textContent='';
+    updateDeliveryUi();
     showCategories();
     requestAnimationFrame(()=>dialog.querySelector('.routeFeedbackCategory')?.focus());
   }
@@ -197,6 +230,7 @@
     title.textContent=details.label;
     textarea.placeholder=details.placeholder;
     message.textContent='';
+    updateDeliveryUi();
     requestAnimationFrame(()=>textarea.focus());
   }
 
@@ -243,6 +277,13 @@
     try{
       saveButton.disabled=true;
       const record=saveNote(textarea.value);
+      if(!panelConnected()){
+        updateNote(record.id,{temporaryEmailOpenedAt:new Date().toISOString()});
+        textarea.value='';
+        message.textContent='Zgłoszenie zapisano lokalnie. Dokończ wysyłanie w otwartej aplikacji pocztowej.';
+        window.location.href=temporaryEmailUrl(record);
+        return;
+      }
       await deliverRecord(record);
       textarea.value='';
       message.textContent='Zgłoszenie wysłano do panelu administratora i przekazano do wysyłki e-mail.';
