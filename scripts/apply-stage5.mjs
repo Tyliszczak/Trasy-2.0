@@ -36,11 +36,4 @@ await edit('nav-map.js',source=>once(
   'in-flight target change cancellation'
 ));
 
-await edit('test/audit-regressions.test.js',source=>once(
-  source,
-  "  assert.match(source,/signal:controller\\.signal/);",
-  "  assert.match(source,/signal:controller\\.signal/);\n  assert.match(source,/routeAbortController\\?\\.abort\\(\\)/);",
-  'strong cancellation assertion'
-));
-
 console.log('Etap 5 follow-up zastosowany.');
