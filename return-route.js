@@ -3,7 +3,8 @@
   const controls=document.querySelector('#scheduleView .scheduleControls');
   const routeNameEl=document.getElementById('scheduleRouteName');
   const forwardTimeSelect=document.getElementById('scheduleTimeSelect');
-  if(!body||!controls||!routeNameEl||!forwardTimeSelect)return;
+  const time=globalThis.__trasyTime;
+  if(!body||!controls||!routeNameEl||!forwardTimeSelect||!time)return;
 
   let rawData=null,direction='forward',loading=null,applying=false,forwardCourseTime='',emptyRun=false;
   let forceReturnOriginOnce=false,suppressObserverUntil=0,selectedParking=null,parkingChoicePending=false;
@@ -30,15 +31,17 @@
   style.textContent='.routeModeSwitches{display:flex;flex-direction:column;align-items:flex-end;gap:10px}.returnRouteSwitchLabel,.emptyRouteSwitchLabel{display:inline-flex;align-items:center;gap:5px;font-weight:900;white-space:nowrap;font-size:.78rem;margin:0;flex:0 0 auto}.returnSwitch{position:relative;display:inline-block;width:28px;height:16px;flex:0 0 28px}.returnSwitch input{opacity:0;width:0;height:0}.returnSlider{position:absolute;inset:0;border-radius:999px;background:#555;cursor:pointer;transition:.2s}.returnSlider:before{content:"";position:absolute;width:12px;height:12px;left:2px;top:2px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 1px 3px #0008}.returnSwitch input:checked+.returnSlider{background:#22c55e}.returnSwitch input:checked+.returnSlider:before{transform:translateX(12px)}#returnStartLabel{font-weight:900;color:#ccff33;white-space:nowrap}#parkingChoiceDialog[hidden]{display:none!important}#parkingChoiceDialog{position:fixed;inset:0;z-index:71000;display:flex;align-items:center;justify-content:center;padding:16px;background:#000c}.parkingChoiceCard{width:min(100%,480px);padding:18px;border:2px solid #ccff33;border-radius:14px;background:#222;box-shadow:0 12px 40px #000}.parkingChoiceCard h2{margin:0 0 14px}.parkingChoiceList{display:grid;gap:9px}.parkingChoiceButton{margin:0;padding:12px;background:#ccff33;color:#111}.parkingChoiceCancel{margin-top:12px;background:#555;color:#fff}@media(max-width:520px){.returnRouteSwitchLabel,.emptyRouteSwitchLabel{font-size:.7rem}}';
   document.head.append(style);
 
-  function add15(t){const m=String(t||'').match(/^(\d{1,2}):(\d{2})$/);if(!m)return'';const x=(+m[1]*60 + +m[2]+15)%(24*60);return`${String(Math.floor(x/60)).padStart(2,'0')}:${String(x%60).padStart(2,'0')}`}
-  function minutesOf(t){const m=String(t||'').match(/^(\d{1,2}):(\d{2})$/);return m?+m[1]*60 + +m[2]:null}
-  function resolveOutboundCourse(){const now=new Date(),current=now.getHours()*60+now.getMinutes()+now.getSeconds()/60;const times=[...forwardTimeSelect.options].map(o=>o.value).filter(Boolean).map(t=>({t,m:minutesOf(t)})).filter(x=>x.m!==null);if(!times.length)return forwardCourseTime||forwardTimeSelect.value||'';times.sort((a,b)=>Math.abs(a.m-current)-Math.abs(b.m-current)||a.m-b.m);return times[0].t}
+  function add15(t){return time.addMinutesToTime(t,15)}
+  function resolveOutboundCourse(){
+    const values=[...forwardTimeSelect.options].map(option=>option.value).filter(Boolean);
+    return time.nearestFutureTime(values,new Date())||forwardCourseTime||forwardTimeSelect.value||'';
+  }
   async function loadRaw(){if(rawData)return rawData;if(loading)return loading;loading=window.__trasyRouteDataService.load().then(data=>(rawData=data?.data??data,rawData)).finally(()=>loading=null);return loading}
   function tableForRoute(data,name){if(!data||!name||Array.isArray(data))return null;const exact=data[name];if(Array.isArray(exact)&&Array.isArray(exact[0]))return exact;const key=Object.keys(data).find(k=>String(k).trim().toLowerCase()===String(name).trim().toLowerCase());return key&&Array.isArray(data[key])?data[key]:null}
   function returnMapFromTable(table){if(!table?.length)return new Map();const h=table[0].map(x=>String(x??'').trim().toUpperCase());let nc=h.findIndex(x=>x.includes('PRZYSTANEK')),rc=h.findIndex(x=>x.includes('LOKALIZACJA')&&x.includes('POWR'));if(nc<0)nc=0;if(rc<0)rc=3;const map=new Map();table.slice(1).forEach(row=>{const n=String(row?.[nc]??'').trim(),c=String(row?.[rc]??'').trim();if(n&&c)map.set(n.toLowerCase(),c)});return map}
   function rowName(row){return row.querySelector('td:first-child .stopMapButton span:last-child')?.textContent.trim()||row.querySelector('td:first-child')?.innerText.trim()||''}
-  function remember(row){if(row.dataset.forwardTime==null)row.dataset.forwardTime=(row.children[1]?.firstChild?.textContent||row.children[1]?.textContent||'').trim()}
-  function setTime(row,time){const cell=row.children[1];if(!cell)return;cell.querySelectorAll('.punctualityLamp,.etaPunctuality').forEach(element=>element.remove());cell.textContent=time}
+  function remember(row){if(row.dataset.forwardTime==null)row.dataset.forwardTime=time.rowPlanText(row)}
+  function setTime(row,value){const cell=row.children[1];if(!cell)return;cell.querySelectorAll('.punctualityLamp,.etaPunctuality').forEach(element=>element.remove());cell.textContent=value}
 
   function parkingDialog(options){
     return new Promise(resolve=>{

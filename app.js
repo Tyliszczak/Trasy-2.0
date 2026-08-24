@@ -1,5 +1,6 @@
 import { ROUTES as FALLBACK_ROUTES } from './routes.js';
 import { getRoute,getSchedule,mapUrl } from './schedule.js';
+import { normalizeClockTime,nearestFutureTime } from './schedule-time.js';
 
 const DATA_KEY='trasy2.routes',SYNC_KEY='trasy2.lastSuccessfulSync',FAIL_KEY='trasy2.firstFailedSync',THREE_DAYS=259200000;
 const $=s=>document.querySelector(s);
@@ -7,25 +8,8 @@ const routeSelect=$('#routeSelect'),message=$('#formMessage'),connectionStatus=$
 let routes=[],syncing=false,offline=true;
 
 function showView(id){$('#selectionView').hidden=id!=='#selectionView';$('#scheduleView').hidden=id!=='#scheduleView';scrollTo(0,0)}
-function normalizeTime(v){const s=String(v??'');const iso=s.match(/T(\d{2}):(\d{2})/);if(iso)return `${iso[1]}:${iso[2]}`;const m=s.match(/(?:^|\s)(\d{1,2}):(\d{2})(?:$|:\d{2}|\s)/);return m?`${m[1].padStart(2,'0')}:${m[2]}`:''}
-function nextCourseTime(r){
-  if(!r?.times?.length)return '';
-  const now=new Date();
-  const nowSeconds=now.getHours()*3600+now.getMinutes()*60+now.getSeconds();
-  const daySeconds=24*60*60;
-  const candidates=r.times.map(t=>{
-    const normalized=normalizeTime(t);
-    const match=normalized.match(/^(\d{2}):(\d{2})$/);
-    if(!match)return null;
-    const hours=Number(match[1]);
-    const minutes=Number(match[2]);
-    if(hours<0||hours>23||minutes<0||minutes>59)return null;
-    const courseSeconds=hours*3600+minutes*60;
-    const waitSeconds=(courseSeconds-nowSeconds+daySeconds)%daySeconds;
-    return{t,waitSeconds};
-  }).filter(Boolean).sort((a,b)=>a.waitSeconds-b.waitSeconds);
-  return candidates[0]?.t||'';
-}
+const normalizeTime=normalizeClockTime;
+function nextCourseTime(r){return nearestFutureTime(r?.times||[],new Date())}
 function renderSchedule(r,t){if(!r||!t)return;$('#scheduleRouteName').textContent=r.name;const sel=$('#scheduleTimeSelect');sel.replaceChildren(...r.times.map(x=>new Option(x,x)));sel.value=t;$('#scheduleBody').replaceChildren(...getSchedule(r,t).map(stopRow));lastActiveStop=null;setTimeout(()=>$('#scheduleBody').dispatchEvent(new CustomEvent('schedule-rendered',{bubbles:true})),0)}
 
 let lastActiveStop=null;
