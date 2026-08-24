@@ -3,6 +3,8 @@
   const MAX_SAVED_NOTES=50;
   const MAX_NOTE_LENGTH=2000;
   const TEMP_TEST_FEEDBACK_EMAIL='kswiderski70@gmail.com';
+  const ARCHIVE_FORMAT='pl.tyli.trasy2.feedback-archive';
+  const ARCHIVE_DEVICE_KEY='trasy2.feedbackArchiveDeviceCode.v1';
 
   const style=document.createElement('style');
   style.textContent=`
@@ -56,6 +58,7 @@
         <p id="routeFeedbackInfo" class="routeFeedbackInfo"></p>
         <div class="routeFeedbackActions">
           <button id="routeFeedbackSave" type="button">WYŚLIJ</button>
+          <button id="routeFeedbackArchive" type="button">ZAPISZ PLIK ARCHIWUM</button>
         </div>
         <div id="routeFeedbackMessage" class="routeFeedbackMessage" aria-live="polite"></div>
       </div>
@@ -73,6 +76,7 @@
   const micButton=dialog.querySelector('#routeFeedbackMic');
   const voiceStatus=dialog.querySelector('#routeFeedbackVoiceStatus');
   const saveButton=dialog.querySelector('#routeFeedbackSave');
+  const archiveButton=dialog.querySelector('#routeFeedbackArchive');
   const deliveryInfo=dialog.querySelector('#routeFeedbackInfo');
   const message=dialog.querySelector('#routeFeedbackMessage');
   let recognition=null;
@@ -128,6 +132,30 @@
     if(index<0)return;
     notes[index]={...notes[index],...patch};
     localStorage.setItem(STORAGE_KEY,JSON.stringify(notes.slice(-MAX_SAVED_NOTES)));
+  }
+
+  function archiveDeviceCode(){
+    let code=localStorage.getItem(ARCHIVE_DEVICE_KEY)||'';
+    if(!/^[A-Z0-9]{6}$/.test(code)){
+      const bytes=new Uint8Array(6);crypto.getRandomValues(bytes);
+      code=[...bytes].map(value=>'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[value%32]).join('');
+      localStorage.setItem(ARCHIVE_DEVICE_KEY,code);
+    }
+    return code;
+  }
+
+  function archiveId(){
+    return `archive_${crypto.randomUUID?.()||`${Date.now()}_${Math.random().toString(36).slice(2,12)}`}`;
+  }
+
+  function exportArchive(){
+    const records=readNotes().filter(note=>note.deliveryStatus!=='sent');
+    if(!records.length){message.textContent='Na tym urządzeniu nie ma oczekujących zgłoszeń do zapisania.';return}
+    const deviceCode=archiveDeviceCode(),exportedAt=new Date().toISOString();
+    const archive={format:ARCHIVE_FORMAT,schemaVersion:1,archiveId:archiveId(),deviceCode,exportedAt,sourceVersion:document.getElementById('globalTestVersion')?.textContent?.trim()||'',records:records.map(record=>({id:record.id,category:record.category,categoryLabel:record.categoryLabel,text:record.text,createdAt:record.createdAt,screen:record.screen,route:record.route,shift:record.shift,vehicle:record.vehicle,nextStop:record.nextStop,version:record.version}))};
+    const blob=new Blob([JSON.stringify(archive,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),link=document.createElement('a');
+    link.href=url;link.download=`Trasy2_archiwum_${deviceCode}_${exportedAt.slice(0,10)}.trasy2.json`;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+    message.textContent=`Zapisano archiwum ${deviceCode} zawierające ${records.length} zgłoszeń. Zachowaj plik w folderze Pobrane.`;
   }
 
   function panelConnected(){
@@ -292,6 +320,7 @@
       message.textContent=`Zgłoszenie zapisano lokalnie. Zostanie wysłane automatycznie po połączeniu z panelem administratora.${error?.message?` (${error.message})`:''}`;
     }finally{saveButton.disabled=false}
   };
+  archiveButton.onclick=exportArchive;
 
   const nav=document.getElementById('routeMapNav');
   if(nav)new MutationObserver(updatePosition).observe(nav,{attributes:true,attributeFilter:['hidden']});
