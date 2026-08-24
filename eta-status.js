@@ -38,7 +38,7 @@ import'./geo-core.js';
   function routeRows(){return [...body.querySelectorAll('tr')].filter(r=>r.dataset.coordinate)}
   function isFinalRow(row){const rows=routeRows();return !!row&&rows.length>0&&row===rows[rows.length-1]}
   function isFinalArrived(row){if(!isFinalRow(row)||!pos)return false;const c=coord(row.dataset.coordinate);if(!c)return false;return geo.distanceMeters([pos.lat,pos.lng],c)<=Math.max(FINAL_ARRIVAL_RADIUS,Math.min(90,(pos.accuracy||0)*1.2))}
-  function isReturnOrigin(row){const rows=routeRows();return body.dataset.direction==='return'&&body.dataset.returnOriginActive==='1'&&row===rows[0]&&Number(body.dataset.gpsNextStop||0)===0}
+  function isReturnOrigin(row){const rows=routeRows();return body.dataset.direction==='return'&&String(body.dataset.returnOriginActive)==='1'&&row===rows[0]&&Number(body.dataset.gpsNextStop||0)===0}
   function guardIsShowing(){return !!body.querySelector('tr.gpsNextStop .stopGuardNotice')}
   function planSeconds(row){const now=new Date(),plan=planDateForRow(routeRows(),row,now);return plan?(plan.getTime()-now.getTime())/1000:null}
   function liveEta(){if(etaSeconds===null||!etaMeasuredAt)return null;return Math.max(0,etaSeconds-(Date.now()-etaMeasuredAt)/1000)}
