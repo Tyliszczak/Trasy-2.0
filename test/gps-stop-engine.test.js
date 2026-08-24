@@ -5,13 +5,11 @@ import{
   createStopProgressEngine
 }from'../gps-stop-engine.js';
 import{planDateForRow}from'../schedule-time.js';
+import{stopGuardState}from'../stop-alert-core.js';
 
 const base=[52,15];
 const metersNorth=meters=>[base[0]+meters/111320,base[1]];
-const stops=[0,500,1000].map((meters,index)=>({
-  key:String(index),
-  coord:metersNorth(meters)
-}));
+const stops=[0,500,1000].map((meters,index)=>({key:String(index),coord:metersNorth(meters)}));
 
 function fix(engine,meters,options={}){
   const position=metersNorth(meters);
@@ -27,6 +25,13 @@ function fix(engine,meters,options={}){
   });
 }
 
+function confirmStop(engine,meters=0){
+  if(engine.snapshot().index===null)fix(engine,meters,{speedMps:0});
+  fix(engine,meters,{speedMps:0});
+  fix(engine,meters,{speedMps:0});
+  return fix(engine,meters,{speedMps:0});
+}
+
 test('czas nie uczestniczy w wyborze następnego przystanku',()=>{
   const engine=createStopProgressEngine();
   const result=fix(engine,510);
@@ -34,24 +39,30 @@ test('czas nie uczestniczy w wyborze następnego przystanku',()=>{
   assert.equal(result.reason,'initial-target');
 });
 
-test('jeden odczyt GPS nie może jednocześnie zaliczyć i opuścić przystanku',()=>{
+test('przyjazd wymaga potwierdzonego postoju w promieniu przystanku',()=>{
   const engine=createStopProgressEngine();
   fix(engine,0);
-  fix(engine,20,{speedMps:8,headingReliable:true});
-  fix(engine,20,{speedMps:8,headingReliable:true});
-  const arrived=fix(engine,20,{speedMps:8,headingReliable:true});
+  fix(engine,20,{speedMps:0.5});
+  fix(engine,20,{speedMps:0.5});
+  const arrived=fix(engine,20,{speedMps:0.5});
   assert.equal(arrived.index,0);
   assert.equal(arrived.reason,'arrival-confirmed');
   assert.equal(arrived.arrived,true);
 });
 
-test('zmiana celu wymaga potwierdzonego przyjazdu i dwóch odczytów odjazdu',()=>{
+test('przejazd przez środek przystanku bez zatrzymania nie potwierdza przyjazdu',()=>{
   const engine=createStopProgressEngine();
-  fix(engine,0);
-  fix(engine,0);
-  fix(engine,0);
-  fix(engine,0);
+  engine.setIndex(0);
+  for(const meters of[35,20,10,20,35]){
+    const result=fix(engine,meters,{speedMps:8,headingReliable:true});
+    assert.equal(result.arrived,false);
+    assert.equal(result.phase,'approaching');
+  }
+});
 
+test('zmiana celu wymaga potwierdzonego postoju i dwóch odczytów odjazdu',()=>{
+  const engine=createStopProgressEngine();
+  confirmStop(engine,0);
   const firstDeparture=fix(engine,90,{speedMps:8,headingReliable:true});
   assert.equal(firstDeparture.index,0);
   const confirmed=fix(engine,105,{speedMps:8,headingReliable:true});
@@ -61,16 +72,43 @@ test('zmiana celu wymaga potwierdzonego przyjazdu i dwóch odczytów odjazdu',()
 
 test('po potwierdzonym postoju zakręt nie blokuje przejścia do następnego celu',()=>{
   const engine=createStopProgressEngine();
-  fix(engine,0);
-  fix(engine,0);
-  fix(engine,0);
-  fix(engine,0);
-
+  confirmStop(engine,0);
   fix(engine,90,{speedMps:8,heading:180,headingReliable:true});
   fix(engine,105,{speedMps:8,heading:180,headingReliable:true});
   const confirmed=fix(engine,120,{speedMps:8,heading:180,headingReliable:true});
   assert.equal(confirmed.index,1);
   assert.equal(confirmed.reason,'confirmed-departure');
+});
+
+test('HOLD pozostaje stabilny przy jitterze 65-74-68 m po potwierdzonym postoju',()=>{
+  const engine=createStopProgressEngine();
+  confirmStop(engine,0);
+  for(const meters of[65,74,68]){
+    const result=fix(engine,meters,{speedMps:0});
+    assert.equal(result.arrived,true);
+    const guard=stopGuardState({eligible:true,arrived:result.arrived,seconds:90,planText:'10:00'});
+    assert.equal(guard.state,'hold');
+    assert.match(guard.message,/NIE ODJEDŻAJ/);
+  }
+});
+
+test('READY nie pojawia się podczas przejazdu bez wcześniejszego postoju',()=>{
+  const engine=createStopProgressEngine();
+  engine.setIndex(0);
+  for(const meters of[30,20,15,25])fix(engine,meters,{speedMps:8,headingReliable:true});
+  assert.equal(engine.snapshot().arrived,false);
+  const guard=stopGuardState({eligible:true,arrived:engine.snapshot().arrived,seconds:-30,planText:'10:00'});
+  assert.equal(guard.state,'');
+});
+
+test('po potwierdzonym postoju czas planu przełącza HOLD na READY',()=>{
+  const engine=createStopProgressEngine();
+  confirmStop(engine,0);
+  const hold=stopGuardState({eligible:true,arrived:true,seconds:1,planText:'10:00'});
+  const ready=stopGuardState({eligible:true,arrived:true,seconds:0,planText:'10:00'});
+  assert.equal(hold.state,'hold');
+  assert.equal(ready.state,'ready');
+  assert.equal(ready.message,'MOŻESZ JECHAĆ');
 });
 
 test('przejazd obok nie powoduje cichego automatycznego pominięcia',()=>{
@@ -85,9 +123,7 @@ test('przejazd obok nie powoduje cichego automatycznego pominięcia',()=>{
 test('postój i niedokładny GPS nie zmieniają celu',()=>{
   const engine=createStopProgressEngine();
   engine.setIndex(0);
-  for(const meters of[30,55,25,70,20]){
-    fix(engine,meters,{accuracy:120,speedMps:0,headingReliable:false});
-  }
+  for(const meters of[30,55,25,70,20])fix(engine,meters,{accuracy:120,speedMps:0,headingReliable:false});
   assert.deepEqual(engine.snapshot(),{index:0,phase:'approaching',arrived:false});
 });
 
@@ -108,7 +144,7 @@ test('Na pusto zawsze wybiera ostatni punkt kierunku',()=>{
 
 function row(time){
   const text={textContent:time};
-  return{children:[{}, {firstChild:text,textContent:time}]};
+  return{children:[{}, {firstChild:text,textContent:time,dataset:{},querySelector(){return null}}]};
 }
 
 test('godziny po północy należą do tego samego kursu',()=>{
