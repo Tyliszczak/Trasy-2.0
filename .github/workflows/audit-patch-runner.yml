@@ -7,6 +7,7 @@ on:
 permissions:
   contents: write
   pull-requests: read
+  issues: write
 
 jobs:
   apply:
@@ -33,15 +34,39 @@ jobs:
         with:
           node-version: 22
       - name: Apply audit patch
-        run: node scripts/apply-audit.mjs
+        id: patch
+        run: |
+          set -o pipefail
+          node scripts/apply-audit.mjs 2>&1 | tee /tmp/audit.log
       - name: Validate diff
-        run: git diff --check
+        id: diff
+        run: |
+          set -o pipefail
+          git diff --check 2>&1 | tee -a /tmp/audit.log
       - name: Run tests before commit
-        run: npm test
+        id: tests
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee -a /tmp/audit.log
       - name: Commit patch
+        id: commit
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           git commit -m "Apply guarded audit patch"
           git push origin HEAD:${{ steps.pr.outputs.head_ref }}
+      - name: Report result
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR=${{ github.event.issue.number }}
+          {
+            echo "### Audit patch runner: ${{ job.status }}"
+            echo
+            echo '```text'
+            if [ -f /tmp/audit.log ]; then tail -n 80 /tmp/audit.log; else echo "Brak logu patcha — błąd nastąpił przed jego uruchomieniem."; fi
+            echo '```'
+          } > /tmp/audit-comment.md
+          gh pr comment "$PR" --repo "${{ github.repository }}" --body-file /tmp/audit-comment.md
