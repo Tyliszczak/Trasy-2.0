@@ -7,20 +7,6 @@ const readSource=name=>readFile(new URL(`../${name}`,import.meta.url),'utf8');
 // Te testy opisują kolejne etapy audytu. TODO jest zdejmowane dopiero po
 // wdrożeniu poprawki i zastąpieniu go testem zachowania w odpowiednim etapie.
 
-test('TODO etap 4: ostrzeżenie 100 m korzysta z przewidywanego ETA, a nie tylko z zegara',{todo:true},async()=>{
-  const source=await readSource('next-stop-header.js');
-  const approach=source.match(/function updateApproach[\s\S]*?\n  }/i)?.[0]||'';
-  assert.match(approach,/eta|diffSeconds|predicted/i);
-  assert.doesNotMatch(approach,/seconds>0&&distance<=APPROACH_RADIUS_M/);
-});
-
-test('TODO etap 4: mapa i harmonogram nie liczą niezależnie statusu punktualności',{todo:true},async()=>{
-  const names=['eta-status.js','next-stop-header.js','nav-map.js'];
-  const sources=await Promise.all(names.map(readSource));
-  const calculators=sources.filter(source=>/min za wcześnie|min opóźnienia/.test(source));
-  assert.equal(calculators.length,1);
-});
-
 test('TODO etap 5: żaden moduł aplikacji nie nadpisuje globalnego window.fetch',{todo:true},async()=>{
   const names=['google-routes-provider.js','navigation-guidance-fix.js','navigation-live-engine.js'];
   const sources=await Promise.all(names.map(readSource));
@@ -70,10 +56,11 @@ test('TODO etap 7: główny index nie ładuje modułów typu fix/guard/lock będ
   ])assert.doesNotMatch(html,new RegExp(name.replaceAll('.','\\.')));
 });
 
-test('TODO etap 7: nav-map nie aktualizuje starego odłączonego nagłówka następnego przystanku',{todo:true},async()=>{
+test('TODO etap 7: nav-map nie aktualizuje starego odłączonego nagłówka następnego przystanku ani starej punktualności UI',{todo:true},async()=>{
   const source=await readSource('nav-map.js');
   assert.doesNotMatch(source,/nextStopEl\.textContent/);
   assert.doesNotMatch(source,/offscreenText/);
+  assert.doesNotMatch(source,/function deltaText|function activeEtaData/);
 });
 
 test('TODO etap 8: aktywne moduły nie używają krótkiego pollingu do odnajdywania DOM',{todo:true},async()=>{
