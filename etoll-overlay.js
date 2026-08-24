@@ -66,20 +66,23 @@
       try{
         const controller=new AbortController();
         const timer=setTimeout(()=>controller.abort(),18000);
-        const res=await fetch(endpoint,{
-          method:'POST',
-          headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},
-          body,
-          cache:'no-store',
-          signal:controller.signal
-        });
-        clearTimeout(timer);
-        if(!res.ok)throw Error(`Overpass HTTP ${res.status}`);
-        const json=await res.json();
-        const geo=toGeoJson(json);
-        if(!geo.features.length)throw Error('Brak geometrii e-TOLL');
-        try{localStorage.setItem(CACHE_KEY,JSON.stringify({at:Date.now(),geo}))}catch{}
-        return geo;
+        try{
+          const res=await fetch(endpoint,{
+            method:'POST',
+            headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},
+            body,
+            cache:'no-store',
+            signal:controller.signal
+          });
+          if(!res.ok)throw Error(`Overpass HTTP ${res.status}`);
+          const json=await res.json();
+          const geo=toGeoJson(json);
+          if(!geo.features.length)throw Error('Brak geometrii e-TOLL');
+          try{localStorage.setItem(CACHE_KEY,JSON.stringify({at:Date.now(),geo}))}catch{}
+          return geo;
+        }finally{
+          clearTimeout(timer);
+        }
       }catch(e){lastError=e}
     }
     throw lastError||Error('Overpass niedostępny');
@@ -120,8 +123,7 @@
     }catch(e){console.warn('Warstwa e-TOLL:',e)}
   }
 
-  async function install(){
-    const map=window.__routeMap;
+  async function install(map=window.__routeMap){
     if(!map||map.__etollLubuskieInstalled)return false;
     map.__etollLubuskieInstalled=true;
 
@@ -144,6 +146,10 @@
     return true;
   }
 
-  const timer=setInterval(()=>{if(install())clearInterval(timer)},250);
-  setTimeout(()=>clearInterval(timer),30000);
+  document.addEventListener('trasy:route-map-ready',event=>{
+    install(event.detail?.map||window.__routeMap).catch(error=>console.warn('Warstwa e-TOLL:',error));
+  });
+  if(window.__routeMap){
+    install(window.__routeMap).catch(error=>console.warn('Warstwa e-TOLL:',error));
+  }
 })();
