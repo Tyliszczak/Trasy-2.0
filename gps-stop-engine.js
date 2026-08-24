@@ -10,6 +10,7 @@ export const DEFAULT_STOP_ENGINE_CONFIG=Object.freeze({
   arrivalBaseMeters:35,
   arrivalMaxMeters:55,
   arrivalFixes:3,
+  maximumArrivalSpeedMps:1.4,
   departureBaseMeters:85,
   departureGrowthMeters:5,
   departureFixes:2,
@@ -81,7 +82,8 @@ export function createStopProgressEngine(overrides={}){
     const departureRadius=Math.max(config.departureBaseMeters,arrivalRadius+35);
 
     if(phase==='approaching'){
-      if(distance<=arrivalRadius)arrivalFixes+=1;
+      const stopped=Number.isFinite(speedMps)&&speedMps<=config.maximumArrivalSpeedMps;
+      if(distance<=arrivalRadius&&stopped)arrivalFixes+=1;
       else arrivalFixes=0;
       lastDistance=distance;
       if(arrivalFixes>=config.arrivalFixes){
@@ -89,7 +91,7 @@ export function createStopProgressEngine(overrides={}){
         departureFixes=0;
         return{...snapshot(),changed:false,reason:'arrival-confirmed',justArrived:true,distance,arrivalRadius,departureRadius};
       }
-      return{...snapshot(),changed:false,reason:'approaching',distance,arrivalRadius,departureRadius};
+      return{...snapshot(),changed:false,reason:'approaching',distance,arrivalRadius,departureRadius,stopped};
     }
 
     if(index>=stops.length-1){

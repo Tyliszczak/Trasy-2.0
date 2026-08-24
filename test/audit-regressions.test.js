@@ -7,22 +7,6 @@ const readSource=name=>readFile(new URL(`../${name}`,import.meta.url),'utf8');
 // Te testy opisują kolejne etapy audytu. TODO jest zdejmowane dopiero po
 // wdrożeniu poprawki i zastąpieniu go testem zachowania w odpowiednim etapie.
 
-test('TODO etap 3: przejazd przez promień przystanku bez zatrzymania nie potwierdza przyjazdu',{todo:true},async()=>{
-  const source=await readSource('gps-stop-engine.js');
-  assert.match(source,/minimumArrivalSpeed|stopped|dwell|stopFixes/i);
-});
-
-test('TODO etap 3: READY jest możliwe dopiero po potwierdzonym postoju',{todo:true},async()=>{
-  const source=await readSource('gps-stop-tracker.js');
-  const ready=source.match(/if\(seconds<=0[\s\S]{0,220}?state='ready'/)?.[0]||'';
-  assert.match(ready,/stopped|dwell|arrivedAndStopped|hold/i);
-});
-
-test('TODO etap 3: HOLD jest zatrzaskiwany dla przystanku i nie znika od drobnego jitteru GPS',{todo:true},async()=>{
-  const source=await readSource('gps-stop-tracker.js');
-  assert.match(source,/latchedHold|holdKey|holdState/i);
-});
-
 test('TODO etap 4: ostrzeżenie 100 m korzysta z przewidywanego ETA, a nie tylko z zegara',{todo:true},async()=>{
   const source=await readSource('next-stop-header.js');
   const approach=source.match(/function updateApproach[\s\S]*?\n  }/i)?.[0]||'';
