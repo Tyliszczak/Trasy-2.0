@@ -45,7 +45,7 @@ import{planDateForRow}from'./schedule-time.js';
     #scheduleBody .etaPunctuality.returnStartHold:before{background:#ffd60a}
     #scheduleBody .etaPunctuality.returnStartReady:before{background:#34c759}
     #scheduleBody .etaPunctuality.arrived:before{background:#34c759}
-    #scheduleBody .etaPunctuality.neutral{display:block;color:#aaa!important;text-shadow:none}
+    #scheduleBody .etaPunctuality.neutral{display:block;color:#39ff69!important;text-shadow:0 1px 2px #000,0 0 5px #000}
     #scheduleBody .etaPunctuality.neutral:before{display:none}
   `;
   document.head.append(style);
