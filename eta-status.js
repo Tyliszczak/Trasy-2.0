@@ -25,6 +25,9 @@ import'./geo-core.js';
     #scheduleBody .etaPunctuality.early:before{background:#ffd60a}
     #scheduleBody .etaPunctuality.onTime:before{background:#34c759}
     #scheduleBody .etaPunctuality.late:before{background:#ff3b30}
+    #scheduleBody .etaPunctuality.early,
+    #scheduleBody .etaPunctuality.onTime,
+    #scheduleBody .etaPunctuality.late{color:#39ff69!important}
     #scheduleBody .etaPunctuality.returnStartHold:before{background:#ffd60a}
     #scheduleBody .etaPunctuality.returnStartReady:before{background:#34c759}
     #scheduleBody .etaPunctuality.arrived:before{background:#34c759}
