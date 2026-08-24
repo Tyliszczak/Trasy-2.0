@@ -2,7 +2,6 @@
   const STORAGE_KEY='trasy2.navigationFeedback.v1';
   const MAX_SAVED_NOTES=50;
   const MAX_NOTE_LENGTH=2000;
-  const FEEDBACK_PHONE='+48603666921';
 
   const style=document.createElement('style');
   style.textContent=`
@@ -16,7 +15,7 @@
     .routeFeedbackBack{width:38px;height:38px;padding:0;border-radius:19px;background:#333;color:#fff;font-size:24px}.routeFeedbackBack[hidden]{display:none!important}.routeFeedbackCategories{display:grid;gap:10px;margin-top:16px}.routeFeedbackCategory{display:flex;align-items:center;gap:12px;width:100%;padding:14px;border:1px solid #666;border-radius:12px;background:#292929;color:#fff;text-align:left;font:800 16px/1.2 Arial,sans-serif}.routeFeedbackCategory:hover,.routeFeedbackCategory:focus-visible{border-color:#ccff33}.routeFeedbackCategoryIcon{display:flex;width:38px;height:38px;flex:0 0 38px;align-items:center;justify-content:center;border-radius:19px;background:#ccff33;color:#111;font-size:21px}.routeFeedbackForm[hidden],.routeFeedbackCategories[hidden]{display:none!important}
     #routeFeedbackText{display:block;width:100%;min-height:128px;margin-top:13px;padding:12px;box-sizing:border-box;resize:vertical;border:1px solid #777;border-radius:10px;background:#101010;color:#fff;font:16px/1.4 Arial,sans-serif}
     .routeFeedbackVoice{display:flex;align-items:center;gap:9px;margin-top:10px}.routeFeedbackVoice button{width:46px;height:46px;padding:0;border-radius:23px;font-size:22px}.routeFeedbackVoice button.listening{background:#e53935;color:#fff;animation:routeFeedbackPulse 1.2s infinite}.routeFeedbackVoice span{font-size:13px;color:#ccc}
-    .routeFeedbackInfo{margin:11px 0 0;color:#bbb;font-size:12px;line-height:1.35}.routeFeedbackActions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:14px}.routeFeedbackActions button{padding:12px 8px;font-weight:900}.routeFeedbackActions .primary{background:#ccff33;color:#111}.routeFeedbackActions .whatsapp{background:#25d366;color:#071d0f}.routeFeedbackActions .sms{background:#3a86ff;color:#fff}.routeFeedbackMessage{min-height:18px;margin-top:9px;color:#ccff33;font-size:13px}
+    .routeFeedbackInfo{margin:11px 0 0;color:#bbb;font-size:12px;line-height:1.35}.routeFeedbackActions{display:grid;grid-template-columns:1fr;gap:9px;margin-top:14px}.routeFeedbackActions button{padding:12px 8px;font-weight:900}.routeFeedbackActions .primary{background:#ccff33;color:#111}.routeFeedbackMessage{min-height:18px;margin-top:9px;color:#ccff33;font-size:13px}
     @keyframes routeFeedbackPulse{50%{box-shadow:0 0 0 7px #e5393544}}
     @media(max-width:420px){.routeFeedbackActions{grid-template-columns:1fr}}
   `;
@@ -53,12 +52,9 @@
           <button id="routeFeedbackMic" type="button" aria-label="Dyktuj uwagę" title="Dyktuj uwagę">🎤</button>
           <span id="routeFeedbackVoiceStatus">Możesz napisać lub podyktować uwagę.</span>
         </div>
-        <p class="routeFeedbackInfo">Przycisk WYŚLIJ przekaże zgłoszenie do panelu administratora i na ustawiony przez niego adres e-mail. Przy braku internetu zgłoszenie pozostanie na urządzeniu i zostanie wysłane po odzyskaniu połączenia. WhatsApp, SMS i inna aplikacja pozostają sposobami dodatkowymi.</p>
+        <p class="routeFeedbackInfo">Przycisk WYŚLIJ przekaże zgłoszenie do panelu administratora i na ustawiony przez niego adres e-mail. Dopóki panel nie jest połączony lub nie ma internetu, zgłoszenie pozostanie zapisane na tym urządzeniu i zostanie wysłane automatycznie po utworzeniu połączenia.</p>
         <div class="routeFeedbackActions">
           <button id="routeFeedbackSave" type="button">WYŚLIJ</button>
-          <button id="routeFeedbackWhatsApp" class="whatsapp" type="button">WHATSAPP</button>
-          <button id="routeFeedbackSms" class="sms" type="button">SMS</button>
-          <button id="routeFeedbackShare" class="primary" type="button">INNA APLIKACJA</button>
         </div>
         <div id="routeFeedbackMessage" class="routeFeedbackMessage" aria-live="polite"></div>
       </div>
@@ -76,9 +72,6 @@
   const micButton=dialog.querySelector('#routeFeedbackMic');
   const voiceStatus=dialog.querySelector('#routeFeedbackVoiceStatus');
   const saveButton=dialog.querySelector('#routeFeedbackSave');
-  const whatsAppButton=dialog.querySelector('#routeFeedbackWhatsApp');
-  const smsButton=dialog.querySelector('#routeFeedbackSms');
-  const shareButton=dialog.querySelector('#routeFeedbackShare');
   const message=dialog.querySelector('#routeFeedbackMessage');
   let recognition=null;
   let listening=false;
@@ -153,20 +146,6 @@
         try{await deliverRecord(record)}catch(error){updateNote(record.id,{lastDeliveryError:String(error?.message||'Błąd wysyłania').slice(0,200)});break}
       }
     }finally{flushing=false}
-  }
-
-  function formatRecord(record){
-    const details=[
-      `Rodzaj: ${record.categoryLabel}`,
-      `Ekran: ${record.screen}`,
-      record.route&&`Trasa: ${record.route}`,
-      record.shift&&`Zmiana: ${record.shift}`,
-      record.vehicle&&`Pojazd: ${record.vehicle}`,
-      record.nextStop&&`Następny przystanek: ${record.nextStop}`,
-      record.version&&`Wersja: ${record.version}`,
-      `Czas: ${record.createdAt}`
-    ].filter(Boolean).join('\n');
-    return `Trasy 2.0\n\n${record.text}\n\n${details}`;
   }
 
   function setListening(active){
@@ -269,68 +248,8 @@
       message.textContent='Zgłoszenie wysłano do panelu administratora i przekazano do wysyłki e-mail.';
     }catch(error){
       textarea.value='';
-      message.textContent=error.message||'Nie udało się wysłać zgłoszenia. Pozostaje zapisane na urządzeniu.';
+      message.textContent=`Zgłoszenie zapisano lokalnie. Zostanie wysłane automatycznie po połączeniu z panelem administratora.${error?.message?` (${error.message})`:''}`;
     }finally{saveButton.disabled=false}
-  };
-
-  function openWhatsAppOrSms(text){
-    const phone=FEEDBACK_PHONE.replace(/\D/g,'');
-    const encoded=encodeURIComponent(text);
-    const whatsAppUrl=`whatsapp://send?phone=${phone}&text=${encoded}`;
-    const smsUrl=`sms:${FEEDBACK_PHONE}?body=${encoded}`;
-    let fallbackTimer=0;
-    const cancelFallback=()=>{
-      if(fallbackTimer){clearTimeout(fallbackTimer);fallbackTimer=0}
-    };
-    const onVisibility=()=>{
-      if(document.visibilityState==='hidden')cancelFallback();
-    };
-    document.addEventListener('visibilitychange',onVisibility,{once:true});
-    window.addEventListener('pagehide',cancelFallback,{once:true});
-    fallbackTimer=setTimeout(()=>{
-      fallbackTimer=0;
-      if(document.visibilityState!=='hidden')window.location.assign(smsUrl);
-    },2200);
-    window.location.assign(whatsAppUrl);
-  }
-
-  whatsAppButton.onclick=()=>{
-    try{
-      const record=saveNote(textarea.value);
-      const text=formatRecord(record);
-      openWhatsAppOrSms(text);
-      textarea.value='';
-      message.textContent='Otwieram WhatsApp. Jeśli nie jest dostępny, otworzę SMS.';
-    }catch(error){message.textContent=error.message||'Nie udało się otworzyć WhatsApp.'}
-  };
-
-  smsButton.onclick=()=>{
-    try{
-      const record=saveNote(textarea.value);
-      const text=formatRecord(record);
-      window.location.href=`sms:${FEEDBACK_PHONE}?body=${encodeURIComponent(text)}`;
-      textarea.value='';
-      message.textContent='Uwaga została zapisana. Dokończ wysyłanie w aplikacji Wiadomości.';
-    }catch(error){message.textContent=error.message||'Nie udało się otworzyć wiadomości SMS.'}
-  };
-
-  shareButton.onclick=async()=>{
-    try{
-      const record=saveNote(textarea.value);
-      const text=formatRecord(record);
-      if(typeof navigator.share==='function'){
-        await navigator.share({title:`${categoryDetails[selectedCategory]?.label||'Zgłoszenie'} — Trasy 2.0`,text});
-        message.textContent='Uwaga została zapisana i udostępniona.';
-      }else if(navigator.clipboard?.writeText){
-        await navigator.clipboard.writeText(text);
-        message.textContent='Uwaga została zapisana i skopiowana. Możesz ją wkleić do wiadomości.';
-      }else{
-        message.textContent='Uwaga została zapisana na tym urządzeniu.';
-      }
-      textarea.value='';
-    }catch(error){
-      if(error?.name!=='AbortError')message.textContent=error.message||'Nie udało się udostępnić uwagi.';
-    }
   };
 
   const nav=document.getElementById('routeMapNav');
