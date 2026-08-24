@@ -104,6 +104,7 @@ test('status punktualności ma zielony tekst w mapie i harmonogramie, a kolor ni
   assert.match(eta,/\.etaPunctuality\.early:before\{background:#ffd60a\}/);
   assert.match(eta,/\.etaPunctuality\.late:before\{background:#ff3b30\}/);
   assert.match(eta,/\.etaPunctuality\.onTime:before\{background:#34c759\}/);
+  assert.match(eta,/\.etaPunctuality\.early,[\s\S]*\.etaPunctuality\.onTime,[\s\S]*\.etaPunctuality\.late\{color:#39ff69!important\}/);
 });
 
 test('kamera ma jeden jawny kontroler i wraca do prowadzenia po 15 sekundach',async()=>{
@@ -169,6 +170,8 @@ test('zgłoszenia kierowcy trafiają przez bezpieczny kontrakt do panelu i zacho
   assert.doesNotMatch(feedback,/feedbackEmail|adminEmail/);
   assert.doesNotMatch(feedback,/WhatsApp|WHATSAPP|sms:|navigator\.share|navigator\.clipboard|INNA APLIKACJA/);
   assert.match(feedback,/TEMP_TEST_FEEDBACK_EMAIL='kswiderski70@gmail\.com'/);
+  assert.match(feedback,/body\.routeFeedbackNavigation #routeFeedbackButton\{position:fixed;left:6px;right:auto;top:158px;bottom:auto\}/);
+  assert.doesNotMatch(feedback,/const target=navVisible&&canvas\?canvas:document\.body/);
   assert.match(feedback,/if\(!panelConnected\(\)\)/);
   assert.match(feedback,/mailto:\$\{TEMP_TEST_FEEDBACK_EMAIL\}/);
   assert.match(feedback,/Po nadaniu dostępu z panelu ten tymczasowy sposób zostanie automatycznie wyłączony/);
