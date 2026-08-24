@@ -15,7 +15,39 @@ import{planDateForRow}from'./schedule-time.js';
   let infoEl=null,infoRow=null;
 
   const style=document.createElement('style');
-  style.textContent=`#scheduleBody .punctualityLamp{display:none!important}#scheduleBody .etaPunctuality{display:block;margin-top:4px;font-size:12px;line-height:1.15;font-weight:1000;white-space:nowrap}#scheduleBody .etaPunctuality.onTime{color:#34c759}#scheduleBody .etaPunctuality.early{color:#ffd60a}#scheduleBody .etaPunctuality.late{color:#ff3b30}#scheduleBody .etaPunctuality.neutral{color:#aaa}#scheduleBody .etaPunctuality.returnStartHold{color:#ffd60a}#scheduleBody .etaPunctuality.returnStartReady{color:#34c759}#scheduleBody .etaPunctuality.arrived{color:#fff!important}`;
+  style.textContent=`
+    #scheduleBody .punctualityLamp{display:none!important}
+    #scheduleBody .etaPunctuality{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      margin-top:5px;
+      font-size:14px;
+      line-height:1.2;
+      font-weight:1000;
+      white-space:normal;
+      color:#39ff69!important;
+      text-shadow:0 1px 2px #000,0 0 5px #000
+    }
+    #scheduleBody .etaPunctuality:before{
+      content:"";
+      display:block;
+      width:16px;
+      height:16px;
+      flex:0 0 16px;
+      border-radius:50%;
+      background:#34c759;
+      box-shadow:0 0 0 2px #111,0 0 6px #000
+    }
+    #scheduleBody .etaPunctuality.early:before{background:#ffd60a}
+    #scheduleBody .etaPunctuality.onTime:before{background:#34c759}
+    #scheduleBody .etaPunctuality.late:before{background:#ff3b30}
+    #scheduleBody .etaPunctuality.returnStartHold:before{background:#ffd60a}
+    #scheduleBody .etaPunctuality.returnStartReady:before{background:#34c759}
+    #scheduleBody .etaPunctuality.arrived:before{background:#34c759}
+    #scheduleBody .etaPunctuality.neutral{display:block;color:#aaa!important;text-shadow:none}
+    #scheduleBody .etaPunctuality.neutral:before{display:none}
+  `;
   document.head.append(style);
 
   function coord(v){const m=String(v||'').match(/(-?\d+(?:\.\d+)?)\s*[,; ]\s*(-?\d+(?:\.\d+)?)/);return m?[+m[1],+m[2]]:null}
