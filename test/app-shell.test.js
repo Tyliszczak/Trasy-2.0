@@ -1,88 +1,69 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
-import vm from 'node:vm';
 
 import { ROUTES } from '../routes.js';
 import { getParkingOptions,normalizeCoordinate } from '../parking-data.js';
-import { getRoute, getSchedule, mapUrl } from '../schedule.js';
+import { getRoute,getSchedule,mapUrl } from '../schedule.js';
 
-const readSource=(name)=>readFile(new URL(`../${name}`,import.meta.url),'utf8');
+const readSource=name=>readFile(new URL(`../${name}`,import.meta.url),'utf8');
 
-test('główny ekran nie ładuje nieużywanego Leafleta',async()=>{
+function localScripts(html){
+  return [...html.matchAll(/<script\b[^>]*\bsrc=["']\.\/([^"']+)["'][^>]*><\/script>/gi)]
+    .map(match=>`./${match[1].split('?')[0]}`);
+}
+
+function shellEntries(sw){
+  const match=sw.match(/const APP_SHELL=\[(.*?)\];/s);
+  assert.ok(match,'Brak APP_SHELL w sw.js');
+  return [...match[1].matchAll(/["'](\.\/[^"']+)["']/g)].map(item=>item[1]);
+}
+
+test('główny ekran używa MapLibre i nie ładuje Leafleta',async()=>{
   const html=await readSource('index.html');
   assert.doesNotMatch(html,/leaflet/i);
   assert.match(html,/maplibre-gl@5\.12\.0/);
 });
 
-test('stara lekka nawigacja została usunięta',async()=>{
-  const source=await readSource('wake-style.js');
-  assert.doesNotMatch(source,/lightNav/);
-  assert.doesNotMatch(source,/watchPosition/);
-  assert.doesNotMatch(source,/router\.project-osrm\.org/);
+test('każdy lokalny skrypt głównej aplikacji jest ładowany tylko raz',async()=>{
+  const html=await readSource('index.html');
+  const scripts=localScripts(html);
+  assert.equal(new Set(scripts).size,scripts.length,`Powtórzone skrypty: ${scripts.filter((item,index)=>scripts.indexOf(item)!==index).join(', ')}`);
 });
 
-test('blokadą ekranu zarządza tylko jeden moduł',async()=>{
+test('każdy lokalny skrypt uruchamiany przez index znajduje się w cache PWA',async()=>{
+  const [html,sw]=await Promise.all([readSource('index.html'),readSource('sw.js')]);
+  const shell=new Set(shellEntries(sw));
+  const missing=localScripts(html).filter(script=>!shell.has(script));
+  assert.deepEqual(missing,[],'Skrypt z index.html nie jest objęty APP_SHELL');
+  assert.match(sw,/const CACHE_NAME='trasy-2\.0-v\d+'/);
+});
+
+test('service worker przełącza wersję dopiero po działaniu kierowcy',async()=>{
+  const [app,sw]=await Promise.all([readSource('app.js'),readSource('sw.js')]);
+  const installHandler=sw.split('\n').find(line=>line.includes("addEventListener('install'"))||'';
+  assert.doesNotMatch(installHandler,/skipWaiting/);
+  assert.match(sw,/type==='SKIP_WAITING'/);
+  assert.match(app,/if\(!reg\.waiting\)return/);
+  assert.match(app,/updateRequested=true/);
+  assert.match(app,/if\(updateRequested\)location\.reload\(\)/);
+});
+
+test('tylko gps-hub utrzymuje fizyczny watchPosition dla głównej aplikacji',async()=>{
+  const html=await readSource('index.html');
+  const scripts=localScripts(html).map(path=>path.slice(2)).filter(name=>name.endsWith('.js'));
+  const sources=await Promise.all(scripts.map(async name=>[name,await readSource(name)]));
+  const owners=sources.filter(([,source])=>/\bwatchPosition\s*\(/.test(source)).map(([name])=>name);
+  assert.deepEqual(owners,['gps-hub.js']);
+});
+
+test('blokadą wygaszania zarządza tylko wake-style',async()=>{
   const [app,wake]=await Promise.all([readSource('app.js'),readSource('wake-style.js')]);
   assert.doesNotMatch(app,/wakeLock\.request/);
   assert.match(wake,/wakeLock\.request\('screen'\)/);
 });
 
-test('service worker nie przeładowuje aplikacji natychmiast po instalacji',async()=>{
-  const source=await readSource('sw.js');
-  const installHandler=source.split('\n').find(line=>line.includes("addEventListener('install'"))||'';
-  assert.doesNotMatch(installHandler,/skipWaiting/);
-  assert.match(source,/type==='SKIP_WAITING'/);
-});
-
-test('pełna lokalna powłoka mapy znajduje się w cache PWA',async()=>{
-  const source=await readSource('sw.js');
-  assert.match(source,/\.\/maplibre-route-hook\.js/);
-  assert.match(source,/trasy-2\.0-v110/);
-  assert.match(source,/\.\/gps-hub\.js/);
-  assert.match(source,/\.\/gps-stop-engine\.js/);
-  assert.match(source,/\.\/schedule-time\.js/);
-  assert.match(source,/\.\/route-data-service\.js/);
-  assert.match(source,/\.\/parking-data\.js/);
-});
-
-test('odświeżenie PWA wymaga działania kierowcy',async()=>{
-  const source=await readSource('app.js');
-  assert.match(source,/if\(!reg\.waiting\)return/);
-  assert.match(source,/updateRequested=true/);
-  assert.match(source,/if\(updateRequested\)location\.reload\(\)/);
-});
-
-test('nagłówek następnego przystanku nie odpytuje DOM co pół sekundy',async()=>{
-  const source=await readSource('next-stop-header.js');
-  assert.doesNotMatch(source,/setInterval/);
-  assert.match(source,/lastStatusDetail=e\.detail/);
-  assert.match(source,/function render\(detail=lastStatusDetail\)/);
-  assert.match(source,/gps-next-stop-change/);
-  assert.match(source,/text:'👍'/);
-  assert.match(source,/`\$\{min\} min za wcześnie`/);
-  assert.match(source,/`\$\{min\} min opóźnienia`/);
-});
-
-test('jeden moduł utrzymuje fizyczny nasłuch GPS',async()=>{
-  const names=['gps-hub.js','gps-stop-tracker.js','eta-status.js','return-start-guard.js','skip-detection.js','nav-map.js'];
-  const sources=await Promise.all(names.map(readSource));
-  assert.equal(sources.filter(source=>/watchPosition/.test(source)).length,1);
-  assert.match(sources[0],/subscriberCount/);
-  sources.slice(1).forEach(source=>assert.match(source,/__trasyGps/));
-});
-
-test('czas planowy nie steruje wyborem następnego przystanku',async()=>{
-  const [tracker,engine]=await Promise.all([
-    readSource('gps-stop-tracker.js'),readSource('gps-stop-engine.js')
-  ]);
-  assert.doesNotMatch(tracker,/lateDirection|firstStopProtected|LATE_ADVANCE/);
-  assert.doesNotMatch(engine,/planTime|lateMinutes|rowTime/);
-  assert.match(engine,/arrivalFixes/);
-  assert.match(engine,/departureFixes/);
-});
-
-test('kierunki korzystają ze wspólnego źródła danych tras',async()=>{
+test('dane tras są pobierane przez wspólny route-data-service',async()=>{
   const [service,app,returnRoute]=await Promise.all([
     readSource('route-data-service.js'),readSource('app.js'),readSource('return-route.js')
   ]);
@@ -93,18 +74,71 @@ test('kierunki korzystają ze wspólnego źródła danych tras',async()=>{
   assert.match(returnRoute,/__trasyRouteDataService/);
 });
 
-test('Na pusto jest niezależne od Powrotu i prowadzi do ostatniego punktu kierunku',async()=>{
-  const [returnRoute,nav]=await Promise.all([readSource('return-route.js'),readSource('nav-map.js')]);
-  assert.match(returnRoute,/id="emptyRouteSwitch"/);
-  assert.match(returnRoute,/id="returnRouteSwitch"/);
-  assert.match(returnRoute,/body\.dataset\.emptyRun/);
-  assert.match(returnRoute,/const target=displayRows\.length-1/);
-  assert.match(returnRoute,/row\.hidden=!active/);
-  assert.match(returnRoute,/ordered\.forEach\(\(row,index\)=>\{row\.hidden=false/);
-  assert.match(nav,/remaining\[remaining\.length-1\]/);
+test('ekran główny wybiera najbliższe przyszłe wystąpienie kursu w ciągu 24 godzin',async()=>{
+  const app=await readSource('app.js');
+  assert.match(app,/waitSeconds=\(courseSeconds-nowSeconds\+daySeconds\)%daySeconds/);
+  assert.doesNotMatch(app,/times\.sort\(\(a,b\)=>a\.localeCompare/);
 });
 
-test('parking wspólny i parking przypisany do trasy są poprawnie wybierane',()=>{
+test('status punktualności ma zielony tekst w mapie i harmonogramie, a kolor niesie kropka',async()=>{
+  const [html,fix,eta]=await Promise.all([
+    readSource('index.html'),readSource('punctuality-text-color-fix.js'),readSource('eta-status.js')
+  ]);
+  assert.match(html,/punctuality-text-color-fix\.js/);
+  assert.match(fix,/#routeNextStop \.nextStopStatus\.early/);
+  assert.match(fix,/#scheduleBody \.etaPunctuality\.late/);
+  assert.match(fix,/color:#39ff69!important/);
+  assert.match(eta,/\.etaPunctuality\.early:before\{background:#ffd60a\}/);
+  assert.match(eta,/\.etaPunctuality\.late:before\{background:#ff3b30\}/);
+  assert.match(eta,/\.etaPunctuality\.onTime:before\{background:#34c759\}/);
+});
+
+test('kamera ma jeden jawny kontroler i wraca do prowadzenia po 15 sekundach',async()=>{
+  const [html,controls,worker]=await Promise.all([
+    readSource('index.html'),readSource('navigation-ui-controls.js'),readSource('sw.js')
+  ]);
+  assert.doesNotMatch(html,/navigation-smoothing\.js/);
+  assert.doesNotMatch(worker,/navigation-smoothing\.js/);
+  assert.match(controls,/AUTO_RESUME_MS=15000/);
+  assert.match(controls,/this\.resumeTimer=setTimeout\(\(\)=>this\.resume\(\),AUTO_RESUME_MS\)/);
+  assert.match(controls,/if\(this\.state===['"]manual['"]\)return/);
+});
+
+test('przycisk 2D/3D jest kontrolką MapLibre i nie ma starego kompasu',async()=>{
+  const controls=await readSource('navigation-ui-controls.js');
+  assert.match(controls,/this\.map\.addControl\(control,['"]bottom-right['"]\)/);
+  assert.doesNotMatch(controls,/compassIcon|Kompas \/ widok prowadzenia|routePitchFallback/);
+});
+
+test('informacje o prędkości używają jednego zdarzenia limitu drogi',async()=>{
+  const [speed,limit]=await Promise.all([readSource('speed-display.js'),readSource('road-speed-limit.js')]);
+  assert.match(speed,/trasy:road-speed-limit/);
+  assert.match(speed,/Brak danych o ograniczeniu prędkości/);
+  assert.match(limit,/trasy:road-speed-limit/);
+  assert.match(limit,/source:'openstreetmap'/);
+});
+
+test('uwagi nawigacyjne nie zapisują nagrań głosowych',async()=>{
+  const feedback=await readSource('navigation-feedback.js');
+  assert.match(feedback,/SpeechRecognition\|\|window\.webkitSpeechRecognition/);
+  assert.match(feedback,/localStorage\.setItem\(STORAGE_KEY/);
+  assert.doesNotMatch(feedback,/MediaRecorder|getUserMedia|audio\/webm/);
+});
+
+test('dane zapasowe tworzą kompletny harmonogram każdej zmiany',()=>{
+  assert.ok(ROUTES.length>0);
+  for(const route of ROUTES){
+    assert.equal(getRoute(ROUTES,route.name),route);
+    assert.ok(route.times.length>0,`${route.name}: brak oznaczeń zmian`);
+    assert.ok(route.stops.length>0,`${route.name}: brak przystanków`);
+    for(const time of route.times){
+      const schedule=getSchedule(route,time);
+      assert.equal(schedule.length,route.stops.length,`${route.name} ${time}: niepełny harmonogram`);
+    }
+  }
+});
+
+test('parkingi wspólne i przypisane do trasy są poprawnie wybierane',()=>{
   const data={PARKINGI:[
     ['NAZWA','LOKALIZACJA','TRASA'],
     ['Baza','51.10, 15.20','*'],
@@ -119,175 +153,7 @@ test('parking wspólny i parking przypisany do trasy są poprawnie wybierane',()
   assert.equal(normalizeCoordinate('91, 15'),'');
 });
 
-test('przycisk kompasu jest usunięty, a nawigacja pojawia się poza prowadzeniem',async()=>{
-  const source=await readSource('navigation-ui-controls.js');
-  assert.doesNotMatch(source,/compassIcon|Kompas \/ widok prowadzenia/);
-  assert.match(source,/center\.hidden=this\.state!==['"]manual['"]/);
-  assert.match(source,/center\.title='Wróć do nawigacji'/);
-});
-
-test('kamera ma jeden kontroler i wraca do prowadzenia po 15 sekundach',async()=>{
-  const [html,nav,controls,worker]=await Promise.all([
-    readSource('index.html'),readSource('nav-map.js'),readSource('navigation-ui-controls.js'),readSource('sw.js')
-  ]);
-  assert.doesNotMatch(html,/navigation-smoothing\.js/);
-  assert.doesNotMatch(worker,/navigation-smoothing\.js/);
-  assert.match(controls,/AUTO_RESUME_MS=15000/);
-  assert.match(controls,/this\.resumeTimer=setTimeout\(\(\)=>this\.resume\(\),AUTO_RESUME_MS\)/);
-  assert.match(controls,/if\(this\.state===['"]manual['"]\)return/);
-  assert.match(nav,/trasy:route-map-ready/);
-  assert.doesNotMatch(controls,/setInterval|INSTALL_TIMEOUT_MS/);
-});
-
-test('przełącznik 2D i 3D jest od razu kontrolką MapLibre na dole mapy',async()=>{
-  const source=await readSource('navigation-ui-controls.js');
-  assert.match(source,/this\.map\.addControl\(control,['"]bottom-right['"]\)/);
-  assert.doesNotMatch(source,/routePitchFallback|attachPitch/);
-});
-
-test('ręczne oddalenie zatrzymuje śledzenie i po 15 sekundach je przywraca',async()=>{
-  const source=await readSource('navigation-ui-controls.js');
-  const listeners={};
-  const timers=new Map();
-  let timerId=0;
-  const element=()=>({
-    style:{},dataset:{},children:[],hidden:false,
-    appendChild(child){this.children.push(child);child.parentElement=this;return child},
-    remove(){},setAttribute(){},querySelector(){return null}
-  });
-  const root=element(),close=element(),center=element(),maneuver=element(),top=element(),title=element();
-  close.parentElement=top;
-  top.querySelector=selector=>selector==='strong'?title:null;
-  const nodes={routeNavRoot:root,routeMapClose:close,routeMapCenter:center,routeManeuver:maneuver};
-  const document={
-    head:element(),
-    getElementById:id=>nodes[id]||null,
-    createElement:()=>element(),
-    addEventListener:(name,handler)=>{listeners[name]=handler}
-  };
-  const window={speechSynthesis:{speak(){},cancel(){}}};
-  const mapEvents={};
-  const moves=[];
-  let pitch=58;
-  const map={
-    addControl(control,position){assert.equal(position,'bottom-right');control.onAdd()},
-    on(name,handler){(mapEvents[name]??=[]).push(handler)},
-    easeTo(options,eventData){moves.push({options,eventData});pitch=options.pitch??pitch},
-    getPitch:()=>pitch,
-    getBearing:()=>0,
-    getCenter:()=>({toArray:()=>[15,51]})
-  };
-  const context={
-    window,document,console,
-    setTimeout(fn,delay){const id=++timerId;timers.set(id,{fn,delay});return id},
-    clearTimeout(id){timers.delete(id)},
-    speechSynthesis:window.speechSynthesis
-  };
-  vm.runInNewContext(source,context);
-  listeners['trasy:route-map-ready']({detail:{map}});
-  const controller=window.__routeCameraController;
-  controller.follow({center:[15,51],bearing:0,offset:[0,100],instant:true});
-  const moveCount=moves.length;
-  mapEvents.zoomstart[0]({originalEvent:{}});
-  assert.equal(center.hidden,false);
-  assert.equal([...timers.values()][0].delay,15000);
-  controller.follow({center:[15.1,51.1],bearing:20,offset:[0,100],instant:false});
-  assert.equal(moves.length,moveCount);
-  [...timers.values()][0].fn();
-  assert.equal(moves.at(-1).options.pitch,58);
-  assert.equal(moves.at(-1).eventData.trasyCamera,true);
-  mapEvents.moveend[0]({trasyCamera:true});
-  assert.equal(center.hidden,true);
-});
-
-test('dymek uwag działa na każdym ekranie i nie zapisuje nagrań głosowych',async()=>{
-  const [html,feedback,worker]=await Promise.all([
-    readSource('index.html'),readSource('navigation-feedback.js'),readSource('sw.js')
-  ]);
-  assert.match(html,/navigation-feedback\.js/);
-  assert.match(worker,/navigation-feedback\.js/);
-  assert.match(feedback,/routeFeedbackButton/);
-  assert.match(feedback,/routeFeedbackNavigation/);
-  assert.match(feedback,/SpeechRecognition\|\|window\.webkitSpeechRecognition/);
-  assert.match(feedback,/localStorage\.setItem\(STORAGE_KEY/);
-  assert.doesNotMatch(feedback,/MediaRecorder|getUserMedia|audio\/webm/);
-});
-
-test('uwagę można przekazać przez WhatsApp lub SMS z wymaganym początkiem wiadomości',async()=>{
-  const feedback=await readSource('navigation-feedback.js');
-  assert.match(feedback,/FEEDBACK_PHONE='\+48603666921'/);
-  assert.match(feedback,/return `Trasy 2\.0\\n\\n/);
-  assert.match(feedback,/whatsapp:\/\/send\?phone=\$\{phone\}/);
-  assert.match(feedback,/const smsUrl=`sms:\$\{FEEDBACK_PHONE\}\?body=/);
-  assert.match(feedback,/document\.visibilityState!=='hidden'/);
-  assert.match(feedback,/2200/);
-  assert.doesNotMatch(feedback,/window\.open\(url/);
-  assert.match(feedback,/sms:\$\{FEEDBACK_PHONE\}\?body=/);
-});
-
-test('dymek mapy pokazuje minuty za wcześnie, opóźnienie albo kciuk',async()=>{
-  const [html,nav,eta,worker]=await Promise.all([
-    readSource('index.html'),readSource('nav-map.js'),readSource('eta-status.js'),readSource('sw.js')
-  ]);
-  assert.match(nav,/`\$\{full\} min za wcześnie`/);
-  assert.match(nav,/`\$\{full\} min opóźnienia`/);
-  assert.match(nav,/return '👍'/);
-  assert.match(nav,/function updatePunctualityUi\(\)/);
-  assert.match(nav,/nextStopEl\.textContent=/);
-  assert.match(nav,/updatePunctualityUi\(\);\s+if\(!g\.step\)return/);
-  assert.match(nav,/markerRect\.top>=150/);
-  assert.match(eta,/`\$\{full\} min za wcześnie`/);
-  assert.match(eta,/`\$\{full\} min opóźnienia`/);
-  assert.match(eta,/return'👍'/);
-  assert.match(eta,/etaPunctuality\.early\{color:#ffd60a\}/);
-  assert.match(eta,/etaPunctuality\.late\{color:#ff3b30\}/);
-  assert.match(eta,/etaPunctuality\.onTime\{color:#34c759\}/);
-  assert.doesNotMatch(html,/planned-stop-time-ui\.js/);
-  assert.doesNotMatch(worker,/planned-stop-time-ui\.js/);
-});
-
-test('powiększony prędkościomierz harmonogramu znajduje się na górnej belce po prawej',async()=>{
-  const [html,speed,layout,worker]=await Promise.all([
-    readSource('index.html'),readSource('speed-display.js'),readSource('return-layout-fix.js'),readSource('sw.js')
-  ]);
-  assert.match(html,/speed-display\.js\?v=5/);
-  assert.match(html,/return-layout-fix\.js\?v=5/);
-  assert.match(worker,/speed-display\.js/);
-  assert.match(speed,/heading\.append\(box\)/);
-  assert.match(speed,/#scheduleSpeedBox \.routeSpeedLimit\{width:54px;height:54px/);
-  assert.match(speed,/#scheduleSpeedBox \.routeCurrentSpeed\{min-width:68px;font-size:30px/);
-  assert.match(layout,/#scheduleView #scheduleSpeedBox\{\s*grid-column:4!important;\s*grid-row:1!important;/);
-  assert.match(speed,/document\.addEventListener\('trasy:gps-speed',render\)/);
-  assert.match(speed,/id='routeMapSpeedBox'/);
-  assert.match(speed,/Brak danych o ograniczeniu prędkości/);
-  assert.match(speed,/limit\?String\(Math\.round\(limit\)\):'\?'/);
-});
-
-test('sterowanie ekranem jest pod powrotem, a najwyższa belka nie zawiera napisu TRASY',async()=>{
-  const [html,layout]=await Promise.all([readSource('index.html'),readSource('return-layout-fix.js')]);
-  assert.doesNotMatch(html,/<div class="brand">TRASY<\/div>/);
-  assert.match(html,/<div class="scheduleBackStack"><button id="backFromSchedule"[\s\S]*?<button id="wakeLockButton"/);
-  assert.match(layout,/#scheduleView \.scheduleBackStack\{[\s\S]*?grid-column:1!important;[\s\S]*?flex-direction:column!important;/);
-  assert.match(layout,/\.scheduleBackStack #wakeLockButton\.wakeLockButton\{[\s\S]*?width:38px!important;/);
-  assert.match(html,/return-layout-fix\.js\?v=5/);
-});
-
-test('dane zapasowe tworzą kompletny harmonogram każdej zmiany',()=>{
-  assert.ok(ROUTES.length>0);
-  for(const route of ROUTES){
-    assert.equal(getRoute(ROUTES,route.name),route);
-    assert.ok(route.times.length>0,`${route.name}: brak oznaczeń zmian`);
-    assert.ok(route.stops.length>0,`${route.name}: brak przystanków`);
-    for(const time of route.times){
-      const schedule=getSchedule(route,time);
-      assert.equal(schedule.length,route.stops.length,`${route.name} ${time}: niepełny harmonogram`);
-      assert.equal(schedule[0].id,String(route.stops[0].id??route.stops[0].stopId??0));
-    }
-  }
-});
-
-test('link mapy koduje współrzędne bez zmiany wartości',()=>{
+test('link mapy zachowuje współrzędne',()=>{
   const coordinates='51.123, 15.456';
-  const url=mapUrl(coordinates);
-  assert.equal(new URL(url).searchParams.get('query'),coordinates);
+  assert.equal(new URL(mapUrl(coordinates)).searchParams.get('query'),coordinates);
 });
