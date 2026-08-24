@@ -32,10 +32,6 @@
   let routeAbortController=null;
   let offRouteFixes=0;
 
-  let guardState={
-    state:'',
-    message:''
-  };
 
   const PITCH=58;
   const ZOOM=17.2;
@@ -203,60 +199,7 @@
   const maneuverDistance=
     panel.querySelector('#routeManeuverDistance');
 
-  const nextStopEl=
-    panel.querySelector('#routeNextStop');
 
-
-  /* =========================================================
-     PANEL ETA POZA EKRANEM
-     ========================================================= */
-
-  const offscreenPanel=
-    document.createElement('button');
-
-  offscreenPanel.type='button';
-  offscreenPanel.hidden=true;
-
-  offscreenPanel.style.cssText=`
-    position:absolute;
-    top:190px;
-    left:10px;
-    z-index:50020;
-    max-width:72%;
-    min-width:145px;
-    padding:7px 9px;
-    border:1px solid #fff8;
-    border-radius:9px;
-    background:#111e;
-    color:#fff;
-    box-shadow:0 3px 10px #0009;
-    text-align:left;
-    font-size:12px;
-    line-height:1.2;
-    font-weight:900;
-    cursor:pointer
-  `;
-
-  offscreenPanel.innerHTML=`
-    <span
-      id="offscreenArrow"
-      style="
-        display:inline-block;
-        margin-right:6px;
-        font-size:18px;
-        transform-origin:50% 50%
-      "
-    >↑</span>
-    <span id="offscreenText"></span>
-  `;
-
-  root.appendChild(offscreenPanel);
-
-  const offscreenArrow=
-    offscreenPanel.querySelector('#offscreenArrow');
-
-  const offscreenText=
-    offscreenPanel.querySelector('#offscreenText');
 
 
   /* =========================================================
@@ -581,80 +524,6 @@
     };
   }
 
-  function deltaText(diff){
-    if(diff===null)return '';
-
-    if(Math.abs(diff)<=TOLERANCE_SECONDS){
-      return '👍';
-    }
-
-    const full=Math.max(
-      1,
-      Math.floor(Math.abs(diff)/60)
-    );
-
-    return diff<0
-      ?`${full} min za wcześnie`
-      :`${full} min opóźnienia`;
-  }
-
-  function activeEtaData(){
-    const p=punctuality();
-
-    const eta=
-      Number.isFinite(p.seconds)
-        ?fmtClock(
-            new Date(Date.now()+p.seconds*1000)
-          )
-        :'--:--';
-
-    let text=
-      currentStops[0]
-        ?`${currentStops[0].name} • ${eta}`
-        :eta;
-
-    if(p.diff!==null){
-      text+=` • ${deltaText(p.diff)}`;
-    }
-
-    if(guardState.state&&guardState.message){
-      text=guardState.message;
-    }
-
-    let background='#111e';
-    let color='#fff';
-
-    if(guardState.state==='hold'){
-      background='#ffd60a';
-      color='#111';
-
-    }else if(guardState.state==='ready'){
-      background='#34c759';
-      color='#071407';
-
-    }else if(guardState.state==='earlyDeparture'){
-      background='#ff3b30';
-      color='#fff';
-
-    }else if(p.kind==='late'){
-      background='#ff3b30';
-
-    }else if(p.kind==='early'){
-      background='#ffd60a';
-      color='#111';
-
-    }else if(p.kind==='onTime'){
-      background='#34c759';
-    }
-
-    return{
-      ...p,
-      eta,
-      text,
-      background,
-      color
-    };
-  }
 
   function dispatchEta(){
     const p=punctuality();
@@ -704,78 +573,14 @@
   }
 
   function activeStopElement(number){
-    const wrap=document.createElement('div');
-
-    wrap.style.cssText=`
-      display:flex;
-      flex-direction:column;
-      align-items:center;
-      gap:2px;
-      transform:translateY(-9px)
-    `;
-
-    const badge=document.createElement('div');
-
-    badge.className='activeStopEtaBubble';
-
-    badge.style.cssText=`
-      padding:4px 7px;
-      border-radius:7px;
-      border:1px solid #fff9;
-      font-size:11px;
-      line-height:1.15;
-      font-weight:900;
-      white-space:nowrap;
-      text-align:center;
-      box-shadow:0 2px 7px #0009
-    `;
-
     const dot=ordinaryStopElement(number,false);
-
     dot.style.width='32px';
     dot.style.height='32px';
-
-    wrap.append(badge,dot);
-
-    return{
-      element:wrap,
-      badge,
-      dot
-    };
-  }
-
-  function updateActiveBubble(){
-    const first=stopMarkers[0];
-
-    if(!first?.badge)return;
-
-    const data=activeEtaData();
-
-    first.badge.textContent=data.text;
-    first.badge.style.background=data.background;
-    first.badge.style.color=data.color;
+    return{element:dot,badge:null,dot};
   }
 
   function updatePunctualityUi(){
     dispatchEta();
-
-    const p=punctuality();
-
-    if(currentStops.length){
-      const eta=Number.isFinite(p.seconds)
-        ?fmtClock(new Date(Date.now()+p.seconds*1000))
-        :'';
-
-      nextStopEl.textContent=
-        `Następny: ${currentStops[0].name}`+
-        `${eta?` • ${eta}`:''}`+
-        `${p.diff!==null?` • ${deltaText(p.diff)}`:''}`;
-    }else{
-      nextStopEl.textContent='';
-    }
-
-    updateActiveBubble();
-    updateActiveStopVisibility();
   }
 
   function refreshStopMarkers(stops,legs){
@@ -827,137 +632,8 @@
       });
     });
 
-    updateActiveBubble();
-    updateActiveStopVisibility();
   }
 
-
-  /* =========================================================
-     AKTYWNY PRZYSTANEK POZA EKRANEM
-     ========================================================= */
-
-  function updateOffscreenArrow(){
-    if(
-      offscreenPanel.hidden||
-      !map||
-      !currentStops[0]
-    )return;
-
-    const stop=currentStops[0];
-
-    const point=
-      map.project([
-        stop.coord[1],
-        stop.coord[0]
-      ]);
-
-    const canvas=map.getCanvas();
-
-    const cx=canvas.clientWidth/2;
-    const cy=canvas.clientHeight/2;
-
-    const dx=point.x-cx;
-    const dy=point.y-cy;
-
-    const angle=
-      Math.atan2(dy,dx)*180/Math.PI+90;
-
-    offscreenArrow.style.transform=
-      `rotate(${angle}deg)`;
-  }
-
-  function updateActiveStopVisibility(){
-    if(
-      panel.hidden||
-      !map||
-      !currentStops[0]||
-      !stopMarkers.length
-    ){
-      offscreenPanel.hidden=true;
-      return;
-    }
-
-    const stop=currentStops[0];
-
-    const insideBounds=
-      map.getBounds().contains([
-        stop.coord[1],
-        stop.coord[0]
-      ]);
-
-    const first=stopMarkers[0];
-
-    const markerElement=first?.badge?.parentElement;
-    const markerRect=markerElement?.getBoundingClientRect?.();
-    const safelyVisible=!markerRect||(!markerRect.width&&!markerRect.height)
-      ?insideBounds
-      :insideBounds&&
-        markerRect.left>=20&&
-        markerRect.right<=window.innerWidth-20&&
-        markerRect.top>=150&&
-        markerRect.bottom<=window.innerHeight-75;
-
-    if(safelyVisible){
-      offscreenPanel.hidden=true;
-
-      if(first?.badge){
-        first.badge.style.display='';
-      }
-
-      return;
-    }
-
-    if(first?.badge){
-      first.badge.style.display='none';
-    }
-
-    const data=activeEtaData();
-
-    offscreenText.textContent=data.text;
-
-    offscreenPanel.style.background=data.background;
-    offscreenPanel.style.color=data.color;
-
-    offscreenPanel.hidden=false;
-
-    updateOffscreenArrow();
-  }
-
-  offscreenPanel.onclick=()=>{
-    if(
-      !map||
-      !lastGpsPoint||
-      !currentStops[0]
-    )return;
-
-    window.__routeEnterManualView?.();
-
-    const stop=currentStops[0];
-
-    const bounds=
-      new maplibregl.LngLatBounds();
-
-    bounds.extend([
-      lastGpsPoint[1],
-      lastGpsPoint[0]
-    ]);
-
-    bounds.extend([
-      stop.coord[1],
-      stop.coord[0]
-    ]);
-
-    map.fitBounds(bounds,{
-      padding:{
-        top:80,
-        bottom:90,
-        left:55,
-        right:55
-      },
-      maxZoom:15.5,
-      duration:700
-    });
-  };
 
 
   /* =========================================================
@@ -1372,8 +1048,9 @@
         .map(([lat,lng])=>`${lng},${lat}`)
         .join(';');
 
-      status.textContent=
-        'Pobieranie przebiegu trasy…';
+      if(!routeCoords.length){
+        status.textContent='Pobieranie przebiegu trasy…';
+      }
 
       const routeUrl=
         `https://router.project-osrm.org/route/v1/driving/${coords}`+
@@ -1578,23 +1255,6 @@
   }
 
 
-  /* =========================================================
-     KOMUNIKAT NIE ODJEDŻAJ
-     ========================================================= */
-
-  body.addEventListener(
-    'stop-guard-change',
-    e=>{
-      guardState={
-        state:e.detail?.state||'',
-        message:e.detail?.message||''
-      };
-
-      updateActiveBubble();
-      updateActiveStopVisibility();
-    }
-  );
-
 
   /* =========================================================
      PRZYCISKI
@@ -1676,7 +1336,6 @@
       'Pobieranie trasy…';
 
     maneuverDistance.textContent='';
-    nextStopEl.textContent='';
 
     lastSpoken='';
     lastGpsPoint=null;
@@ -1755,10 +1414,6 @@
           detail:{map}
         }));
 
-        map.on('move',()=>{
-          updateActiveStopVisibility();
-          updateOffscreenArrow();
-        });
 
         await new Promise(
           resolve=>
@@ -1871,7 +1526,6 @@
     refreshTimer=0;
 
     panel.hidden=true;
-    offscreenPanel.hidden=true;
 
     speechSynthesis?.cancel?.();
 

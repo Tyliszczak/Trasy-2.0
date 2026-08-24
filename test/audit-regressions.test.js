@@ -53,15 +53,16 @@ test('logika startu POWROTU ma jednego właściciela',async()=>{
   const [route,gps,startNav]=await Promise.all([
     readSource('return-route.js'),readSource('return-gps-mode.js'),readSource('return-start-navigation.js')
   ]);
-  const owners=[route,gps,startNav].filter(source=>/returnOriginActive/.test(source));
-  assert.equal(owners.length,1);
+  const eta=await readSource('eta-status.js');
+  const writers=[route,gps,startNav,eta].filter(source=>/dataset\.returnOriginActive\s*=/.test(source));
+  assert.equal(writers.length,1);
   assert.match(route,/returnOriginActive/);
   assert.doesNotMatch(gps,/returnOriginActive/);
   assert.doesNotMatch(startNav,/returnOriginActive/);
   assert.doesNotMatch(startNav,/setInterval/);
 });
 
-test('TODO etap 7: główny index nie ładuje modułów typu fix/guard/lock będących wyłącznie łatkami UI',{todo:true},async()=>{
+test('główny index nie ładuje modułów typu fix/guard/lock będących wyłącznie łatkami UI',async()=>{
   const html=await readSource('index.html');
   for(const name of[
     'punctuality-text-color-fix.js',
@@ -72,11 +73,13 @@ test('TODO etap 7: główny index nie ładuje modułów typu fix/guard/lock będ
   ])assert.doesNotMatch(html,new RegExp(name.replaceAll('.','\\.')));
 });
 
-test('TODO etap 7: nav-map nie aktualizuje starego odłączonego nagłówka następnego przystanku ani starej punktualności UI',{todo:true},async()=>{
+test('nav-map nie aktualizuje starego odłączonego nagłówka następnego przystanku ani starej punktualności UI',async()=>{
   const source=await readSource('nav-map.js');
   assert.doesNotMatch(source,/nextStopEl\.textContent/);
   assert.doesNotMatch(source,/offscreenText/);
   assert.doesNotMatch(source,/function deltaText|function activeEtaData/);
+  assert.doesNotMatch(source,/offscreenPanel|activeStopEtaBubble/);
+  assert.doesNotMatch(source,/nextStopEl\.textContent/);
 });
 
 test('TODO etap 8: aktywne moduły nie używają krótkiego pollingu do odnajdywania DOM',{todo:true},async()=>{
