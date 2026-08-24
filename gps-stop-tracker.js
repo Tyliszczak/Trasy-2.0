@@ -3,19 +3,20 @@ import{
   createStopProgressEngine,
   distanceMeters
 }from'./gps-stop-engine.js';
-import{planDateForRow}from'./schedule-time.js';
+import{planDateForRow,rowPlanText}from'./schedule-time.js';
+import{stopGuardState}from'./stop-alert-core.js';
 
 (()=>{
   const body=document.getElementById('scheduleBody');
   const view=document.getElementById('scheduleView');
-  if(!body||!view||!navigator.geolocation)return;
+  const geo=globalThis.__trasyGeo;
+  if(!body||!view||!navigator.geolocation||!geo)return;
 
   const MAX_ACCURACY=100;
   const MIN_HEADING_MOVE=12;
   const MIN_HEADING_SPEED_MPS=1.5;
   const HEADING_VALID_MS=10000;
   const EARLY_WARNING_MS=10000;
-  const READY_RADIUS=85;
 
   const engine=createStopProgressEngine({maxAccuracy:MAX_ACCURACY});
   let watch=null;
@@ -32,14 +33,10 @@ import{planDateForRow}from'./schedule-time.js';
   style.textContent='#scheduleBody tr.isActiveStop:not(.gpsNextStop){background:transparent!important;box-shadow:none!important}#scheduleBody tr.isActiveStop:not(.gpsNextStop) td:first-child{color:#fff!important;font-weight:inherit!important}#scheduleBody tr.gpsNextStop{background:rgba(255,255,255,.035)!important;box-shadow:inset 5px 0 0 var(--gps-status-color,#ccff33),inset 0 1.5px 0 var(--gps-status-color,#ccff33),inset -1.5px 0 0 var(--gps-status-color,#ccff33),inset 0 -1.5px 0 var(--gps-status-color,#ccff33),0 4px 10px #0006!important}#scheduleBody tr.gpsNextStop td:first-child,#scheduleBody tr.gpsNextStop td:first-child>*:not(.etaPunctuality):not(.stopGuardNotice){font-weight:900!important;color:#fff!important}#scheduleBody tr td:first-child,#scheduleBody tr td:first-child>*:not(.etaPunctuality):not(.stopGuardNotice){color:#fff!important}#scheduleBody .stopGuardNotice{display:block;margin-top:5px;padding:6px 8px;border-radius:7px;font-size:12px;line-height:1.15;font-weight:1000;white-space:normal}#scheduleBody .stopGuardNotice.hold{background:#ffd60a;color:#111}#scheduleBody .stopGuardNotice.ready{background:#34c759;color:#071407}#earlyDepartureWarning{position:fixed;z-index:99999;left:50%;top:18px;transform:translateX(-50%);width:min(92vw,520px);padding:16px 18px;border:3px solid #fff;border-radius:12px;background:#e11d2e;color:#fff;box-shadow:0 8px 28px #000c;text-align:center;font-size:1.12rem;font-weight:1000;line-height:1.2;letter-spacing:.02em;pointer-events:none}#earlyDepartureWarning small{display:block;margin-top:5px;font-size:.78rem;font-weight:800;opacity:.95}';
   document.head.append(style);
 
-  function coord(value){
-    const match=String(value||'').match(/(-?\d+(?:\.\d+)?)\s*[,; ]\s*(-?\d+(?:\.\d+)?)/);
-    return match?[Number(match[1]),Number(match[2])]:null;
-  }
+  const coord=value=>geo.parseCoordinate(value);
 
   function rows(){
-    return[...body.querySelectorAll('tr')]
-      .filter(row=>coord(row.dataset.coordinate));
+    return[...body.querySelectorAll('tr')].filter(row=>coord(row.dataset.coordinate));
   }
 
   function stops(){
@@ -49,24 +46,8 @@ import{planDateForRow}from'./schedule-time.js';
     }));
   }
 
-  function rowPlanText(row){
-    const cell=row?.children?.[1];
-    const source=String(
-      cell?.dataset.routeRolePlan||
-      cell?.dataset.finalStopPlan||
-      cell?.textContent||''
-    ).trim();
-    return source.match(/\b\d{1,2}:\d{2}\b/)?.[0]||'';
-  }
-
   function alarmEligible(routeRows,index,row=routeRows[index]){
-    return Boolean(
-      row&&
-      Number.isInteger(index)&&
-      index>=0&&
-      index<routeRows.length-1&&
-      rowPlanText(row)
-    );
+    return Boolean(row&&Number.isInteger(index)&&index>=0&&index<routeRows.length-1&&rowPlanText(row));
   }
 
   function rowPlanDate(row,now=new Date()){
@@ -106,8 +87,7 @@ import{planDateForRow}from'./schedule-time.js';
     const target=routeRows[index];
     const key=target.dataset.stopId||`${index}:${target.dataset.coordinate}`;
     const previous=Number(body.dataset.gpsNextStop);
-    const changed=!Number.isInteger(previous)||previous!==index||
-      body.dataset.gpsNextStopKey!==key;
+    const changed=!Number.isInteger(previous)||previous!==index||body.dataset.gpsNextStopKey!==key;
 
     body.querySelectorAll('tr').forEach(row=>{
       const active=row===routeRows[index];
@@ -144,11 +124,6 @@ import{planDateForRow}from'./schedule-time.js';
     }
   }
 
-  function formatCountdown(seconds){
-    const value=Math.max(0,Math.ceil(seconds));
-    return`${Math.floor(value/60)}:${String(value%60).padStart(2,'0')}`;
-  }
-
   function emitGuard(state,message,seconds,index,plan,distance){
     body.dataset.stopGuard=state||'';
     body.dispatchEvent(new CustomEvent('stop-guard-change',{
@@ -159,18 +134,15 @@ import{planDateForRow}from'./schedule-time.js';
 
   function updateStopGuard(){
     const routeRows=rows();
-    document.querySelectorAll('#scheduleBody .stopGuardNotice')
-      .forEach(element=>element.remove());
+    document.querySelectorAll('#scheduleBody .stopGuardNotice').forEach(element=>element.remove());
     if(currentIndex===null||!routeRows[currentIndex]||!lastPos){
       emitGuard('','',0,currentIndex,'',Infinity);
       return;
     }
 
     const row=routeRows[currentIndex];
-    if(
-      body.dataset.direction==='return'||
-      !alarmEligible(routeRows,currentIndex,row)
-    ){
+    const eligible=alarmEligible(routeRows,currentIndex,row);
+    if(body.dataset.direction==='return'||!eligible){
       emitGuard('','',0,currentIndex,'',Infinity);
       return;
     }
@@ -185,24 +157,21 @@ import{planDateForRow}from'./schedule-time.js';
     const distance=distanceMeters(lastPos,target);
     const seconds=(plan.getTime()-Date.now())/1000;
     const planText=rowPlanText(row);
-    const arrived=engine.snapshot().arrived;
-    let state='',message='';
+    const guard=stopGuardState({
+      eligible,
+      direction:body.dataset.direction||'forward',
+      arrived:engine.snapshot().arrived,
+      seconds,
+      planText
+    });
 
-    if(seconds>0&&distance<=70){
-      state='hold';
-      message=`NIE ODJEDŻAJ • ${formatCountdown(seconds)} • plan ${planText}`;
-    }
-    if(seconds<=0&&arrived&&distance<=READY_RADIUS){
-      state='ready';
-      message='MOŻESZ JECHAĆ';
-    }
-    if(state){
+    if(guard.state){
       const notice=document.createElement('div');
-      notice.className=`stopGuardNotice ${state}`;
-      notice.textContent=message;
+      notice.className=`stopGuardNotice ${guard.state}`;
+      notice.textContent=guard.message;
       row.querySelector('td:first-child')?.appendChild(notice);
     }
-    emitGuard(state,message,Math.max(0,seconds),currentIndex,planText,distance);
+    emitGuard(guard.state,guard.message,Math.max(0,seconds),currentIndex,planText,distance);
   }
 
   function chooseAndApply(motion={}){
@@ -229,10 +198,7 @@ import{planDateForRow}from'./schedule-time.js';
       const previousRow=routeRows[result.fromIndex];
       const eligible=alarmEligible(routeRows,result.fromIndex,previousRow);
       const plan=eligible?rowPlanDate(previousRow):null;
-      if(
-        eligible&&reachedBeforeTime&&plan&&Date.now()<plan.getTime()&&
-        body.dataset.direction!=='return'
-      )showEarlyDepartureWarning(rowPlanText(previousRow));
+      if(eligible&&reachedBeforeTime&&plan&&Date.now()<plan.getTime()&&body.dataset.direction!=='return')showEarlyDepartureWarning(rowPlanText(previousRow));
       reachedBeforeTime=false;
     }
 
@@ -249,41 +215,31 @@ import{planDateForRow}from'./schedule-time.js';
     const now=Number(position.timestamp)||Date.now();
     let speed=Number(position.coords.speed);
     if(!Number.isFinite(speed)||speed<0){
-      if(lastPos&&lastPosAt&&now>lastPosAt){
-        speed=distanceMeters(lastPos,here)/((now-lastPosAt)/1000);
-      }else speed=0;
+      if(lastPos&&lastPosAt&&now>lastPosAt)speed=distanceMeters(lastPos,here)/((now-lastPosAt)/1000);
+      else speed=0;
     }
     speed=Math.max(0,speed);
     const kmh=speed*3.6;
     window.__routeCurrentSpeedKmh=kmh;
-    document.dispatchEvent(new CustomEvent('trasy:gps-speed',{
-      detail:{kmh,accuracy}
-    }));
+    document.dispatchEvent(new CustomEvent('trasy:gps-speed',{detail:{kmh,accuracy}}));
 
     let nextHeading=Number(position.coords.heading);
-    let reliable=Number.isFinite(nextHeading)&&nextHeading>=0&&
-      speed>=MIN_HEADING_SPEED_MPS;
+    let reliable=Number.isFinite(nextHeading)&&nextHeading>=0&&speed>=MIN_HEADING_SPEED_MPS;
     if(!reliable){
       if(!headingAnchor)headingAnchor=here;
       const moved=distanceMeters(headingAnchor,here);
-      const requiredMove=Math.max(
-        MIN_HEADING_MOVE,
-        Math.min(30,accuracy*0.35)
-      );
+      const requiredMove=Math.max(MIN_HEADING_MOVE,Math.min(30,accuracy*0.35));
       if(moved>=requiredMove&&speed>=MIN_HEADING_SPEED_MPS){
         nextHeading=bearingDegrees(headingAnchor,here);
         reliable=true;
         headingAnchor=here;
       }
-    }else{
-      headingAnchor=here;
-    }
+    }else headingAnchor=here;
     if(reliable){
       heading=nextHeading;
       headingAt=now;
     }
-    const headingReliable=Number.isFinite(heading)&&
-      speed>=MIN_HEADING_SPEED_MPS&&now-headingAt<=HEADING_VALID_MS;
+    const headingReliable=Number.isFinite(heading)&&speed>=MIN_HEADING_SPEED_MPS&&now-headingAt<=HEADING_VALID_MS;
 
     lastPos=here;
     lastPosAt=now;
@@ -308,12 +264,8 @@ import{planDateForRow}from'./schedule-time.js';
   body.addEventListener('route-direction-change',routeChanged);
   body.addEventListener('route-mode-change',routeChanged);
   body.addEventListener('schedule-rendered',routeChanged);
-  body.addEventListener('gps-skip-stop',event=>{
-    setManualIndex(Number(event.detail?.index),event.detail?.source);
-  });
+  body.addEventListener('gps-skip-stop',event=>setManualIndex(Number(event.detail?.index),event.detail?.source));
   setInterval(updateStopGuard,1000);
-  document.addEventListener('visibilitychange',()=>{
-    if(document.visibilityState==='visible')start();
-  });
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')start()});
   start();
 })();
