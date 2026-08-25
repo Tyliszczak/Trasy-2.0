@@ -55,6 +55,25 @@
     return best?.value??'';
   }
 
+  function nearestClockTime(values,now=new Date()){
+    const nowSeconds=now.getHours()*3600+now.getMinutes()*60+now.getSeconds()+now.getMilliseconds()/1000;
+    let best=null;
+    for(const original of values||[]){
+      const normalized=normalizeClockTime(original);
+      const parts=clockParts(normalized);
+      if(!parts)continue;
+      const courseSeconds=parts.hours*3600+parts.minutes*60;
+      const forward=(courseSeconds-nowSeconds+DAY_SECONDS)%DAY_SECONDS;
+      const backward=(nowSeconds-courseSeconds+DAY_SECONDS)%DAY_SECONDS;
+      const distance=Math.min(forward,backward);
+      const pastOrNow=backward<=forward;
+      if(!best||distance<best.distance||(distance===best.distance&&pastOrNow&&!best.pastOrNow)){
+        best={value:original,normalized,distance,pastOrNow};
+      }
+    }
+    return best?.value??'';
+  }
+
   function addMinutesToTime(value,deltaMinutes){
     const parts=clockParts(value);
     if(!parts)return'';
@@ -95,6 +114,7 @@
     normalizeClockTime,
     rowPlanText,
     nearestFutureTime,
+    nearestClockTime,
     addMinutesToTime,
     planDateForRow
   });
