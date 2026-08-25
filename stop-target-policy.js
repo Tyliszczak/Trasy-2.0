@@ -8,6 +8,16 @@ function dateMs(value){
   return Number.isFinite(ms)?ms:null;
 }
 
+export function shouldApplySchedulePriority({
+  direction='forward',
+  emptyRun=false
+}={}){
+  // Ochrona czasowa ma sens tylko na kursie z harmonogramem.
+  // Powrót nie ma godzin planowych, więc GPS musi móc swobodnie
+  // przechodzić na kolejny przystanek po rzeczywistym odjeździe.
+  return String(direction||'forward')!=='return'&&!Boolean(emptyRun);
+}
+
 export function canAutoAdvanceBySchedule({
   currentPlan,
   nextPlan,
