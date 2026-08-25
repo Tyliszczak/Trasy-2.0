@@ -1,4 +1,4 @@
-import { advanceRouteProgress, createLaggedProgress, splitRemainingRoute } from './route-progress-core.js?v=2';
+import { advanceRouteProgress, projectRoutePosition, splitRemainingRouteAtPosition } from './route-progress-core.js?v=3';
 
 (()=>{
   const body=document.getElementById('scheduleBody');
@@ -8,17 +8,18 @@ import { advanceRouteProgress, createLaggedProgress, splitRemainingRoute } from 
   const FUTURE_SOURCE='route-future';
   const FUTURE_OUTLINE='route-future-outline';
   const FUTURE_LINE='route-future-line';
-  const DISPLAY_LAG_FIXES=3;
+  const ERASE_ANIMATION_MS=320;
 
   let map=null;
   let fullCoords=[];
   let progressIndex=0;
-  let displayProgressIndex=0;
+  let displayRoutePosition=0;
+  let targetRoutePosition=0;
+  let animationFromPosition=0;
+  let animationStartedAt=0;
   let latestPosition=null;
-  let hasNewGpsFix=false;
   let renderQueued=false;
   let internalWrite=false;
-  const displayProgress=createLaggedProgress(DISPLAY_LAG_FIXES,0);
 
   function cloneCoords(coords){
     return (Array.isArray(coords)?coords:[])
@@ -74,19 +75,32 @@ import { advanceRouteProgress, createLaggedProgress, splitRemainingRoute } from 
     }
   }
 
+  function snapVisualPosition(point,index,accuracy){
+    if(!point||fullCoords.length<2)return null;
+    const projected=projectRoutePosition(fullCoords,point,Math.max(0,index-1),4,160);
+    const tolerance=Math.max(70,Math.max(0,Number(accuracy)||0)*2.2);
+    return Number.isFinite(projected.distance)&&projected.distance<=tolerance?projected:null;
+  }
+
   function captureFullRoute(data){
     const coords=coordsFromGeoJson(data);
     if(coords.length<2)return false;
     fullCoords=coords;
     progressIndex=0;
+    let initialPosition=0;
     const point=latestLngLat();
     if(point){
       const progress=advanceRouteProgress(fullCoords,point,0,latestPosition?.coords?.accuracy);
       progressIndex=progress.index;
+      const projected=snapVisualPosition(point,progressIndex,latestPosition?.coords?.accuracy);
+      if(projected)initialPosition=projected.position;
+      else initialPosition=progressIndex;
     }
-    displayProgressIndex=displayProgress.reset(progressIndex);
-    hasNewGpsFix=false;
-    window.__routeProgressState={fullPoints:fullCoords.length,progressIndex,displayProgressIndex,nextStopIndex:null};
+    displayRoutePosition=initialPosition;
+    targetRoutePosition=initialPosition;
+    animationFromPosition=initialPosition;
+    animationStartedAt=0;
+    window.__routeProgressState={fullPoints:fullCoords.length,progressIndex,displayRoutePosition,nextStopIndex:null};
     return true;
   }
 
@@ -163,6 +177,34 @@ import { advanceRouteProgress, createLaggedProgress, splitRemainingRoute } from 
     }
   }
 
+  function startEraseAnimation(nextPosition){
+    const next=Number(nextPosition);
+    if(!Number.isFinite(next)||next<=targetRoutePosition+1e-5)return;
+    animationFromPosition=displayRoutePosition;
+    targetRoutePosition=next;
+    animationStartedAt=performance.now();
+  }
+
+  function advanceEraseAnimation(now=performance.now()){
+    if(targetRoutePosition<=displayRoutePosition+1e-6){
+      displayRoutePosition=targetRoutePosition;
+      return false;
+    }
+    if(!animationStartedAt){
+      displayRoutePosition=targetRoutePosition;
+      return false;
+    }
+    const linear=Math.max(0,Math.min(1,(now-animationStartedAt)/ERASE_ANIMATION_MS));
+    const eased=1-Math.pow(1-linear,3);
+    displayRoutePosition=animationFromPosition+(targetRoutePosition-animationFromPosition)*eased;
+    if(linear>=1){
+      displayRoutePosition=targetRoutePosition;
+      animationStartedAt=0;
+      return false;
+    }
+    return true;
+  }
+
   function render(){
     renderQueued=false;
     if(!map||fullCoords.length<2)return;
@@ -170,14 +212,13 @@ import { advanceRouteProgress, createLaggedProgress, splitRemainingRoute } from 
     if(!routeSource)return;
     wrapRouteSource(routeSource);
 
+    const animationContinues=advanceEraseAnimation();
     const point=latestLngLat();
     if(point){
       const progress=advanceRouteProgress(fullCoords,point,progressIndex,latestPosition?.coords?.accuracy);
       progressIndex=progress.index;
-      if(hasNewGpsFix){
-        displayProgressIndex=displayProgress.push(progressIndex);
-        hasNewGpsFix=false;
-      }
+      const projected=snapVisualPosition(point,progressIndex,latestPosition?.coords?.accuracy);
+      if(projected)startEraseAnimation(Math.max(targetRoutePosition,projected.position));
     }
 
     paintActiveRoute();
@@ -186,20 +227,23 @@ import { advanceRouteProgress, createLaggedProgress, splitRemainingRoute } from 
       return;
     }
 
-    const split=splitRemainingRoute(fullCoords,displayProgressIndex,nextStopPoint());
+    const split=splitRemainingRouteAtPosition(fullCoords,displayRoutePosition,nextStopPoint());
     rawSetData(routeSource,routeGeoJson(split.active));
     rawSetData(map.getSource(FUTURE_SOURCE),routeGeoJson(split.future));
 
     window.__routeProgressState={
       fullPoints:fullCoords.length,
       progressIndex,
-      displayProgressIndex,
-      displayLagFixes:DISPLAY_LAG_FIXES,
+      displayRoutePosition,
+      targetRoutePosition,
+      eraseAnimationMs:ERASE_ANIMATION_MS,
       nextStopIndex:split.stopIndex,
       activePoints:split.active.length,
       futurePoints:split.future.length
     };
     document.dispatchEvent(new CustomEvent('trasy:route-progress-rendered',{detail:window.__routeProgressState}));
+
+    if(animationContinues||targetRoutePosition>displayRoutePosition+1e-6)queueRender();
   }
 
   function queueRender(){
@@ -210,8 +254,10 @@ import { advanceRouteProgress, createLaggedProgress, splitRemainingRoute } from 
 
   function resetProgress(){
     progressIndex=0;
-    displayProgressIndex=displayProgress.reset(0);
-    hasNewGpsFix=false;
+    displayRoutePosition=0;
+    targetRoutePosition=0;
+    animationFromPosition=0;
+    animationStartedAt=0;
     queueRender();
   }
 
@@ -219,9 +265,7 @@ import { advanceRouteProgress, createLaggedProgress, splitRemainingRoute } from 
     if(!nextMap||nextMap===map)return;
     map=nextMap;
     fullCoords=[];
-    progressIndex=0;
-    displayProgressIndex=displayProgress.reset(0);
-    hasNewGpsFix=false;
+    resetProgress();
     patchAddSource();
 
     const existing=map.getSource?.('route');
@@ -239,7 +283,6 @@ import { advanceRouteProgress, createLaggedProgress, splitRemainingRoute } from 
 
   gps.subscribe(position=>{
     latestPosition=position;
-    hasNewGpsFix=true;
     const panel=document.getElementById('routeMapNav');
     if(!panel||panel.hidden)return;
     queueRender();
