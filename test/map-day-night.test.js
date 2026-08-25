@@ -38,6 +38,6 @@ test('PWA ładuje i cacheuje moduły automatycznego dnia i nocy',async()=>{
   assert.match(html,/map-day-night\.js\?v=1/);
   assert.match(worker,/\.\/map-theme-core\.js/);
   assert.match(worker,/\.\/map-day-night\.js/);
-  assert.match(html,/TEST 2\.0\.121/);
-  assert.match(worker,/APP_VERSION='2\.0\.121'/);
+  assert.match(html,/TEST 2\.0\.122/);
+  assert.match(worker,/APP_VERSION='2\.0\.122'/);
 });
