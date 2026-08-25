@@ -3,14 +3,13 @@ import{
   cumulativeDistances,
   nearestRouteIndex,
   legRemainingSeconds,
-  interpolateLngLat
+  interpolateLngLat,
+  cameraProfileForSpeed
 }from'./navigation-live-core.js';
 
 const body=document.getElementById('scheduleBody');
 const TOLERANCE_SECONDS=30;
 const MAX_ROUTE_SNAP_M=120;
-const GUIDANCE_ZOOM=17.2;
-const GUIDANCE_PITCH=58;
 
 let routeModel=null;
 let lastSnapIndex=0;
@@ -20,6 +19,8 @@ let liveEtaLeg=-1;
 let lastGps=null;
 let lastGpsAt=0;
 let currentSpeedMps=0;
+let cameraSpeedKmh=0;
+let cameraSpeedReady=false;
 
 function coord(value){
   const match=String(value||'').match(/(-?\d+(?:\.\d+)?)\s*[,; ]\s*(-?\d+(?:\.\d+)?)/);
@@ -93,14 +94,7 @@ function activeLegIndex(){
   return bestDistance<=180?best:-1;
 }
 
-function updateLiveEta(position){
-  const nav=document.getElementById('routeMapNav');
-  if(nav?.hidden!==false||!routeModel?.points?.length)return;
-
-  const here=[Number(position?.coords?.latitude),Number(position?.coords?.longitude)];
-  if(!Number.isFinite(here[0])||!Number.isFinite(here[1]))return;
-
-  const now=performance.now();
+function updateSpeed(position,here,now){
   const nativeSpeed=Number(position?.coords?.speed);
   if(Number.isFinite(nativeSpeed)&&nativeSpeed>=0){
     currentSpeedMps=nativeSpeed;
@@ -110,6 +104,42 @@ function updateLiveEta(position){
   }
   lastGps=here;
   lastGpsAt=now;
+}
+
+function smoothedCameraSpeed(){
+  const rawKmh=Math.max(0,Math.min(130,currentSpeedMps*3.6));
+  const raw=rawKmh<4?0:rawKmh;
+  if(!cameraSpeedReady){
+    cameraSpeedKmh=raw;
+    cameraSpeedReady=true;
+  }else{
+    const delta=raw-cameraSpeedKmh;
+    if(Math.abs(delta)<.8){
+      cameraSpeedKmh=raw;
+    }else{
+      cameraSpeedKmh+=delta*(delta>0?.26:.36);
+    }
+  }
+  window.__routeCameraSpeedKmh=cameraSpeedKmh;
+  return cameraSpeedKmh;
+}
+
+function currentCameraProfile(){
+  const profile=cameraProfileForSpeed(smoothedCameraSpeed());
+  window.__routeCameraProfile={...profile,speedKmh:cameraSpeedKmh};
+  return profile;
+}
+
+function updateLiveEta(position){
+  const nav=document.getElementById('routeMapNav');
+  if(nav?.hidden!==false)return;
+
+  const here=[Number(position?.coords?.latitude),Number(position?.coords?.longitude)];
+  if(!Number.isFinite(here[0])||!Number.isFinite(here[1]))return;
+
+  const now=performance.now();
+  updateSpeed(position,here,now);
+  if(!routeModel?.points?.length)return;
 
   const accuracy=Math.max(0,Number(position?.coords?.accuracy)||0);
   const searchStart=Math.max(0,lastSnapIndex-120);
@@ -260,6 +290,20 @@ function installCameraSmoothing(){
   let lastAt=0;
   let lastTarget=null;
 
+  controller.moveToTarget=function(target,duration){
+    const camera=currentCameraProfile();
+    this.map.easeTo({
+      center:target.center,
+      zoom:camera.zoom,
+      bearing:this.smoothBearing(target),
+      pitch:camera.pitch,
+      offset:target.offset,
+      duration,
+      easing:t=>1-Math.pow(1-t,3),
+      essential:true
+    },{trasyCamera:true});
+  };
+
   controller.follow=function(target){
     this.latestTarget={
       center:target.center.slice(),
@@ -286,12 +330,13 @@ function installCameraSmoothing(){
     lastTarget=center.slice();
     const duration=this.latestTarget.instant?0:Math.max(600,Math.min(1400,interval*1.18));
     const bearing=this.smoothBearing({...this.latestTarget,center});
+    const camera=currentCameraProfile();
 
     this.map.easeTo({
       center,
-      zoom:GUIDANCE_ZOOM,
+      zoom:camera.zoom,
       bearing,
-      pitch:GUIDANCE_PITCH,
+      pitch:camera.pitch,
       offset:this.latestTarget.offset,
       duration,
       easing:t=>t,
