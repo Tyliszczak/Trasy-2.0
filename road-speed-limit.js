@@ -11,6 +11,7 @@ import { nearestRoadLimit } from './road-speed-limit-core.js?v=2';
   const MIN_MOVE_M=45;
   const MAX_GPS_ACCURACY_M=90;
   const REQUEST_TIMEOUT_MS=10000;
+  const BACKEND_TIMEOUT_MS=12000;
   const LIMIT_TTL_MS=60000;
   const DRIVABLE='motorway|motorway_link|trunk|trunk_link|primary|primary_link|secondary|secondary_link|tertiary|tertiary_link|unclassified|residential|living_street|service|road';
 
@@ -25,6 +26,7 @@ import { nearestRoadLimit } from './road-speed-limit-core.js?v=2';
   let cachedAt=0;
   let previousWayId=null;
   let endpointIndex=0;
+  let lastSource='';
 
   function haversine(a,b){
     const R=6371000,p=Math.PI/180;
@@ -48,22 +50,26 @@ import { nearestRoadLimit } from './road-speed-limit-core.js?v=2';
     return map?.hidden===false||schedule?.hidden===false;
   }
 
-  function publish(detail,{staleReason=''}={}){
+  function publish(detail,{staleReason='',source}={}){
     clearTimeout(staleTimer);
     staleTimer=0;
 
     const value=Number(detail?.maxspeed);
     const hasLimit=Number.isFinite(value)&&value>0;
+    const resolvedSource=String(source||detail?.source||(hasLimit?lastSource:'')||'');
     window.__routeRoadSpeedLimitKmh=hasLimit?value:null;
     window.__routeRoadClass=detail?.roadClass||'';
     window.__routeHighSpeedRoad=!!detail?.highSpeedRoad;
     validUntil=hasLimit?Date.now()+LIMIT_TTL_MS:0;
+    if(hasLimit)lastSource=resolvedSource;
     window.__routeRoadSpeedLimitValidUntil=validUntil;
     window.__routeRoadSpeedLimitState={
       hasLimit,
+      source:resolvedSource,
       osmWayId:detail?.osmWayId??null,
-      roadName:detail?.name||'',
+      roadName:detail?.roadName||detail?.name||'',
       staleReason,
+      attempts:Array.isArray(detail?.attempts)?detail.attempts:[],
       updatedAt:Date.now()
     };
 
@@ -71,9 +77,9 @@ import { nearestRoadLimit } from './road-speed-limit-core.js?v=2';
       maxspeed:window.__routeRoadSpeedLimitKmh,
       roadClass:window.__routeRoadClass,
       highSpeedRoad:window.__routeHighSpeedRoad,
-      source:'openstreetmap',
+      source:resolvedSource,
       osmWayId:detail?.osmWayId??null,
-      roadName:detail?.name||'',
+      roadName:detail?.roadName||detail?.name||'',
       validUntil,
       stale:!hasLimit&&!!staleReason,
       staleReason
@@ -81,7 +87,7 @@ import { nearestRoadLimit } from './road-speed-limit-core.js?v=2';
 
     if(hasLimit){
       staleTimer=setTimeout(()=>{
-        if(validUntil&&Date.now()>=validUntil)publish({},{staleReason:'ttl'});
+        if(validUntil&&Date.now()>=validUntil)publish({},{staleReason:'ttl',source:lastSource});
       },LIMIT_TTL_MS+50);
     }
   }
@@ -92,6 +98,31 @@ import { nearestRoadLimit } from './road-speed-limit-core.js?v=2';
 
   function match(point,heading){
     return nearestRoadLimit(cachedElements,point,{maxDistance:MATCH_DISTANCE_M,heading,previousWayId});
+  }
+
+  function driverApi(){
+    const api=window.KURSY_DRIVER_API||window.__KURSY_DRIVER_API;
+    return typeof api?.driverRoadSpeedLimit==='function'?api:null;
+  }
+
+  async function requestBackendLimit(point,previousPoint,heading){
+    const api=driverApi();
+    if(!api)return null;
+    const controller=new AbortController();
+    const timeout=setTimeout(()=>controller.abort(),BACKEND_TIMEOUT_MS);
+    const request={
+      position:{latitude:point.lat,longitude:point.lon},
+      previousPosition:previousPoint?{latitude:previousPoint.lat,longitude:previousPoint.lon}:null,
+      heading:Number.isFinite(heading)?heading:null
+    };
+    try{
+      const data=await api.driverRoadSpeedLimit(request,{signal:controller.signal});
+      const limit=Number(data?.maxspeed);
+      if(!Number.isFinite(limit)||limit<=0)return {data,limit:null};
+      return {data,limit};
+    }finally{
+      clearTimeout(timeout);
+    }
   }
 
   async function requestEndpoint(url,point){
@@ -130,6 +161,29 @@ import { nearestRoadLimit } from './road-speed-limit-core.js?v=2';
     throw lastError||Error('Brak odpowiedzi Overpass');
   }
 
+  async function osmFallback(point,heading,local){
+    if(local){
+      previousWayId=local.osmWayId;
+      publish({...local,source:'openstreetmap'},{source:'openstreetmap'});
+    }
+    try{
+      cachedElements=await requestElements(point);
+      cachedAt=Date.now();
+      const result=match(point,heading);
+      previousWayId=result?.osmWayId??previousWayId;
+      if(result){
+        publish({...result,source:'openstreetmap'},{source:'openstreetmap'});
+        return true;
+      }
+      if(!local)publish({},{staleReason:'no-limit',source:'openstreetmap'});
+      return !!local;
+    }catch(error){
+      if(!local&&Date.now()>=validUntil)publish({},{staleReason:'error',source:'openstreetmap'});
+      console.warn('Limit prędkości OSM:',error);
+      return !!local;
+    }
+  }
+
   async function onPosition(position){
     if(!active())return;
     const coords=position?.coords;
@@ -147,30 +201,43 @@ import { nearestRoadLimit } from './road-speed-limit-core.js?v=2';
     if(!lastGpsPoint||haversine(lastGpsPoint,point)>=3)lastGpsPoint=point;
 
     if(accuracy>MAX_GPS_ACCURACY_M){
-      if(Date.now()>=validUntil)publish({},{staleReason:'gps-accuracy'});
+      if(Date.now()>=validUntil)publish({},{staleReason:'gps-accuracy',source:lastSource});
       return;
     }
 
     const moved=lastQueryPoint?haversine(lastQueryPoint,point):Infinity;
     const elapsed=Date.now()-lastQueryAt;
-    const local=cachedElements.length&&Date.now()-cachedAt<LIMIT_TTL_MS?match(point,lastHeading):null;
-    if(local){previousWayId=local.osmWayId;publish(local)}
     if(inFlight)return;
     if(lastQueryPoint&&elapsed<MIN_QUERY_MS)return;
     if(lastQueryPoint&&moved<MIN_MOVE_M&&elapsed<30000)return;
 
+    const previousQueryPoint=lastQueryPoint;
+    const local=cachedElements.length&&Date.now()-cachedAt<LIMIT_TTL_MS?match(point,lastHeading):null;
     inFlight=true;
     lastQueryAt=Date.now();
     lastQueryPoint=point;
     try{
-      cachedElements=await requestElements(point);
-      cachedAt=Date.now();
-      const result=match(point,lastHeading);
-      previousWayId=result?.osmWayId??previousWayId;
-      publish(result||{},{staleReason:result?'':'no-limit'});
-    }catch(error){
-      if(!local&&Date.now()>=validUntil)publish({},{staleReason:'error'});
-      console.warn('Limit prędkości OSM:',error);
+      let backend=null;
+      try{
+        backend=await requestBackendLimit(point,previousQueryPoint,lastHeading);
+      }catch(error){
+        console.warn('Limit prędkości backend:',error);
+      }
+
+      if(backend?.limit){
+        const data=backend.data||{};
+        publish({
+          maxspeed:backend.limit,
+          roadClass:data.roadClass||'',
+          highSpeedRoad:!!data.highSpeedRoad,
+          roadName:data.roadName||'',
+          attempts:data.attempts||[],
+          source:data.provider||'backend'
+        },{source:data.provider||'backend'});
+        return;
+      }
+
+      await osmFallback(point,lastHeading,local);
     }finally{
       inFlight=false;
     }
@@ -185,9 +252,11 @@ import { nearestRoadLimit } from './road-speed-limit-core.js?v=2';
   document.addEventListener('route-direction-change',()=>{
     lastQueryAt=0;
     lastQueryPoint=null;
+    lastGpsPoint=null;
     cachedElements=[];
     cachedAt=0;
     previousWayId=null;
+    lastSource='';
     publish({},{staleReason:'route-change'});
   });
 })();
