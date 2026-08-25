@@ -39,6 +39,47 @@ test('czas nie uczestniczy w wyborze następnego przystanku',()=>{
   assert.equal(result.reason,'initial-target');
 });
 
+test('podczas jazdy startowy cel wybierany jest przed autem nawet gdy następny punkt jest dalej niż 600 m',()=>{
+  const engine=createStopProgressEngine();
+  const distantStops=[0,1600,3200].map((meters,index)=>({key:String(index),coord:metersNorth(meters)}));
+  const position=metersNorth(250);
+  const heading=bearingDegrees(position,distantStops[1].coord);
+  const result=engine.update({
+    stops:distantStops,
+    position,
+    accuracy:10,
+    speedMps:10,
+    heading,
+    headingReliable:true
+  });
+  assert.equal(result.index,1);
+  assert.equal(result.reason,'initial-target');
+});
+
+test('po ponownym uruchomieniu w środku trasy silnik pomija punkty pozostawione za autem',()=>{
+  const engine=createStopProgressEngine();
+  const longStops=[0,1000,2000,3000].map((meters,index)=>({key:String(index),coord:metersNorth(meters)}));
+  const position=metersNorth(2350);
+  const heading=bearingDegrees(position,longStops[3].coord);
+  const result=engine.update({
+    stops:longStops,
+    position,
+    accuracy:10,
+    speedMps:12,
+    heading,
+    headingReliable:true
+  });
+  assert.equal(result.index,3);
+  assert.equal(result.reason,'initial-target');
+});
+
+test('podczas jazdy bez wiarygodnego kierunku silnik nie wraca odruchowo do pierwszego przystanku',()=>{
+  const engine=createStopProgressEngine();
+  const result=fix(engine,700,{speedMps:10,headingReliable:false});
+  assert.equal(result.index,null);
+  assert.equal(result.reason,'awaiting-heading');
+});
+
 test('przyjazd wymaga potwierdzonego postoju w promieniu przystanku',()=>{
   const engine=createStopProgressEngine();
   fix(engine,0);
