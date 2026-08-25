@@ -50,7 +50,7 @@ test('przyjazd wymaga potwierdzonego postoju w promieniu przystanku',()=>{
   assert.equal(arrived.arrived,true);
 });
 
-test('przejazd przez środek przystanku bez zatrzymania nie potwierdza przyjazdu',()=>{
+test('przejazd przez środek bez postoju nie udaje przyjazdu',()=>{
   const engine=createStopProgressEngine();
   engine.setIndex(0);
   for(const meters of[35,20,10,20,35]){
@@ -60,7 +60,29 @@ test('przejazd przez środek przystanku bez zatrzymania nie potwierdza przyjazdu
   }
 });
 
-test('zmiana celu wymaga potwierdzonego postoju i dwóch odczytów odjazdu',()=>{
+test('minięcie przystanku w ruchu przełącza cel po kilku pewnych odczytach',()=>{
+  const engine=createStopProgressEngine();
+  engine.setIndex(0);
+  let result;
+  for(const meters of[80,50,20,45,65,90]){
+    result=fix(engine,meters,{speedMps:8,headingReliable:true});
+  }
+  assert.equal(result.index,1);
+  assert.equal(result.reason,'passed-stop');
+  assert.equal(result.justSkipped,true);
+  assert.equal(result.skippedIndex,0);
+});
+
+test('bez wiarygodnego kierunku GPS przystanek nie jest automatycznie pomijany',()=>{
+  const engine=createStopProgressEngine();
+  engine.setIndex(0);
+  for(const meters of[80,50,20,45,65,90,120]){
+    fix(engine,meters,{speedMps:8,headingReliable:false});
+  }
+  assert.equal(engine.snapshot().index,0);
+});
+
+test('zmiana celu po postoju wymaga potwierdzonego odjazdu',()=>{
   const engine=createStopProgressEngine();
   confirmStop(engine,0);
   const firstDeparture=fix(engine,90,{speedMps:8,headingReliable:true});
@@ -109,15 +131,6 @@ test('po potwierdzonym postoju czas planu przełącza HOLD na READY',()=>{
   assert.equal(hold.state,'hold');
   assert.equal(ready.state,'ready');
   assert.equal(ready.message,'MOŻESZ JECHAĆ');
-});
-
-test('przejazd obok nie powoduje cichego automatycznego pominięcia',()=>{
-  const engine=createStopProgressEngine();
-  engine.setIndex(0);
-  for(const meters of[80,120,180,250]){
-    const result=fix(engine,meters,{speedMps:12,headingReliable:true});
-    assert.equal(result.index,0);
-  }
 });
 
 test('postój i niedokładny GPS nie zmieniają celu',()=>{

@@ -17,6 +17,7 @@ import{stopGuardState}from'./stop-alert-core.js';
   const MIN_HEADING_SPEED_MPS=1.5;
   const HEADING_VALID_MS=10000;
   const EARLY_WARNING_MS=10000;
+  const MISSED_STOP_WARNING_MS=20000;
 
   const engine=createStopProgressEngine({maxAccuracy:MAX_ACCURACY});
   let watch=null;
@@ -28,9 +29,10 @@ import{stopGuardState}from'./stop-alert-core.js';
   let currentIndex=null;
   let reachedBeforeTime=false;
   let earlyWarningTimer=null;
+  let missedStopWarningTimer=null;
 
   const style=document.createElement('style');
-  style.textContent='#scheduleBody tr.isActiveStop:not(.gpsNextStop){background:transparent!important;box-shadow:none!important}#scheduleBody tr.isActiveStop:not(.gpsNextStop) td:first-child{color:#fff!important;font-weight:inherit!important}#scheduleBody tr.gpsNextStop{background:rgba(255,255,255,.035)!important;box-shadow:inset 5px 0 0 var(--gps-status-color,#ccff33),inset 0 1.5px 0 var(--gps-status-color,#ccff33),inset -1.5px 0 0 var(--gps-status-color,#ccff33),inset 0 -1.5px 0 var(--gps-status-color,#ccff33),0 4px 10px #0006!important}#scheduleBody tr.gpsNextStop td:first-child,#scheduleBody tr.gpsNextStop td:first-child>*:not(.etaPunctuality):not(.stopGuardNotice){font-weight:900!important;color:#fff!important}#scheduleBody tr td:first-child,#scheduleBody tr td:first-child>*:not(.etaPunctuality):not(.stopGuardNotice){color:#fff!important}#scheduleBody .stopGuardNotice{display:block;margin-top:5px;padding:6px 8px;border-radius:7px;font-size:12px;line-height:1.15;font-weight:1000;white-space:normal}#scheduleBody .stopGuardNotice.hold{background:#ffd60a;color:#111}#scheduleBody .stopGuardNotice.ready{background:#34c759;color:#071407}#earlyDepartureWarning{position:fixed;z-index:99999;left:50%;top:18px;transform:translateX(-50%);width:min(92vw,520px);padding:16px 18px;border:3px solid #fff;border-radius:12px;background:#e11d2e;color:#fff;box-shadow:0 8px 28px #000c;text-align:center;font-size:1.12rem;font-weight:1000;line-height:1.2;letter-spacing:.02em;pointer-events:none}#earlyDepartureWarning small{display:block;margin-top:5px;font-size:.78rem;font-weight:800;opacity:.95}';
+  style.textContent='#scheduleBody tr.isActiveStop:not(.gpsNextStop){background:transparent!important;box-shadow:none!important}#scheduleBody tr.isActiveStop:not(.gpsNextStop) td:first-child{color:#fff!important;font-weight:inherit!important}#scheduleBody tr.gpsNextStop{background:rgba(255,255,255,.035)!important;box-shadow:inset 5px 0 0 var(--gps-status-color,#ccff33),inset 0 1.5px 0 var(--gps-status-color,#ccff33),inset -1.5px 0 0 var(--gps-status-color,#ccff33),inset 0 -1.5px 0 var(--gps-status-color,#ccff33),0 4px 10px #0006!important}#scheduleBody tr.gpsNextStop td:first-child,#scheduleBody tr.gpsNextStop td:first-child>*:not(.etaPunctuality):not(.stopGuardNotice){font-weight:900!important;color:#fff!important}#scheduleBody tr td:first-child,#scheduleBody tr td:first-child>*:not(.etaPunctuality):not(.stopGuardNotice){color:#fff!important}#scheduleBody .stopGuardNotice{display:block;margin-top:5px;padding:6px 8px;border-radius:7px;font-size:12px;line-height:1.15;font-weight:1000;white-space:normal}#scheduleBody .stopGuardNotice.hold{background:#ffd60a;color:#111}#scheduleBody .stopGuardNotice.ready{background:#34c759;color:#071407}#earlyDepartureWarning{position:fixed;z-index:99999;left:50%;top:18px;transform:translateX(-50%);width:min(92vw,520px);padding:16px 18px;border:3px solid #fff;border-radius:12px;background:#e11d2e;color:#fff;box-shadow:0 8px 28px #000c;text-align:center;font-size:1.12rem;font-weight:1000;line-height:1.2;letter-spacing:.02em;pointer-events:none}#earlyDepartureWarning small{display:block;margin-top:5px;font-size:.78rem;font-weight:800;opacity:.95}#missedStopWarning{position:fixed;z-index:100000;left:50%;top:86px;transform:translateX(-50%);width:min(90vw,520px);display:flex;align-items:center;gap:10px;padding:11px 12px 11px 15px;border:2px solid #ffb020;border-radius:12px;background:#241b08f2;color:#fff;box-shadow:0 5px 18px #000b,0 0 0 0 #ffb02066;font-weight:1000;line-height:1.18;animation:missedStopPulse 1.8s ease-in-out infinite}#missedStopWarning[hidden]{display:none!important}#missedStopWarning .missedStopText{flex:1;min-width:0}#missedStopWarning .missedStopText strong{display:block;color:#ffca55;font-size:.82rem;letter-spacing:.03em}#missedStopWarning .missedStopText span{display:block;margin-top:2px;font-size:1rem;overflow-wrap:anywhere}#missedStopWarning button{flex:0 0 34px;width:34px;height:34px;min-width:34px;padding:0;margin:0;border:1px solid #fff8;border-radius:17px;background:#0008;color:#fff;font-size:22px;font-weight:900;line-height:30px}@keyframes missedStopPulse{0%,100%{box-shadow:0 5px 18px #000b,0 0 0 0 #ffb02055}50%{box-shadow:0 5px 18px #000b,0 0 0 7px #ffb02018}}';
   document.head.append(style);
 
   const coord=value=>geo.parseCoordinate(value);
@@ -79,6 +81,23 @@ import{stopGuardState}from'./stop-alert-core.js';
     el.hidden=false;
     clearTimeout(earlyWarningTimer);
     earlyWarningTimer=setTimeout(()=>{el.hidden=true},EARLY_WARNING_MS);
+  }
+
+  function showMissedStopWarning(name){
+    let el=document.getElementById('missedStopWarning');
+    if(!el){
+      el=document.createElement('div');
+      el.id='missedStopWarning';
+      el.setAttribute('role','status');
+      el.setAttribute('aria-live','polite');
+      el.innerHTML='<div class="missedStopText"><strong>POMINĄŁEŚ PRZYSTANEK</strong><span></span></div><button type="button" aria-label="Zamknij komunikat">×</button>';
+      el.querySelector('button').onclick=()=>{clearTimeout(missedStopWarningTimer);el.hidden=true};
+      document.body.append(el);
+    }
+    el.querySelector('.missedStopText span').textContent=name||'Przystanek';
+    el.hidden=false;
+    clearTimeout(missedStopWarningTimer);
+    missedStopWarningTimer=setTimeout(()=>{el.hidden=true},MISSED_STOP_WARNING_MS);
   }
 
   function applyIndex(index,reason='tracking',transition={}){
@@ -176,6 +195,7 @@ import{stopGuardState}from'./stop-alert-core.js';
 
   function chooseAndApply(motion={}){
     if(view.hidden||!lastPos)return;
+    const routeRows=rows();
     const result=engine.update({
       stops:stops(),
       position:lastPos,
@@ -189,7 +209,6 @@ import{stopGuardState}from'./stop-alert-core.js';
     let arrivalDetail=null;
 
     if(result.justArrived){
-      const routeRows=rows();
       const row=routeRows[currentIndex];
       const plan=alarmEligible(routeRows,currentIndex,row)?rowPlanDate(row):null;
       reachedBeforeTime=Boolean(plan&&Date.now()<plan.getTime());
@@ -204,12 +223,28 @@ import{stopGuardState}from'./stop-alert-core.js';
       };
     }
     if(result.changed&&result.reason==='confirmed-departure'){
-      const routeRows=rows();
       const previousRow=routeRows[result.fromIndex];
       const eligible=alarmEligible(routeRows,result.fromIndex,previousRow);
       const plan=eligible?rowPlanDate(previousRow):null;
       if(eligible&&reachedBeforeTime&&plan&&Date.now()<plan.getTime()&&body.dataset.direction!=='return')showEarlyDepartureWarning(rowPlanText(previousRow));
       reachedBeforeTime=false;
+    }
+    if(result.justSkipped&&Number.isInteger(result.skippedIndex)){
+      const skippedRow=routeRows[result.skippedIndex];
+      const skippedName=skippedRow?.children[0]?.innerText.trim()||'Przystanek';
+      reachedBeforeTime=false;
+      showMissedStopWarning(skippedName);
+      body.dispatchEvent(new CustomEvent('gps-stop-skipped',{
+        bubbles:true,
+        detail:{
+          index:result.skippedIndex,
+          name:skippedName,
+          key:skippedRow?.dataset.stopId||`${result.skippedIndex}:${skippedRow?.dataset.coordinate||''}`,
+          coordinate:skippedRow?.dataset.coordinate||'',
+          nextIndex:currentIndex,
+          direction:body.dataset.direction||'forward'
+        }
+      }));
     }
 
     applyIndex(currentIndex,result.reason,result);

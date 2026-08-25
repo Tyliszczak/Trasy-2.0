@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   addMinutesToTime,
+  nearestClockTime,
   nearestFutureTime,
   normalizeClockTime,
   planDateForRow,
@@ -33,7 +34,15 @@ test('normalizacja czasu akceptuje zapis z jedną cyfrą godziny i ISO',()=>{
   assert.equal(normalizeClockTime('25:10'),'');
 });
 
-test('najbliższy kurs jest zawsze najbliższym przyszłym wystąpieniem w ciągu 24 godzin',()=>{
+test('najbliższy kurs może być chwilę przed aktualną godziną',()=>{
+  const now=new Date('2026-08-25T06:20:00');
+  assert.equal(nearestClockTime(['06:15','14:15'],now),'06:15');
+
+  const nearMidnight=new Date('2026-08-25T23:58:00');
+  assert.equal(nearestClockTime(['23:50','00:05','05:00'],nearMidnight),'00:05');
+});
+
+test('najbliższy kurs przyszły pozostaje dostępny dla innych zastosowań',()=>{
   const beforeMidnight=new Date('2026-08-23T23:36:00');
   assert.equal(nearestFutureTime(['23:50','00:10','05:00'],beforeMidnight),'23:50');
 

@@ -34,8 +34,10 @@
 
   function add15(t){return time.addMinutesToTime(t,15)}
   function resolveOutboundCourse(){
+    const selected=forwardCourseTime||forwardTimeSelect.value||'';
+    if(selected)return selected;
     const values=[...forwardTimeSelect.options].map(option=>option.value).filter(Boolean);
-    return time.nearestFutureTime(values,new Date())||forwardCourseTime||forwardTimeSelect.value||'';
+    return time.nearestClockTime?.(values,new Date())||time.nearestFutureTime(values,new Date())||'';
   }
   async function loadRaw(){if(rawData)return rawData;if(loading)return loading;loading=window.__trasyRouteDataService.load().then(data=>(rawData=data?.data??data,rawData)).finally(()=>loading=null);return loading}
   async function loadParkings(){if(parkingRawData)return parkingRawData;if(parkingLoading)return parkingLoading;const api=window.KURSY_DRIVER_API;if(api&&typeof api.driverParkings==='function'){parkingLoading=api.driverParkings().then(data=>(parkingRawData=data,parkingRawData)).finally(()=>parkingLoading=null);return parkingLoading}return loadRaw()}
@@ -158,7 +160,7 @@
   returnSwitch.addEventListener('change',async()=>{
     direction=returnSwitch.checked?'return':'forward';
     if(direction==='return'){
-      forwardCourseTime=resolveOutboundCourse();
+      forwardCourseTime=forwardCourseTime||forwardTimeSelect.value||resolveOutboundCourse();
       forceReturnOriginOnce=true;
       completedReturnArrival='';
       if(emptyRun&&!(await chooseReturnParking())){emptyRun=false;emptySwitch.checked=false;body.dataset.emptyRun=''}
