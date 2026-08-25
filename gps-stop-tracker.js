@@ -5,7 +5,7 @@ import{
 }from'./gps-stop-engine.js';
 import{planDateForRow,rowPlanText}from'./schedule-time.js';
 import{stopGuardState}from'./stop-alert-core.js';
-import{canAutoAdvanceBySchedule}from'./stop-target-policy.js';
+import{canAutoAdvanceBySchedule,shouldApplySchedulePriority}from'./stop-target-policy.js';
 
 (()=>{
   const body=document.getElementById('scheduleBody');
@@ -220,7 +220,11 @@ import{canAutoAdvanceBySchedule}from'./stop-target-policy.js';
     });
     currentIndex=result.index;
 
-    if(body.dataset.emptyRun!=='1'&&result.changed&&currentIndex>0&&(result.reason==='initial-target'||result.reason==='passed-stop')){
+    const protectSchedule=shouldApplySchedulePriority({
+      direction:body.dataset.direction||'forward',
+      emptyRun:body.dataset.emptyRun==='1'
+    });
+    if(protectSchedule&&result.changed&&currentIndex>0&&(result.reason==='initial-target'||result.reason==='passed-stop')){
       const fromIndex=result.reason==='passed-stop'&&Number.isInteger(result.skippedIndex)?result.skippedIndex:0;
       if(!scheduleAllowsAutoAdvance(fromIndex,currentIndex)){
         currentIndex=fromIndex;
