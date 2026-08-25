@@ -18,7 +18,13 @@ export const DEFAULT_STOP_ENGINE_CONFIG=Object.freeze({
   minimumMovingSpeedMps:1.5,
   maximumHeadingToNextDegrees:100,
   initialNearbyMeters:600,
-  initialAdvantageMeters:200
+  initialAdvantageMeters:200,
+  passNearBaseMeters:75,
+  passNearMaxMeters:100,
+  passGrowthMeters:18,
+  passFixes:3,
+  passMinimumSpeedMps:2,
+  passMaximumHeadingToNextDegrees:75
 });
 
 export function createStopProgressEngine(overrides={}){
@@ -27,6 +33,8 @@ export function createStopProgressEngine(overrides={}){
   let phase='approaching';
   let arrivalFixes=0;
   let departureFixes=0;
+  let passFixes=0;
+  let closestDistance=Infinity;
   let lastDistance=Infinity;
 
   function reset(nextIndex=null){
@@ -34,6 +42,8 @@ export function createStopProgressEngine(overrides={}){
     phase='approaching';
     arrivalFixes=0;
     departureFixes=0;
+    passFixes=0;
+    closestDistance=Infinity;
     lastDistance=Infinity;
   }
 
@@ -72,6 +82,8 @@ export function createStopProgressEngine(overrides={}){
       phase='approaching';
       arrivalFixes=0;
       departureFixes=0;
+      passFixes=0;
+      closestDistance=Infinity;
       lastDistance=Infinity;
       return{...snapshot(),changed:true,reason:'initial-target'};
     }
@@ -82,6 +94,7 @@ export function createStopProgressEngine(overrides={}){
     const departureRadius=Math.max(config.departureBaseMeters,arrivalRadius+35);
 
     if(phase==='approaching'){
+      closestDistance=Math.min(closestDistance,distance);
       const stopped=Number.isFinite(speedMps)&&speedMps<=config.maximumArrivalSpeedMps;
       if(distance<=arrivalRadius&&stopped)arrivalFixes+=1;
       else arrivalFixes=0;
@@ -89,9 +102,34 @@ export function createStopProgressEngine(overrides={}){
       if(arrivalFixes>=config.arrivalFixes){
         phase='arrived';
         departureFixes=0;
+        passFixes=0;
         return{...snapshot(),changed:false,reason:'arrival-confirmed',justArrived:true,distance,arrivalRadius,departureRadius};
       }
-      return{...snapshot(),changed:false,reason:'approaching',distance,arrivalRadius,departureRadius,stopped};
+
+      if(index<stops.length-1){
+        const next=stops[index+1];
+        const passNearRadius=Math.min(config.passNearMaxMeters,config.passNearBaseMeters+Math.max(0,accuracy)*0.25);
+        const wasNear=closestDistance<=passNearRadius;
+        const moving=Number.isFinite(speedMps)&&speedMps>=config.passMinimumSpeedMps;
+        const movingAway=distance>=closestDistance+config.passGrowthMeters;
+        const towardNext=headingReliable&&Number.isFinite(heading)&&angleDifference(heading,bearingDegrees(position,next.coord))<=config.passMaximumHeadingToNextDegrees;
+        if(wasNear&&moving&&movingAway&&towardNext)passFixes+=1;
+        else if(!movingAway||!moving||!towardNext)passFixes=0;
+
+        if(passFixes>=config.passFixes){
+          const fromIndex=index;
+          index+=1;
+          phase='approaching';
+          arrivalFixes=0;
+          departureFixes=0;
+          passFixes=0;
+          closestDistance=Infinity;
+          lastDistance=Infinity;
+          return{...snapshot(),changed:true,reason:'passed-stop',fromIndex,skippedIndex:fromIndex,justSkipped:true,distance,arrivalRadius,departureRadius};
+        }
+      }
+
+      return{...snapshot(),changed:false,reason:'approaching',distance,arrivalRadius,departureRadius,stopped,closestDistance,passFixes};
     }
 
     if(index>=stops.length-1){
@@ -115,6 +153,8 @@ export function createStopProgressEngine(overrides={}){
       phase='approaching';
       arrivalFixes=0;
       departureFixes=0;
+      passFixes=0;
+      closestDistance=Infinity;
       lastDistance=Infinity;
       return{...snapshot(),changed:true,reason:'confirmed-departure',fromIndex,distance,arrivalRadius,departureRadius};
     }
