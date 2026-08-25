@@ -34,24 +34,47 @@ let promptInstall=null;window.addEventListener('beforeinstallprompt',e=>{e.preve
 if('serviceWorker'in navigator)window.addEventListener('load',async()=>{
   const notice=$('#updateNotice');
   const updateButton=$('#updateAppButton');
+  const currentVersion=String($('#globalTestVersion')?.dataset.version||'');
   let updateRequested=false;
+
+  function workerVersion(worker){
+    return new Promise(resolve=>{
+      if(!worker){resolve('');return}
+      const channel=new MessageChannel();
+      const finish=value=>{clearTimeout(timer);channel.port1.close();resolve(String(value||''))};
+      const timer=setTimeout(()=>finish(''),1200);
+      channel.port1.onmessage=event=>finish(event.data?.version);
+      try{worker.postMessage({type:'GET_VERSION'},[channel.port2])}catch{finish('')}
+    });
+  }
+
   try{
     const reg=await navigator.serviceWorker.register('./sw.js');
-    const showUpdate=()=>{
-      if(reg.waiting)notice.hidden=false;
+    const handleWaiting=async()=>{
+      const worker=reg.waiting;
+      if(!worker)return;
+      const waitingVersion=await workerVersion(worker);
+      if(reg.waiting!==worker)return;
+      if(currentVersion&&waitingVersion===currentVersion){
+        notice.hidden=true;
+        worker.postMessage({type:'SKIP_WAITING',reason:'already-loaded'});
+        return;
+      }
+      notice.hidden=false;
     };
-    showUpdate();
+
+    await handleWaiting();
     reg.addEventListener('updatefound',()=>{
       const worker=reg.installing;
       worker?.addEventListener('statechange',()=>{
-        if(worker.state==='installed'&&navigator.serviceWorker.controller)showUpdate();
+        if(worker.state==='installed'&&navigator.serviceWorker.controller)handleWaiting();
       });
     });
     updateButton.onclick=()=>{
       if(!reg.waiting)return;
       updateRequested=true;
       updateButton.disabled=true;
-      reg.waiting.postMessage({type:'SKIP_WAITING'});
+      reg.waiting.postMessage({type:'SKIP_WAITING',reason:'user-request'});
     };
     navigator.serviceWorker.addEventListener('controllerchange',()=>{
       if(updateRequested)location.reload();
