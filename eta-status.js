@@ -29,8 +29,6 @@ import'./geo-core.js';
     #scheduleBody .etaPunctuality.early,
     #scheduleBody .etaPunctuality.onTime,
     #scheduleBody .etaPunctuality.late{color:#39ff69!important}
-    #scheduleBody .etaPunctuality.returnStartHold:before{background:#ffd60a}
-    #scheduleBody .etaPunctuality.returnStartReady:before{background:#34c759}
     #scheduleBody .etaPunctuality.arrived:before{background:#34c759}
     #scheduleBody .etaPunctuality.neutral{display:none!important}
     #scheduleBody .etaPunctuality.returnArrival{display:block!important;margin-top:0!important;font-size:16px!important;color:#fff!important;text-shadow:none!important}
@@ -45,7 +43,6 @@ import'./geo-core.js';
   function routeRows(){return [...body.querySelectorAll('tr')].filter(r=>r.dataset.coordinate)}
   function isFinalRow(row){const rows=routeRows();return !!row&&rows.length>0&&row===rows[rows.length-1]}
   function isFinalArrived(row){if(!isFinalRow(row)||!pos)return false;const c=coord(row.dataset.coordinate);if(!c)return false;return geo.distanceMeters([pos.lat,pos.lng],c)<=Math.max(FINAL_ARRIVAL_RADIUS,Math.min(90,(pos.accuracy||0)*1.2))}
-  function isReturnOrigin(row){const rows=routeRows();return body.dataset.direction==='return'&&String(body.dataset.returnOriginActive)==='1'&&row===rows[0]&&Number(body.dataset.gpsNextStop||0)===0}
   function guardIsShowing(){return !!body.querySelector('tr.gpsNextStop .stopGuardNotice')}
   function planSeconds(row){const now=new Date(),plan=planDateForRow(routeRows(),row,now);return plan?(plan.getTime()-now.getTime())/1000:null}
   function liveEta(){if(etaSeconds===null||!etaMeasuredAt)return null;return Math.max(0,etaSeconds-(Date.now()-etaMeasuredAt)/1000)}
@@ -54,11 +51,13 @@ import'./geo-core.js';
   function ensureInfo(row){if(!row)return null;if(infoEl&&infoRow===row&&infoEl.isConnected)return infoEl;if(infoEl?.isConnected)infoEl.remove();infoEl=document.createElement('div');infoEl.className='etaPunctuality';row.querySelector('td:nth-child(2)')?.appendChild(infoEl);infoRow=row;return infoEl}
   function clearInfo(){if(infoEl?.isConnected)infoEl.remove();infoEl=null;infoRow=null}
 
-  async function refreshEta(force=false){const row=activeRow();if(requesting||!row||!pos)return;if(isReturnOrigin(row)||isFinalArrived(row)){etaSeconds=null;etaMeasuredAt=0;lastTarget=row;return}const c=coord(row.dataset.coordinate);if(!c)return;const changed=lastTarget!==row;if(!force&&!changed&&Date.now()-lastRouteAt<ROUTE_REFRESH_MS)return;const nav=document.getElementById('routeMapNav');if(nav&&!nav.hidden)return;requesting=true;lastRouteAt=Date.now();lastTarget=row;try{const url=`https://router.project-osrm.org/route/v1/driving/${pos.lng},${pos.lat};${c[1]},${c[0]}?overview=false&steps=false`;const res=await fetch(url,{cache:'no-store'});const data=await res.json();const value=data?.routes?.[0]?.duration;if(Number.isFinite(value)){etaSeconds=value;etaMeasuredAt=Date.now()}}catch(err){console.warn('ETA:',err)}finally{requesting=false}}
+  async function refreshEta(force=false){const row=activeRow();if(requesting||!row||!pos)return;if(isFinalArrived(row)){etaSeconds=null;etaMeasuredAt=0;lastTarget=row;return}const c=coord(row.dataset.coordinate);if(!c)return;const changed=lastTarget!==row;if(!force&&!changed&&Date.now()-lastRouteAt<ROUTE_REFRESH_MS)return;const nav=document.getElementById('routeMapNav');if(nav&&!nav.hidden)return;requesting=true;lastRouteAt=Date.now();lastTarget=row;try{const url=`https://router.project-osrm.org/route/v1/driving/${pos.lng},${pos.lat};${c[1]},${c[0]}?overview=false&steps=false`;const res=await fetch(url,{cache:'no-store'});const data=await res.json();const value=data?.routes?.[0]?.duration;if(Number.isFinite(value)){etaSeconds=value;etaMeasuredAt=Date.now()}}catch(err){console.warn('ETA:',err)}finally{requesting=false}}
 
   function render(){if(view.hidden)return;const row=activeRow();if(!row){clearInfo();return}if(guardIsShowing()){clearInfo();return}const info=ensureInfo(row);if(!info)return;
     if(body.dataset.direction==='return'){
-      if(isReturnOrigin(row)||isFinalArrived(row)){clearInfo();return}
+      const cell=row.querySelector('td:nth-child(2)');
+      if(cell)cell.replaceChildren(info);
+      if(isFinalArrived(row)){clearInfo();return}
       const etaSecondsLive=liveEta();
       if(etaSecondsLive===null){info.textContent='';info.className='etaPunctuality neutral';return}
       info.className='etaPunctuality returnArrival';
@@ -68,10 +67,9 @@ import'./geo-core.js';
       return;
     }
     if(isFinalArrived(row)){info.className='etaPunctuality onTime';info.textContent='👍';row.style.setProperty('--gps-status-color','#34c759');body.dataset.etaKind='arrived';body.dataset.etaDiffSeconds='0';body.dataset.etaSeconds='0';body.dispatchEvent(new CustomEvent('eta-status-change',{bubbles:true,detail:{kind:'arrived',diffSeconds:0,etaSeconds:0}}));return}
-    if(isReturnOrigin(row)){clearInfo();return}
     const etaSecondsLive=liveEta();if(etaSecondsLive===null){info.textContent='';info.className='etaPunctuality neutral';return}const plan=planSeconds(row);if(plan===null){info.textContent='';info.className='etaPunctuality neutral';return}const punctuality=etaCore.statusFromEta(etaSecondsLive,plan);const kind=punctuality.kind;const diff=punctuality.diffSeconds;const color=kind==='late'?'#ff3b30':kind==='early'?'#ffd60a':'#34c759';row.style.setProperty('--gps-status-color',color);info.className=`etaPunctuality ${kind}`;info.textContent=punctuality.text;body.dataset.etaKind=kind;body.dataset.etaDiffSeconds=String(diff);body.dataset.etaSeconds=String(etaSecondsLive);body.dispatchEvent(new CustomEvent('eta-status-change',{bubbles:true,detail:{kind,diffSeconds:diff,etaSeconds:etaSecondsLive}}))}
 
-  body.addEventListener('nav-eta-update',event=>{const row=activeRow();if(row&&(isReturnOrigin(row)||isFinalArrived(row)))return;const seconds=Number(event.detail?.etaSeconds);if(Number.isFinite(seconds)){etaSeconds=seconds;etaMeasuredAt=Date.now();render()}});
+  body.addEventListener('nav-eta-update',event=>{const row=activeRow();if(row&&isFinalArrived(row))return;const seconds=Number(event.detail?.etaSeconds);if(Number.isFinite(seconds)){etaSeconds=seconds;etaMeasuredAt=Date.now();render()}});
   body.addEventListener('gps-next-stop-change',()=>{lastTarget=null;etaSeconds=null;etaMeasuredAt=0;clearInfo();refreshEta(true).then(render)});
   body.addEventListener('stop-guard-change',()=>render());
   function start(){if(watch!==null)return;watch=window.__trasyGps.subscribe(p=>{pos={lat:p.coords.latitude,lng:p.coords.longitude,accuracy:p.coords.accuracy||999};if(pos.accuracy<=MAX_GPS_ACCURACY){refreshEta().then(render)}},()=>{})}
