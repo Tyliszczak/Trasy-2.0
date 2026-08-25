@@ -63,25 +63,29 @@ test('blokadą wygaszania zarządza tylko wake-style',async()=>{
   assert.match(wake,/wakeLock\.request\('screen'\)/);
 });
 
-test('dane tras są pobierane przez wspólny bezpieczny kontrakt kierowcy',async()=>{
+test('dane tras są pobierane wyłącznie z arkusza Trasy 2.0',async()=>{
   const [service,app,returnRoute]=await Promise.all([
     readSource('route-data-service.js'),readSource('app.js'),readSource('return-route.js')
   ]);
-  assert.match(service,/KURSY_DRIVER_API/);
-  assert.match(service,/api\.driverRoutes\(\{signal:controller\.signal\}\)/);
-  assert.doesNotMatch(service,/script\.google\.com|jsonp/i);
-  assert.doesNotMatch(app,/script\.google\.com/);
-  assert.doesNotMatch(returnRoute,/script\.google\.com/);
+  assert.match(service,/AKfycbyQcnU6xvvrUZNVUJRhQ293L47hZwlvsc6i3n9s9hiYqhLUAoKSqGbPohe_lSB0apfUcw/);
+  for(const name of ['SAS Sulechów','APT - Krężoły','SAS Świebodzin','TopPoint','POJAZDY'])assert.match(service,new RegExp(name));
+  assert.match(service,/fetch\(url\.href/);
+  assert.doesNotMatch(service,/KURSY_DRIVER_API|driverRoutes/);
   assert.match(app,/__trasyRouteDataService/);
   assert.match(returnRoute,/__trasyRouteDataService/);
 });
 
-test('wersja internetowa od razu pokazuje dane testowe bez oczekiwania na stary endpoint 403',async()=>{
-  const [app,vehicles,provider]=await Promise.all([readSource('app.js'),readSource('vehicles.js'),readSource('google-routes-provider.js')]);
+test('pojazdy są pobierane z karty POJAZDY tego samego arkusza',async()=>{
+  const [app,vehicles,service,provider]=await Promise.all([
+    readSource('app.js'),readSource('vehicles.js'),readSource('route-data-service.js'),readSource('google-routes-provider.js')
+  ]);
   assert.match(app,/routes=FALLBACK_ROUTES\.filter\(valid\);renderRoutes\(\)/);
   assert.match(app,/Tryb testowy/);
-  assert.match(vehicles,/standaloneTestVehicle/);
-  for(const source of [app,vehicles,provider])assert.doesNotMatch(source,/AKfycbzdG_ARbbPgMdlPteqFLakZHR5EEkT4Lb3YFDbXW_I_OyrDKo8l0_KrQLjnncxj_M9q/);
+  assert.match(vehicles,/__trasyRouteDataService/);
+  assert.match(vehicles,/data\?\.POJAZDY/);
+  assert.doesNotMatch(vehicles,/KURSY_DRIVER_API|standaloneTestVehicle/);
+  assert.match(service,/POJAZDY/);
+  for(const source of [app,vehicles,provider,service])assert.doesNotMatch(source,/AKfycbzdG_ARbbPgMdlPteqFLakZHR5EEkT4Lb3YFDbXW_I_OyrDKo8l0_KrQLjnncxj_M9q/);
 });
 
 test('wybór najbliższego przyszłego kursu ma jedno źródło w time-core',async()=>{
