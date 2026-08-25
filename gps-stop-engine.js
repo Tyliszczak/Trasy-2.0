@@ -19,6 +19,7 @@ export const DEFAULT_STOP_ENGINE_CONFIG=Object.freeze({
   maximumHeadingToNextDegrees:100,
   initialNearbyMeters:600,
   initialAdvantageMeters:200,
+  initialMaximumHeadingDegrees:110,
   passNearBaseMeters:75,
   passNearMaxMeters:100,
   passGrowthMeters:18,
@@ -56,9 +57,26 @@ export function createStopProgressEngine(overrides={}){
     return{index,phase,arrived:phase==='arrived'};
   }
 
-  function selectInitial(stops,position,emptyRun=false){
+  function selectInitial(stops,position,{emptyRun=false,speedMps=0,heading=null,headingReliable=false}={}){
     if(!stops.length)return null;
     if(emptyRun)return stops.length-1;
+
+    const moving=Number.isFinite(speedMps)&&speedMps>=config.minimumMovingSpeedMps;
+    if(moving){
+      // Gdy aplikacja/tracker startuje już podczas jazdy, nie przypinaj celu
+      // do pierwszego przystanku tylko dlatego, że kierunek GPS nie zdążył
+      // się jeszcze ustabilizować. Po kilku metrach tracker wyliczy heading.
+      if(!headingReliable||!Number.isFinite(heading))return null;
+
+      // Wybieramy pierwszy przystanek w kolejności trasy, który znajduje się
+      // przed autem. Dzięki temu punkt pozostawiony za plecami nie wraca jako
+      // aktywny cel, nawet jeśli kolejny jest jeszcze daleko (>600 m).
+      for(let i=0;i<stops.length;i+=1){
+        const targetBearing=bearingDegrees(position,stops[i].coord);
+        if(angleDifference(heading,targetBearing)<=config.initialMaximumHeadingDegrees)return i;
+      }
+    }
+
     const distances=stops.map(stop=>distanceMeters(position,stop.coord));
     let nearest=0;
     for(let i=1;i<distances.length;i+=1){
@@ -78,7 +96,9 @@ export function createStopProgressEngine(overrides={}){
     }
     if(!Number.isFinite(accuracy)||accuracy>config.maxAccuracy)return{...snapshot(),changed:false,reason:'poor-accuracy'};
     if(index===null||index<0||index>=stops.length){
-      index=selectInitial(stops,position,false);
+      const selected=selectInitial(stops,position,{emptyRun:false,speedMps,heading,headingReliable});
+      if(selected===null)return{...snapshot(),changed:false,reason:'awaiting-heading'};
+      index=selected;
       phase='approaching';
       arrivalFixes=0;
       departureFixes=0;
