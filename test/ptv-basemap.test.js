@@ -14,6 +14,19 @@ test('PTV jest główną mapą dzienną przez bezpieczny proxy, a OpenFreeMap po
   assert.doesNotMatch(source,/apiKey\s*[:=]\s*['"][^'"]+/i);
 });
 
+test('zmiana bazowej mapy czeka aż trasa nawigacji zostanie narysowana',async()=>{
+  const [ptv,theme]=await Promise.all([read('ptv-basemap.js'),read('map-day-night.js')]);
+  assert.match(ptv,/let routeReady=false/);
+  assert.match(ptv,/trasy:route-progress-rendered/);
+  assert.match(ptv,/if\(!map\|\|switching\|\|!ensureRouteReady\(\)\)return/);
+  assert.doesNotMatch(ptv,/setTimeout\(\(\)=>applyDay\(true\),0\);\s*\n\s*}\s*\n\s*document\.addEventListener\('trasy:map-theme-change'/);
+  assert.match(theme,/let routeReady=false/);
+  assert.match(theme,/trasy:route-progress-rendered/);
+  assert.match(theme,/theme===currentTheme\|\|!ensureRouteReady\(\)/);
+  assert.match(ptv,/trasy:map-style-switch-start/);
+  assert.match(theme,/trasy:map-style-switch-start/);
+});
+
 test('proxy Cloudflare przekazuje klucz PTV wyłącznie z sekretu i nie jest otwartym proxy',async()=>{
   const source=await read('functions/ptv-map/[[path]].js');
   assert.match(source,/env\?\.PTV_API_KEY/);

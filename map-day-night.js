@@ -12,6 +12,7 @@ import { isNightAt } from './map-theme-core.js?v=1';
   let switching=false;
   let lastPoint=null;
   let timer=0;
+  let routeReady=false;
 
   function clone(value){
     if(value===undefined||value===null)return value;
@@ -29,6 +30,21 @@ import { isNightAt } from './map-theme-core.js?v=1';
     const center=map.getCenter?.();
     const lat=Number(center?.lat),lon=Number(center?.lng);
     return Number.isFinite(lat)&&Number.isFinite(lon)?{lat,lon}:null;
+  }
+
+  function hasRoute(){
+    try{return Boolean(map?.getSource?.('route'))}catch{return false}
+  }
+
+  function ensureRouteReady(){
+    if(routeReady)return true;
+    routeReady=hasRoute();
+    return routeReady;
+  }
+
+  function markStyleSwitching(value,reason='theme'){
+    window.__trasyMapStyleSwitching=value===true;
+    document.dispatchEvent(new CustomEvent(value?'trasy:map-style-switch-start':'trasy:map-style-switch-end',{detail:{source:'map-day-night',reason}}));
   }
 
   function snapshotRoute(){
@@ -86,17 +102,26 @@ import { isNightAt } from './map-theme-core.js?v=1';
   }
 
   function switchTheme(theme){
-    if(!map||switching||theme===currentTheme)return;
+    if(!map||switching||theme===currentTheme||!ensureRouteReady())return;
+    if(window.__trasyMapStyleSwitching){
+      setTimeout(()=>evaluate(),250);
+      return;
+    }
     const route=snapshotRoute();
     const target=theme==='night'?DARK_STYLE:clone(dayStyle);
     if(!target)return;
 
     switching=true;
+    markStyleSwitching(true,theme);
     let settled=false;
+    const finish=()=>{
+      switching=false;
+      markStyleSwitching(false,theme);
+    };
     const timeout=setTimeout(()=>{
       if(settled)return;
       settled=true;
-      switching=false;
+      finish();
       console.warn('Zmiana motywu mapy trwała zbyt długo.');
       if(theme==='night'&&dayStyle){
         try{map.setStyle(clone(dayStyle),{diff:false})}catch{}
@@ -110,7 +135,7 @@ import { isNightAt } from './map-theme-core.js?v=1';
       clearTimeout(timeout);
       restoreRoute(route);
       setThemeMarker(theme);
-      switching=false;
+      finish();
     });
 
     try{
@@ -118,7 +143,7 @@ import { isNightAt } from './map-theme-core.js?v=1';
     }catch(error){
       settled=true;
       clearTimeout(timeout);
-      switching=false;
+      finish();
       console.warn('Zmiana motywu mapy:',error);
     }
   }
@@ -134,6 +159,7 @@ import { isNightAt } from './map-theme-core.js?v=1';
     if(!nextMap||nextMap===map)return;
     map=nextMap;
     dayStyle=clone(map.getStyle?.());
+    routeReady=hasRoute();
     currentTheme='day';
     lastPoint=pointFromMap();
     setThemeMarker('day');
@@ -153,6 +179,11 @@ import { isNightAt } from './map-theme-core.js?v=1';
     }
   }
 
+  document.addEventListener('trasy:route-progress-rendered',()=>{
+    if(routeReady)return;
+    routeReady=true;
+    evaluate();
+  });
   document.addEventListener('trasy:route-map-ready',event=>install(event.detail?.map||window.__routeMap));
   document.addEventListener('visibilitychange',()=>{
     if(document.visibilityState==='visible')evaluate();

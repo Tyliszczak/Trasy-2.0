@@ -18,6 +18,7 @@ import { isNightAt } from './map-theme-core.js?v=1';
   let switching=false;
   let generation=0;
   let errorTimes=[];
+  let routeReady=false;
 
   function clone(value){
     if(value===undefined||value===null)return value;
@@ -39,6 +40,21 @@ import { isNightAt } from './map-theme-core.js?v=1';
   function isNightNow(){
     const point=pointFromPosition(window.__trasyGps?.current?.())||pointFromMap();
     return point?isNightAt(new Date(),point.lat,point.lon):false;
+  }
+
+  function hasRoute(){
+    try{return Boolean(map?.getSource?.('route'))}catch{return false}
+  }
+
+  function ensureRouteReady(){
+    if(routeReady)return true;
+    routeReady=hasRoute();
+    return routeReady;
+  }
+
+  function markStyleSwitching(value,reason=''){
+    window.__trasyMapStyleSwitching=value===true;
+    document.dispatchEvent(new CustomEvent(value?'trasy:map-style-switch-start':'trasy:map-style-switch-end',{detail:{source:'ptv-basemap',reason}}));
   }
 
   async function fetchWithTimeout(url,init={}){
@@ -129,15 +145,20 @@ import { isNightAt } from './map-theme-core.js?v=1';
   }
 
   function setStyle(target,nextProvider,reason=''){
-    if(!map||switching)return;
+    if(!map||switching||!ensureRouteReady())return;
     const route=snapshotRoute();
     const localGeneration=++generation;
     switching=true;
+    markStyleSwitching(true,reason);
     let settled=false;
+    const finish=()=>{
+      switching=false;
+      markStyleSwitching(false,reason);
+    };
     const timeout=setTimeout(()=>{
       if(settled||localGeneration!==generation)return;
       settled=true;
-      switching=false;
+      finish();
       if(nextProvider==='ptv'){
         disabledUntil=Date.now()+PTV_RETRY_MS;
         ptvStylePromise=null;
@@ -151,7 +172,7 @@ import { isNightAt } from './map-theme-core.js?v=1';
       clearTimeout(timeout);
       restoreRoute(route);
       markProvider(nextProvider,reason);
-      switching=false;
+      finish();
     });
 
     try{
@@ -159,7 +180,7 @@ import { isNightAt } from './map-theme-core.js?v=1';
     }catch(error){
       settled=true;
       clearTimeout(timeout);
-      switching=false;
+      finish();
       if(nextProvider==='ptv'){
         disabledUntil=Date.now()+PTV_RETRY_MS;
         ptvStylePromise=null;
@@ -170,16 +191,16 @@ import { isNightAt } from './map-theme-core.js?v=1';
   }
 
   function applyFallback(reason){
-    if(!map||isNightNow())return;
+    if(!map||isNightNow()||!ensureRouteReady())return;
     setStyle(FALLBACK_DAY_STYLE,'openfreemap',reason);
   }
 
   async function applyDay(force=false){
-    if(!map||isNightNow())return;
+    if(!map||isNightNow()||!ensureRouteReady())return;
     if(!force&&provider==='ptv')return;
     try{
       const style=await loadPtvStyle();
-      if(!map||isNightNow())return;
+      if(!map||isNightNow()||!ensureRouteReady())return;
       setStyle(style,'ptv','secure-proxy');
     }catch(error){
       console.warn('PTV niedostępne — OpenFreeMap:',error);
@@ -202,29 +223,40 @@ import { isNightAt } from './map-theme-core.js?v=1';
     applyFallback('ptv-tile-errors');
   }
 
+  function activateAfterRoute(){
+    if(routeReady)return;
+    routeReady=true;
+    if(!map||isNightNow())return;
+    applyDay(true);
+  }
+
   function install(nextMap){
     if(!nextMap||nextMap===map)return;
     map=nextMap;
     map.on('error',onMapError);
-    const theme=document.documentElement.dataset.mapTheme;
-    if(theme!=='night'&&!isNightNow())setTimeout(()=>applyDay(true),0);
+    if(hasRoute()){
+      routeReady=true;
+      const theme=document.documentElement.dataset.mapTheme;
+      if(theme!=='night'&&!isNightNow())setTimeout(()=>applyDay(true),0);
+    }
   }
 
+  document.addEventListener('trasy:route-progress-rendered',activateAfterRoute);
   document.addEventListener('trasy:map-theme-change',event=>{
     if(event.detail?.theme==='night'){
       markProvider('openfreemap-dark','night-theme');
       return;
     }
-    if(event.detail?.theme==='day')applyDay(true);
+    if(event.detail?.theme==='day'&&ensureRouteReady())applyDay(true);
   });
   document.addEventListener('trasy:route-map-ready',event=>install(event.detail?.map||window.__routeMap));
   window.addEventListener('online',()=>{
-    if(provider!=='ptv'&&!isNightNow()&&Date.now()>=disabledUntil)applyDay(true);
+    if(routeReady&&provider!=='ptv'&&!isNightNow()&&Date.now()>=disabledUntil)applyDay(true);
   });
 
   window.__trasyBasemapProvider={
     applyDay:()=>applyDay(true),
-    state:()=>window.__trasyBasemapState||{provider,disabledUntil},
+    state:()=>window.__trasyBasemapState||{provider,disabledUntil,routeReady},
     ptvStyleUrl:PTV_STYLE_URL,
     fallbackDayStyle:FALLBACK_DAY_STYLE
   };
