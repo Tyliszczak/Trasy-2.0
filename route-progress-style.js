@@ -1,4 +1,4 @@
-import { advanceRouteProgress, splitRemainingRoute } from './route-progress-core.js?v=1';
+import { advanceRouteProgress, createLaggedProgress, splitRemainingRoute } from './route-progress-core.js?v=2';
 
 (()=>{
   const body=document.getElementById('scheduleBody');
@@ -8,13 +8,17 @@ import { advanceRouteProgress, splitRemainingRoute } from './route-progress-core
   const FUTURE_SOURCE='route-future';
   const FUTURE_OUTLINE='route-future-outline';
   const FUTURE_LINE='route-future-line';
+  const DISPLAY_LAG_FIXES=3;
 
   let map=null;
   let fullCoords=[];
   let progressIndex=0;
+  let displayProgressIndex=0;
   let latestPosition=null;
+  let hasNewGpsFix=false;
   let renderQueued=false;
   let internalWrite=false;
+  const displayProgress=createLaggedProgress(DISPLAY_LAG_FIXES,0);
 
   function cloneCoords(coords){
     return (Array.isArray(coords)?coords:[])
@@ -80,7 +84,9 @@ import { advanceRouteProgress, splitRemainingRoute } from './route-progress-core
       const progress=advanceRouteProgress(fullCoords,point,0,latestPosition?.coords?.accuracy);
       progressIndex=progress.index;
     }
-    window.__routeProgressState={fullPoints:fullCoords.length,progressIndex,nextStopIndex:null};
+    displayProgressIndex=displayProgress.reset(progressIndex);
+    hasNewGpsFix=false;
+    window.__routeProgressState={fullPoints:fullCoords.length,progressIndex,displayProgressIndex,nextStopIndex:null};
     return true;
   }
 
@@ -168,6 +174,10 @@ import { advanceRouteProgress, splitRemainingRoute } from './route-progress-core
     if(point){
       const progress=advanceRouteProgress(fullCoords,point,progressIndex,latestPosition?.coords?.accuracy);
       progressIndex=progress.index;
+      if(hasNewGpsFix){
+        displayProgressIndex=displayProgress.push(progressIndex);
+        hasNewGpsFix=false;
+      }
     }
 
     paintActiveRoute();
@@ -176,13 +186,15 @@ import { advanceRouteProgress, splitRemainingRoute } from './route-progress-core
       return;
     }
 
-    const split=splitRemainingRoute(fullCoords,progressIndex,nextStopPoint());
+    const split=splitRemainingRoute(fullCoords,displayProgressIndex,nextStopPoint());
     rawSetData(routeSource,routeGeoJson(split.active));
     rawSetData(map.getSource(FUTURE_SOURCE),routeGeoJson(split.future));
 
     window.__routeProgressState={
       fullPoints:fullCoords.length,
       progressIndex,
+      displayProgressIndex,
+      displayLagFixes:DISPLAY_LAG_FIXES,
       nextStopIndex:split.stopIndex,
       activePoints:split.active.length,
       futurePoints:split.future.length
@@ -196,11 +208,20 @@ import { advanceRouteProgress, splitRemainingRoute } from './route-progress-core
     requestAnimationFrame(render);
   }
 
+  function resetProgress(){
+    progressIndex=0;
+    displayProgressIndex=displayProgress.reset(0);
+    hasNewGpsFix=false;
+    queueRender();
+  }
+
   function install(nextMap){
     if(!nextMap||nextMap===map)return;
     map=nextMap;
     fullCoords=[];
     progressIndex=0;
+    displayProgressIndex=displayProgress.reset(0);
+    hasNewGpsFix=false;
     patchAddSource();
 
     const existing=map.getSource?.('route');
@@ -218,14 +239,15 @@ import { advanceRouteProgress, splitRemainingRoute } from './route-progress-core
 
   gps.subscribe(position=>{
     latestPosition=position;
+    hasNewGpsFix=true;
     const panel=document.getElementById('routeMapNav');
     if(!panel||panel.hidden)return;
     queueRender();
   },()=>{});
 
   body.addEventListener('gps-next-stop-change',queueRender);
-  body.addEventListener('route-direction-change',()=>{progressIndex=0;queueRender()});
-  body.addEventListener('route-mode-change',()=>{progressIndex=0;queueRender()});
+  body.addEventListener('route-direction-change',resetProgress);
+  body.addEventListener('route-mode-change',resetProgress);
   document.addEventListener('trasy:map-theme-change',()=>setTimeout(queueRender,0));
   document.addEventListener('trasy:route-map-ready',event=>install(event.detail?.map||window.__routeMap));
   if(window.__routeMap)install(window.__routeMap);
