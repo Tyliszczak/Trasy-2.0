@@ -12,7 +12,7 @@
   const COOLDOWN_MS=45000;
   const MIN_SPEED_MPS=1.5;
 
-  let watch=null,lastPos=null,lastPosAt=0,headingAnchor=null,heading=null,lastTargetDistance=Infinity,awayFixes=0,lastPromptAt=0,lastPromptKey='';
+  let watch=null,lastPos=null,lastPosAt=0,headingAnchor=null,heading=null,lastTargetDistance=Infinity,awayFixes=0,lastPromptAt=0,lastPromptKey='',currentEtaKind='';
 
   function coord(v){const m=String(v||'').match(/(-?\d+(?:\.\d+)?)\s*[,; ]\s*(-?\d+(?:\.\d+)?)/);return m?[+m[1],+m[2]]:null}
   function dist(a,b){const R=6371000,p=Math.PI/180,dLat=(b[0]-a[0])*p,dLon=(b[1]-a[1])*p,x=Math.sin(dLat/2)**2+Math.cos(a[0]*p)*Math.cos(b[0]*p)*Math.sin(dLon/2)**2;return 2*R*Math.asin(Math.sqrt(x))}
@@ -21,6 +21,8 @@
   function rows(){return [...body.querySelectorAll('tr')].filter(r=>coord(r.dataset.coordinate))}
   function currentIndex(){const rs=rows();let i=Number(body.dataset.gpsNextStop);if(Number.isInteger(i)&&i>=0&&i<rs.length)return i;i=rs.findIndex(r=>r.classList.contains('gpsNextStop'));return i>=0?i:0}
   function rowName(r){return r?.querySelector('td:first-child')?.childNodes[0]?.textContent?.trim()||r?.querySelector('td:first-child')?.innerText?.trim()||'Przystanek'}
+  function skipPromptAllowed(){return currentEtaKind==='onTime'||currentEtaKind==='late'}
+  function captureEta(event){currentEtaKind=String(event.detail?.kind||'')}
 
   function ensureModal(){
     let modal=document.getElementById('skipDetectionDialog');if(modal)return modal;
@@ -42,6 +44,7 @@
   function closePrompt(){const m=document.getElementById('skipDetectionDialog');if(m)m.hidden=true;window.__routeStopActionsOpen=false}
 
   function promptSkip(fromIndex,toIndex,reason='detected'){
+    if(!skipPromptAllowed())return;
     const rs=rows();if(!rs[fromIndex]||toIndex<=fromIndex)return;
     const skipped=rs.slice(fromIndex,toIndex).map(rowName);if(!skipped.length)return;
     const key=`${reason}:${fromIndex}:${toIndex}:${skipped.join('|')}`;
@@ -105,7 +108,9 @@
     lastPos=here;lastPosAt=now;evaluate(here,Math.max(0,speed));
   }
 
-  function reset(){awayFixes=0;lastTargetDistance=Infinity;lastPromptKey='';headingAnchor=null;closePrompt()}
+  function reset(){awayFixes=0;lastTargetDistance=Infinity;lastPromptKey='';headingAnchor=null;currentEtaKind='';closePrompt()}
+  body.addEventListener('nav-eta-update',captureEta);
+  body.addEventListener('eta-status-change',captureEta);
   body.addEventListener('gps-next-stop-change',reset);
   body.addEventListener('route-direction-change',reset);
   body.addEventListener('schedule-rendered',reset);
