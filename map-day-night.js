@@ -1,3 +1,4 @@
+import './ptv-basemap.js?v=1';
 import { isNightAt } from './map-theme-core.js?v=1';
 
 (()=>{
