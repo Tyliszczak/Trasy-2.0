@@ -1,12 +1,21 @@
 <!doctype html>
-<html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><title>Ustaw lokalizację przystanku</title><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"><style>html,body{margin:0;height:100%;font-family:Arial,sans-serif;background:#171717;color:#fff}body{display:flex;flex-direction:column}.top{padding:12px;background:#202020;box-shadow:0 2px 8px #0008;z-index:5}.title{font-weight:800;font-size:18px}.meta{font-size:13px;color:#ccc;margin-top:4px}.controls{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}.controls button,.controls input{font-size:16px;border-radius:8px;border:1px solid #666;padding:10px 12px}.controls input{background:#111;color:#fff;flex:1;min-width:170px}.controls button{background:#CCFF33;color:#111;font-weight:800}.controls .secondary{background:#333;color:#fff}.coords{margin-top:8px;font-family:monospace;color:#CCFF33}.msg{margin-top:7px;min-height:18px;font-size:14px}.map{flex:1;min-height:360px}.leaflet-control-attribution{font-size:9px}</style></head><body><div class="top"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px"><div class="title" id="title">Ustaw lokalizację przystanku</div><a href="./parking-admin.html" style="color:#CCFF33;font-weight:800;text-decoration:none">BAZY / PARKINGI</a></div><div class="meta" id="meta"></div><div class="coords" id="coords"></div><div class="controls"><input id="password" type="password" placeholder="Hasło administratora"><button id="save">ZAPISZ W ARKUSZU</button><button id="myLocation" class="secondary">MOJA LOKALIZACJA</button></div><div class="msg" id="msg"></div></div><div id="map" class="map"></div><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script>
-const API='https://script.google.com/macros/s/AKfycbzdG_ARbbPgMdlPteqFLakZHR5EEkT4Lb3YFDbXW_I_OyrDKo8l0_KrQLjnncxj_M9q/exec';
-const q=new URLSearchParams(location.search),route=q.get('route')||'',name=q.get('name')||'',row=Number(q.get('row'))||0,column=(q.get('column')||'B').toUpperCase()==='D'?'D':'B';
-const raw=q.get('coords')||'',m=raw.match(/(-?\d+(?:\.\d+)?)\s*[,; ]\s*(-?\d+(?:\.\d+)?)/);let lat=m?+m[1]:51.9356,lng=m?+m[2]:15.5062;
-const map=L.map('map',{zoomControl:true}).setView([lat,lng],m?18:14);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);let marker=L.marker([lat,lng],{draggable:true}).addTo(map);
-const coords=document.getElementById('coords'),msg=document.getElementById('msg'),pass=document.getElementById('password');pass.value=sessionStorage.getItem('trasy2.adminPassword')||'';document.getElementById('meta').textContent=(route?route+' • ':'')+(name||'Przystanek')+' • '+(column==='D'?'POWRÓT':'PRZÓD');
-function setPoint(a,b,pan=true){lat=a;lng=b;marker.setLatLng([lat,lng]);if(pan)map.setView([lat,lng],18);coords.textContent=lat.toFixed(6)+', '+lng.toFixed(6)}setPoint(lat,lng,false);marker.on('dragend',()=>{const p=marker.getLatLng();setPoint(p.lat,p.lng,false)});map.on('click',e=>setPoint(e.latlng.lat,e.latlng.lng,false));
-document.getElementById('myLocation').onclick=()=>{msg.textContent='Pobieranie lokalizacji…';navigator.geolocation?.getCurrentPosition(p=>{setPoint(p.coords.latitude,p.coords.longitude,true);msg.textContent=''},()=>msg.textContent='Nie udało się pobrać lokalizacji telefonu.',{enableHighAccuracy:true,timeout:10000})};
-async function post(data){const r=await fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(data),cache:'no-store'});const j=await r.json();if(j.status!=='success')throw Error(j.message||'Błąd zapisu.');return j}
-document.getElementById('save').onclick=async()=>{const password=pass.value;if(!route||!name||!row){msg.textContent='Brakuje danych przystanku w odnośniku.';return}if(!password){msg.textContent='Wpisz hasło administratora.';pass.focus();return}msg.textContent='Zapisywanie…';try{await post({action:'login',password});const point=lat.toFixed(6)+','+lng.toFixed(6);if(column==='D')await post({action:'updateStopReturn',password,route,row,originalName:name,name,coordinates:point,times:{}});else await post({action:'updateStop',password,route,row,originalName:name,name,coordinates:point,times:{}});sessionStorage.setItem('trasy2.adminPassword',password);msg.textContent='Zapisano współrzędne w arkuszu. Możesz wrócić do arkusza.'}catch(e){msg.textContent=e.message||'Nie udało się zapisać.'}};
-</script></body></html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Edytor lokalizacji — Trasy 2.0</title>
+  <style>
+    :root{font-family:Arial,sans-serif;color:#fff;background:#181818}*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:20px}.card{width:min(100%,560px);padding:22px;border:1px solid #555;border-radius:16px;background:#222;box-shadow:0 12px 36px #0008}.card h1{margin:0 0 12px;color:#ccff33;font-size:1.45rem}.card p{line-height:1.5;color:#ddd}.card strong{color:#fff}.actions{display:grid;gap:10px;margin-top:18px}.actions a{display:block;padding:12px 14px;border-radius:9px;text-align:center;text-decoration:none;font-weight:900}.primary{background:#ccff33;color:#111}.secondary{background:#333;color:#fff;border:1px solid #666}
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>Edytor lokalizacji przystanków</h1>
+    <p>Stary edytor został trwale odłączony od Trasy 2.0.</p>
+    <p>Lokalizacje przystanków <strong>PRZÓD</strong> i <strong>POWRÓT</strong> edytuj wyłącznie przyciskiem <strong>📍 MAPA</strong> we właściwym arkuszu <strong>Trasy 2.0</strong>.</p>
+    <div class="actions">
+      <a class="secondary" href="./parking-admin.html">BAZY / PARKINGI</a>
+    </div>
+  </main>
+</body>
+</html>
