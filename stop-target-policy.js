@@ -1,6 +1,3 @@
-export const AUTO_ADVANCE_GRACE_MS=15*60*1000;
-export const NEXT_STOP_MAX_AHEAD_MS=15*60*1000;
-
 function dateMs(value){
   if(value===null||value===undefined||value==='')return null;
   if(value instanceof Date){
@@ -13,21 +10,17 @@ function dateMs(value){
 
 export function canAutoAdvanceBySchedule({
   currentPlan,
-  nextPlan=null,
-  now=new Date(),
-  graceMs=AUTO_ADVANCE_GRACE_MS,
-  nextStopMaxAheadMs=NEXT_STOP_MAX_AHEAD_MS
+  nextPlan,
+  now=new Date()
 }={}){
   const nowMs=dateMs(now);
   const currentMs=dateMs(currentPlan);
-  if(nowMs===null||currentMs===null)return false;
-
-  const grace=Math.max(0,Number(graceMs)||0);
-  if(nowMs-currentMs<grace)return false;
-
   const nextMs=dateMs(nextPlan);
-  if(nextMs===null)return true;
+  if(nowMs===null||currentMs===null||nextMs===null)return false;
 
-  const maxAhead=Math.max(0,Number(nextStopMaxAheadMs)||0);
-  return nextMs-nowMs<=maxAhead;
+  // Bieżący przystanek zachowuje priorytet aż do planowej godziny
+  // przystanku, na który GPS chciałby przełączyć prowadzenie.
+  // Dzięki temu odstęp może wynosić 5, 10, 25 czy 60 minut bez
+  // sztywnego okna czasowego.
+  return nowMs>=nextMs;
 }
