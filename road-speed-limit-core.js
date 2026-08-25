@@ -10,6 +10,33 @@ export function parseMaxspeed(value){
   return speed;
 }
 
+const CONTEXT_LIMITS=new Map([
+  ['PL:URBAN',50],['PL:RURAL',90],['PL:MOTORWAY',140],
+  ['CZ:URBAN',50],['CZ:RURAL',90],['CZ:MOTORWAY',130],
+  ['DE:URBAN',50],['DE:RURAL',100]
+]);
+
+export function parseContextMaxspeed(value){
+  const raw=String(value??'').trim().toUpperCase();
+  if(!raw||raw.includes(';'))return null;
+  if(CONTEXT_LIMITS.has(raw))return CONTEXT_LIMITS.get(raw);
+  const zone=raw.match(/^[A-Z]{2}:(?:ZONE:?|ZONE_?)?(\d{2,3})$/);
+  if(zone){
+    const speed=Number(zone[1]);
+    return speed>0&&speed<=250?speed:null;
+  }
+  return null;
+}
+
+function limitFromTags(tags,key='maxspeed'){
+  const direct=parseMaxspeed(tags?.[key])??parseContextMaxspeed(tags?.[key]);
+  if(direct!==null)return direct;
+  if(key!=='maxspeed')return null;
+  return parseContextMaxspeed(tags?.['maxspeed:type'])
+    ??parseContextMaxspeed(tags?.['source:maxspeed'])
+    ??parseContextMaxspeed(tags?.['zone:maxspeed']);
+}
+
 function toLocalMeters(point,origin){
   const latRad=origin.lat*Math.PI/180;
   return{
@@ -48,10 +75,10 @@ function headingMismatch(tags,bearing,heading){
 }
 
 function directionalLimit(tags,bearing,heading){
-  const base=parseMaxspeed(tags?.maxspeed);
+  const base=limitFromTags(tags);
   if(!Number.isFinite(heading))return base;
   const forward=angleDiff(heading,bearing)<=90;
-  const directional=parseMaxspeed(tags?.[forward?'maxspeed:forward':'maxspeed:backward']);
+  const directional=limitFromTags(tags,forward?'maxspeed:forward':'maxspeed:backward');
   return directional??base;
 }
 
