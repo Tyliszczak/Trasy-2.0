@@ -9,7 +9,7 @@ let routes=[],syncing=false,offline=true;
 
 function showView(id){$('#selectionView').hidden=id!=='#selectionView';$('#scheduleView').hidden=id!=='#scheduleView';scrollTo(0,0)}
 const normalizeTime=normalizeClockTime;
-function nextCourseTime(r){return nearestClockTime(r?.times||[],new Date())||nearestFutureTime(r?.times||[],new Date())}
+function nextCourseTime(r){return nearestFutureTime(r?.times||[],new Date())}
 function renderSchedule(r,t){if(!r||!t)return;$('#scheduleRouteName').textContent=r.name;const sel=$('#scheduleTimeSelect');sel.replaceChildren(...r.times.map(x=>new Option(x,x)));sel.value=t;$('#scheduleBody').replaceChildren(...getSchedule(r,t).map(stopRow));lastActiveStop=null;setTimeout(()=>$('#scheduleBody').dispatchEvent(new CustomEvent('schedule-rendered',{bubbles:true})),0)}
 
 let lastActiveStop=null;
