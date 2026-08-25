@@ -1,6 +1,6 @@
 import test from'node:test';
 import assert from'node:assert/strict';
-import{canAutoAdvanceBySchedule}from'../stop-target-policy.js';
+import{canAutoAdvanceBySchedule,shouldApplySchedulePriority}from'../stop-target-policy.js';
 
 const at=value=>new Date(`2026-08-25T${value}:00`);
 
@@ -47,4 +47,11 @@ test('brak czasu bieżącego lub następnego przystanku blokuje automatyczne pom
     nextPlan:null,
     now:at('06:40')
   }),false);
+});
+
+test('ochrona harmonogramu działa tylko na kursie z godzinami, nigdy na powrocie',()=>{
+  assert.equal(shouldApplySchedulePriority({direction:'forward',emptyRun:false}),true);
+  assert.equal(shouldApplySchedulePriority({direction:'return',emptyRun:false}),false);
+  assert.equal(shouldApplySchedulePriority({direction:'return',emptyRun:true}),false);
+  assert.equal(shouldApplySchedulePriority({direction:'forward',emptyRun:true}),false);
 });
