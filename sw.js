@@ -1,5 +1,5 @@
-const APP_VERSION='2.0.115';
-const CACHE_NAME='trasy-2.0-v150';
+const APP_VERSION='2.0.117';
+const CACHE_NAME='trasy-2.0-v151';
 const APP_SHELL=['./','./index.html','./style.css','./time-core.js','./geo-core.js','./eta-core.js','./route-data-service.js','./parking-data.js','./gps-hub.js','./gps-stop-engine.js','./stop-alert-core.js','./schedule-time.js','./app.js','./app-update-check.js','./wake-style.js','./maplibre-route-hook.js','./vehicles.js','./return-route.js','./speed-display.js','./vehicle-speed-profile-core.js','./road-speed-limit-core.js','./road-speed-limit.js','./navigation-live-core.js','./navigation-live-engine.js','./return-gps-mode.js','./gps-stop-tracker.js','./return-start-guard.js','./google-routes-provider.js','./navigation-guidance-fix.js','./return-start-navigation.js','./nav-map.js','./traffic-delay-ui.js','./navigation-ui-controls.js','./navigation-feedback.js','./android-back-navigation.js','./etoll-overlay.js','./skip-stop-control.js','./skip-detection.js','./final-stop-ui.js','./stop-map-links.js','./eta-status.js','./next-stop-header.js','./visual-stop-alert.js','./routes.js','./schedule.js','./manifest.json','./Tyliszczak.png'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE_NAME).then(cache=>cache.addAll(APP_SHELL.map(url=>new Request(url,{cache:'reload'})))))});
 self.addEventListener('activate',e=>{e.waitUntil((async()=>{const keys=await caches.keys();await Promise.all(keys.filter(key=>key!==CACHE_NAME).map(key=>caches.delete(key)));await self.clients.claim()})())});
