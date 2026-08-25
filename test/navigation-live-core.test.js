@@ -32,14 +32,16 @@ test('marker interpolation is linear',()=>{
   assert.deepEqual(interpolateLngLat([15,52],[16,54],.5),[15.5,53]);
 });
 
-test('kamera oddala się i pochyla wraz ze wzrostem prędkości',()=>{
+test('kamera osiąga maksymalne oddalenie i pochylenie już przy 70 km/h',()=>{
   const slow=cameraProfileForSpeed(0);
-  const city=cameraProfileForSpeed(50);
-  const fast=cameraProfileForSpeed(110);
+  const city=cameraProfileForSpeed(40);
+  const fast=cameraProfileForSpeed(70);
+  const faster=cameraProfileForSpeed(110);
   assert.equal(slow.zoom,17.45);
   assert.equal(slow.pitch,52);
   assert.equal(fast.zoom,16.75);
   assert.equal(fast.pitch,65);
+  assert.deepEqual(faster,fast);
   assert.ok(slow.zoom>city.zoom&&city.zoom>fast.zoom);
   assert.ok(slow.pitch<city.pitch&&city.pitch<fast.pitch);
 });
