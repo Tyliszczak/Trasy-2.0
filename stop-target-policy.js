@@ -2,6 +2,7 @@ export const AUTO_ADVANCE_GRACE_MS=15*60*1000;
 export const NEXT_STOP_MAX_AHEAD_MS=15*60*1000;
 
 function dateMs(value){
+  if(value===null||value===undefined||value==='')return null;
   if(value instanceof Date){
     const ms=value.getTime();
     return Number.isFinite(ms)?ms:null;
