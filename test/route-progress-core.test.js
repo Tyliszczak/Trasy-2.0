@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { advanceRouteProgress, splitRemainingRoute } from '../route-progress-core.js';
+import { advanceRouteProgress, createLaggedProgress, splitRemainingRoute } from '../route-progress-core.js';
 
 const route=[
   [15.0000,52.0000],
@@ -41,4 +41,20 @@ test('przy ostatnim przystanku nie powstaje blady dalszy odcinek',()=>{
     [15.0040,52.0000],
     [15.0050,52.0000]
   ]);
+});
+
+test('wizualne wygaszanie trasy pozostaje trzy odczyty GPS za rzeczywistym postępem',()=>{
+  const lag=createLaggedProgress(3,5);
+  assert.equal(lag.push(6),5);
+  assert.equal(lag.push(7),5);
+  assert.equal(lag.push(8),5);
+  assert.equal(lag.push(9),6);
+  assert.equal(lag.push(10),7);
+});
+
+test('reset bufora nie pokazuje starego odcinka po zmianie trasy',()=>{
+  const lag=createLaggedProgress(3,5);
+  lag.push(8);
+  assert.equal(lag.reset(20),20);
+  assert.equal(lag.push(21),20);
 });
