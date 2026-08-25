@@ -89,6 +89,7 @@
     return{name,plan:planTextFromRow(row)};
   }
   const coord=value=>geo.parseCoordinate(value);
+  function arrivalClock(seconds){if(!Number.isFinite(seconds))return'';const date=new Date(Date.now()+seconds*1000);return`${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`}
 
   function stopKey(row=activeRow(),detail=lastGuardDetail){
     const data=dataFromRow(row);
@@ -117,6 +118,18 @@
   function render(){
     const data=dataFromRow(activeRow());
     if(!data){mainEl.textContent='';statusEl.hidden=true;guardEl.hidden=true;return}
+
+    if(body.dataset.direction==='return'){
+      const seconds=Number(lastStatusDetail?.etaSeconds);
+      mainEl.textContent=`${data.name}${Number.isFinite(seconds)?` · Dojazd ${arrivalClock(seconds)}`:''}`;
+      statusEl.hidden=true;
+      statusEl.className='nextStopStatus';
+      statusEl.textContent='';
+      guardEl.hidden=true;
+      guardEl.classList.remove('approach','hold','ready','flash3');
+      return;
+    }
+
     mainEl.textContent=`${data.name}${data.plan?` · ${data.plan}`:''}`;
     const guard=guardData();
     const status=etaCore.statusFromDiff(lastStatusDetail?.diffSeconds);
@@ -248,8 +261,8 @@
   });
 
   function resetAlerts(){activeHoldKey='';activeApproachKey='';alertedApproachKey='';alertedHoldKey='';alertedReadyKey='';stoppedSince=0}
-  body.addEventListener('route-direction-change',resetAlerts);
-  body.addEventListener('route-mode-change',resetAlerts);
+  body.addEventListener('route-direction-change',()=>{resetAlerts();render()});
+  body.addEventListener('route-mode-change',()=>{resetAlerts();render()});
   body.addEventListener('schedule-rendered',resetAlerts);
 
   render();
