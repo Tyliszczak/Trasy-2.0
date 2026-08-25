@@ -48,3 +48,25 @@ export function splitRemainingRoute(coords,progressIndex=0,nextStopPoint=null){
   const future=stopIndex<list.length-1?list.slice(stopIndex):[];
   return {active,future,stopIndex,progressIndex:start};
 }
+
+export function createLaggedProgress(delayFixes=3,initialIndex=0){
+  const delay=Math.max(0,Math.trunc(Number(delayFixes)||0));
+  let visible=Math.max(0,Math.trunc(Number(initialIndex)||0));
+  let queue=Array(delay).fill(visible);
+
+  return{
+    push(index){
+      const next=Math.max(0,Math.trunc(Number(index)||0));
+      if(delay===0){visible=next;return visible}
+      queue.push(next);
+      visible=queue.shift();
+      return visible;
+    },
+    reset(index=0){
+      visible=Math.max(0,Math.trunc(Number(index)||0));
+      queue=Array(delay).fill(visible);
+      return visible;
+    },
+    value(){return visible}
+  };
+}
