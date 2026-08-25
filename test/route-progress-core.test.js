@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { advanceRouteProgress, createLaggedProgress, splitRemainingRoute } from '../route-progress-core.js';
+import {
+  advanceRouteProgress,
+  projectRoutePosition,
+  splitRemainingRoute,
+  splitRemainingRouteAtPosition
+} from '../route-progress-core.js';
 
 const route=[
   [15.0000,52.0000],
@@ -43,18 +48,22 @@ test('przy ostatnim przystanku nie powstaje blady dalszy odcinek',()=>{
   ]);
 });
 
-test('wizualne wygaszanie trasy pozostaje trzy odczyty GPS za rzeczywistym postępem',()=>{
-  const lag=createLaggedProgress(3,5);
-  assert.equal(lag.push(6),5);
-  assert.equal(lag.push(7),5);
-  assert.equal(lag.push(8),5);
-  assert.equal(lag.push(9),6);
-  assert.equal(lag.push(10),7);
+test('pozycja wymazywania jest liczona płynnie wewnątrz odcinka trasy',()=>{
+  const projected=projectRoutePosition(route,[15.0025,52.0000],2,2,20);
+  assert.ok(Math.abs(projected.position-2.5)<0.001);
+  assert.ok(Math.abs(projected.point[0]-15.0025)<0.000001);
+  assert.ok(projected.distance<1);
 });
 
-test('reset bufora nie pokazuje starego odcinka po zmianie trasy',()=>{
-  const lag=createLaggedProgress(3,5);
-  lag.push(8);
-  assert.equal(lag.reset(20),20);
-  assert.equal(lag.push(21),20);
+test('zielona linia może zaczynać się dokładnie pod znacznikiem zamiast od kolejnego węzła geometrii',()=>{
+  const split=splitRemainingRouteAtPosition(route,2.5,[15.0040,52.0000]);
+  assert.ok(Math.abs(split.active[0][0]-15.0025)<0.000001);
+  assert.deepEqual(split.active.slice(1),[
+    [15.0030,52.0000],
+    [15.0040,52.0000]
+  ]);
+  assert.deepEqual(split.future,[
+    [15.0040,52.0000],
+    [15.0050,52.0000]
+  ]);
 });
