@@ -12,7 +12,7 @@ import { nearestRoadLimit } from './road-speed-limit-core.js?v=2';
   const MAX_GPS_ACCURACY_M=90;
   const REQUEST_TIMEOUT_MS=10000;
   const BACKEND_TIMEOUT_MS=12000;
-  const LIMIT_TTL_MS=60000;
+  const LIMIT_TTL_MS=45000;
   const DRIVABLE='motorway|motorway_link|trunk|trunk_link|primary|primary_link|secondary|secondary_link|tertiary|tertiary_link|unclassified|residential|living_street|service|road';
 
   let lastQueryAt=0;
