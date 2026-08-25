@@ -2,8 +2,12 @@
   const EARTH_RADIUS=6371000;
   const OFF_ROUTE_BASE_METERS=55;
   const OFF_ROUTE_FIXES=2;
+  const ON_ROUTE_CLEAR_FIXES=2;
+  const GUARD_MAX_MS=3000;
+  const GUARD_COOLDOWN_MS=5000;
   const MIN_DIRECTION_SPEED_MPS=1.8;
   const BEARING_TOLERANCE_DEGREES=75;
+  const GUARD_TEXT='Przeliczam trasę zgodnie z kierunkiem jazdy…';
 
   let latestHeading=null;
   let latestSpeed=0;
@@ -11,7 +15,10 @@
   let lastGpsAt=0;
   let routeCoords=[];
   let offRouteFixes=0;
+  let onRouteFixes=0;
   let staleGuidanceGuard=false;
+  let guardTimer=null;
+  let guardCooldownUntil=0;
 
   function angleDiff(a,b){
     if(!Number.isFinite(a)||!Number.isFinite(b))return null;
@@ -117,12 +124,35 @@
     return url.href;
   }
 
+  function setGuard(active,{cooldown=false}={}){
+    clearTimeout(guardTimer);
+    guardTimer=null;
+    staleGuidanceGuard=Boolean(active);
+    if(!staleGuidanceGuard){
+      offRouteFixes=0;
+      onRouteFixes=0;
+      if(cooldown)guardCooldownUntil=Date.now()+GUARD_COOLDOWN_MS;
+      const maneuver=document.getElementById('routeManeuver');
+      if(maneuver&&maneuver.textContent===GUARD_TEXT)maneuver.textContent='';
+      return;
+    }
+    if(Date.now()<guardCooldownUntil){
+      staleGuidanceGuard=false;
+      return;
+    }
+    const maneuver=document.getElementById('routeManeuver');
+    const distance=document.getElementById('routeManeuverDistance');
+    if(maneuver)maneuver.textContent=GUARD_TEXT;
+    if(distance)distance.textContent='';
+    try{speechSynthesis?.cancel?.()}catch{}
+    guardTimer=setTimeout(()=>setGuard(false,{cooldown:true}),GUARD_MAX_MS);
+  }
+
   function captureRoute(data){
     const coords=data?.routes?.[0]?.geometry?.coordinates;
     if(!Array.isArray(coords)||coords.length<2)return;
     routeCoords=coords.map(([lng,lat])=>[Number(lat),Number(lng)]).filter(([lat,lng])=>Number.isFinite(lat)&&Number.isFinite(lng));
-    offRouteFixes=0;
-    staleGuidanceGuard=false;
+    setGuard(false);
   }
 
   function nearestRouteDistance(point){
@@ -132,16 +162,6 @@
       if(distance<best)best=distance;
     }
     return best;
-  }
-
-  function setGuard(active){
-    staleGuidanceGuard=Boolean(active);
-    if(!staleGuidanceGuard)return;
-    const maneuver=document.getElementById('routeManeuver');
-    const distance=document.getElementById('routeManeuverDistance');
-    if(maneuver)maneuver.textContent='Przeliczam trasę zgodnie z kierunkiem jazdy…';
-    if(distance)distance.textContent='';
-    try{speechSynthesis?.cancel?.()}catch{}
   }
 
   function updateGps(position){
@@ -168,9 +188,16 @@
     const accuracy=Math.max(0,Number(position.coords.accuracy)||0);
     const threshold=Math.max(OFF_ROUTE_BASE_METERS,accuracy*1.6);
     const off=nearestRouteDistance(here);
-    if(latestSpeed>=MIN_DIRECTION_SPEED_MPS&&off>threshold)offRouteFixes+=1;
+    if(off<=threshold){
+      offRouteFixes=0;
+      onRouteFixes+=1;
+      if(staleGuidanceGuard&&onRouteFixes>=ON_ROUTE_CLEAR_FIXES)setGuard(false);
+      return;
+    }
+    onRouteFixes=0;
+    if(latestSpeed>=MIN_DIRECTION_SPEED_MPS)offRouteFixes+=1;
     else offRouteFixes=0;
-    if(offRouteFixes>=OFF_ROUTE_FIXES)setGuard(true);
+    if(offRouteFixes>=OFF_ROUTE_FIXES&&!staleGuidanceGuard)setGuard(true);
   }
 
   window.__trasyNormalizeRouteResponse=normalizeRouteResponse;
@@ -198,7 +225,7 @@
     const el=document.getElementById('routeManeuver');
     if(!el)return;
     if(staleGuidanceGuard){
-      if(el.textContent!=='Przeliczam trasę zgodnie z kierunkiem jazdy…')el.textContent='Przeliczam trasę zgodnie z kierunkiem jazdy…';
+      if(el.textContent!==GUARD_TEXT)el.textContent=GUARD_TEXT;
       const distance=document.getElementById('routeManeuverDistance');
       if(distance)distance.textContent='';
       try{speechSynthesis?.cancel?.()}catch{}
