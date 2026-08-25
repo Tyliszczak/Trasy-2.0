@@ -4,7 +4,8 @@ import{
   cumulativeDistances,
   nearestRouteIndex,
   legRemainingSeconds,
-  interpolateLngLat
+  interpolateLngLat,
+  cameraProfileForSpeed
 }from'../navigation-live-core.js';
 
 test('remaining ETA follows actual route progress',()=>{
@@ -29,4 +30,16 @@ test('nearest route index follows GPS position',()=>{
 
 test('marker interpolation is linear',()=>{
   assert.deepEqual(interpolateLngLat([15,52],[16,54],.5),[15.5,53]);
+});
+
+test('kamera oddala się i pochyla wraz ze wzrostem prędkości',()=>{
+  const slow=cameraProfileForSpeed(0);
+  const city=cameraProfileForSpeed(50);
+  const fast=cameraProfileForSpeed(110);
+  assert.equal(slow.zoom,17.45);
+  assert.equal(slow.pitch,52);
+  assert.equal(fast.zoom,16.75);
+  assert.equal(fast.pitch,65);
+  assert.ok(slow.zoom>city.zoom&&city.zoom>fast.zoom);
+  assert.ok(slow.pitch<city.pitch&&city.pitch<fast.pitch);
 });
