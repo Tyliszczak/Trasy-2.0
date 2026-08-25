@@ -60,3 +60,13 @@ export function interpolateLngLat(from,to,t){
     Number(from[1])+(Number(to[1])-Number(from[1]))*k
   ];
 }
+
+export function cameraProfileForSpeed(speedKmh){
+  const speed=Math.max(0,Math.min(110,Number(speedKmh)||0));
+  const raw=Math.max(0,Math.min(1,(speed-8)/(110-8)));
+  const eased=raw*raw*(3-2*raw);
+  return{
+    zoom:17.45-(17.45-16.75)*eased,
+    pitch:52+(65-52)*eased
+  };
+}
