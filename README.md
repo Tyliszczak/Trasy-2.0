@@ -23,12 +23,13 @@ Docelowy panel administratora korzysta z operacji `loadParkings` i `saveParkings
 - czasy z ruchem: Google Routes przez backend,
 - odświeżenie danych o ruchu podczas nawigacji: standardowo co 3 minuty,
 - pomiędzy odświeżeniami ETA jest lokalnie korygowane na podstawie postępu GPS po aktualnej trasie,
-- limit prędkości jest odczytywany z danych OpenStreetMap, jeśli dla bieżącej drogi istnieje wiarygodne `maxspeed`.
-- dopasowanie drogi uwzględnia kierunek jazdy i ciągłość poprzedniego odcinka, aby ograniczyć pomyłki na skrzyżowaniach i drogach równoległych,
-- gdy brakuje profilu pojazdu, aplikacja nadal pokazuje znane ograniczenie ogólne z dopiskiem `BRAK DANYCH POJAZDU`; brak danych drogi jest oznaczany osobno i nie jest zastępowany zgadywaną wartością,
-- dla autobusu limit jest dodatkowo ograniczany profilem pojazdu; tryb BUS 100 wymaga jawnego potwierdzenia dopuszczenia oraz braku miejsc stojących,
+- limit prędkości jest pobierany przez chroniony backend w kolejności: **PTV → HERE → TomTom → Mapbox → Google Roads → OSM/Overpass**; następne źródło jest pytane dopiero wtedy, gdy wcześniejsze jest nieskonfigurowane, zwróci błąd albo nie poda wiarygodnego limitu,
+- klucze PTV/HERE/TomTom/Mapbox/Google nie trafiają do PWA; znajdują się wyłącznie po stronie backendu,
+- OSM/Overpass jest ostatnim fallbackiem i nadal uwzględnia kierunek jazdy oraz ciągłość poprzedniego odcinka, aby ograniczyć pomyłki na skrzyżowaniach i drogach równoległych,
+- gdy żadne źródło nie poda wiarygodnego limitu, znak ograniczenia prędkości jest całkowicie ukrywany; prędkościomierz pozostaje widoczny,
+- dla autobusu ogólny limit drogi jest dodatkowo ograniczany profilem pojazdu; tryb BUS 100 wymaga jawnego potwierdzenia dopuszczenia oraz braku miejsc stojących,
 - kamera po uruchomieniu przyjmuje kierunek pierwszego odcinka trasy i szybciej reaguje na wiarygodną zmianę kierunku GPS,
-- po ręcznym obróceniu mapy poza kierunek jazdy pojawia się oznaczenie `N` ze strzałką wskazującą północ; znika po powrocie do prowadzenia.
+- po ręcznym obróceniu mapy poza kierunek jazdy pojawia się oznaczenie `N` ze strzałką wskazującą północ; znika po powrocie do prowadzenia,
 - podczas prowadzenia aplikacja automatycznie prosi o utrzymanie włączonego ekranu,
 - po odblokowaniu telefonu lub powrocie do aplikacji obserwacja GPS jest uruchamiana ponownie, pobierana jest świeża pozycja, a prowadzenie jest dopasowywane do aktualnego miejsca bez ponownego wybierania trasy; jeśli pojazd zjechał z zapisanej trasy, przebieg jest przeliczany.
 
