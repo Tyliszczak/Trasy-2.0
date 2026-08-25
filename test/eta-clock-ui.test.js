@@ -4,18 +4,19 @@ import {readFile} from 'node:fs/promises';
 
 const readSource=path=>readFile(new URL(`../${path}`,import.meta.url),'utf8');
 
-test('godzina ETA jest dokładana do harmonogramu i nagłówka mapy z tego samego stanu ETA',async()=>{
-  const [ui,html,worker]=await Promise.all([
+test('interfejs nie pokazuje jawnej godziny ETA, tylko punktualność pod planem',async()=>{
+  const [clockUi,statusUi,headerUi]=await Promise.all([
     readSource('eta-clock-ui.js'),
-    readSource('index.html'),
-    readSource('sw.js')
+    readSource('eta-status.js'),
+    readSource('next-stop-header.js')
   ]);
 
-  assert.match(ui,/nav-eta-update/);
-  assert.match(ui,/eta-status-change/);
-  assert.match(ui,/\.etaPunctuality/);
-  assert.match(ui,/#routeNextStop \.nextStopStatus/);
-  assert.match(ui,/`ETA \$\{formatClock\(seconds\)\} • \$\{base\}`/);
-  assert.match(html,/eta-clock-ui\.js\?v=1/);
-  assert.match(worker,/'\.\/eta-clock-ui\.js'/);
+  assert.doesNotMatch(clockUi,/formatClock|ETA\s+\$\{/);
+  assert.match(statusUi,/td:nth-child\(2\)/);
+  assert.match(statusUi,/info\.textContent=punctuality\.text/);
+  assert.doesNotMatch(statusUi,/dojazd za/);
+  assert.match(statusUi,/#scheduleBody tr\.gpsNextStop td:nth-child\(2\)\{font-size:22px/);
+  assert.match(statusUi,/#routeNextStop \.nextStopMain\{font-size:21px/);
+  assert.match(headerUi,/mainEl\.textContent=`\$\{data\.name\}\$\{data\.plan\?` · \$\{data\.plan\}`:''\}`/);
+  assert.match(headerUi,/statusEl\.textContent=status\.text/);
 });
