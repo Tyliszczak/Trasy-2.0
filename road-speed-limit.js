@@ -4,6 +4,7 @@ import { nearestRoadLimit } from './road-speed-limit-core.js?v=2';
   const gps=window.__trasyGps;
   if(!gps?.subscribe)return;
 
+  const PTV_ENDPOINT='/speedmax';
   const ENDPOINTS=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'];
   const QUERY_RADIUS_M=120;
   const MATCH_DISTANCE_M=70;
@@ -105,7 +106,37 @@ import { nearestRoadLimit } from './road-speed-limit-core.js?v=2';
     return typeof api?.driverRoadSpeedLimit==='function'?api:null;
   }
 
+  async function requestPtvLimit(point,heading){
+    const controller=new AbortController();
+    const timeout=setTimeout(()=>controller.abort(),BACKEND_TIMEOUT_MS);
+    try{
+      const url=new URL(PTV_ENDPOINT,location.origin);
+      url.searchParams.set('lat',String(point.lat));
+      url.searchParams.set('lon',String(point.lon));
+      if(Number.isFinite(heading))url.searchParams.set('heading',String(heading));
+      const response=await fetch(url.href,{
+        method:'GET',
+        cache:'no-store',
+        credentials:'same-origin',
+        signal:controller.signal
+      });
+      if(!response.ok)return null;
+      const data=await response.json();
+      const limit=Number(data?.maxspeed);
+      return{data,limit:Number.isFinite(limit)&&limit>0?limit:null};
+    }finally{
+      clearTimeout(timeout);
+    }
+  }
+
   async function requestBackendLimit(point,previousPoint,heading){
+    try{
+      const ptv=await requestPtvLimit(point,heading);
+      if(ptv?.limit)return ptv;
+    }catch(error){
+      console.warn('SpeedMax PTV:',error);
+    }
+
     const api=driverApi();
     if(!api)return null;
     const controller=new AbortController();
