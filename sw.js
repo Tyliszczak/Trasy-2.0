@@ -1,4 +1,4 @@
-const APP_VERSION='2.0.163';
+const APP_VERSION='2.0.164';
 const CACHE_NAME='trasy-2.0-v197';
 const OFFLINE_MAP_CACHE='trasy-offline-map-v1';
 const OFFLINE_ROUTE_CACHE='trasy-offline-routes-v1';
