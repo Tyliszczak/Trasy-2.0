@@ -50,6 +50,8 @@
   let alertedHoldKey='';
   let alertedReadyKey='';
   let audioContext=null;
+  let cachedPlanRow=null;
+  let cachedPlan='';
 
   function rows(){return[...body.querySelectorAll('tr')].filter(row=>row.dataset.coordinate)}
   function activeRow(){
@@ -59,6 +61,17 @@
     return routeRows.find(row=>row.classList.contains('gpsNextStop'))||routeRows[0]||null;
   }
   const planTextFromRow=row=>time.rowPlanText(row);
+  function stablePlanText(row){
+    const fresh=planTextFromRow(row);
+    if(row!==cachedPlanRow){
+      cachedPlanRow=row;
+      cachedPlan=fresh||'';
+    }else if(fresh){
+      cachedPlan=fresh;
+    }
+    return cachedPlan;
+  }
+  function resetPlanCache(){cachedPlanRow=null;cachedPlan=''}
   function alarmEligible(row=activeRow()){
     const routeRows=rows();
     return Boolean(row&&routeRows.length&&row!==routeRows[routeRows.length-1]&&planTextFromRow(row));
@@ -66,13 +79,15 @@
   function dataFromRow(row){
     if(!row)return null;
     const name=(row.querySelector('td:first-child')?.childNodes[0]?.textContent||row.querySelector('td:first-child')?.innerText||'').trim();
-    return{name,plan:planTextFromRow(row)};
+    return{name,plan:stablePlanText(row)};
   }
   const coord=value=>geo.parseCoordinate(value);
 
   function setStopText(data){
-    mainEl.textContent=data?.name||'';
-    planEl.textContent=data?.plan||'';
+    const name=data?.name||'';
+    const plan=data?.plan||'';
+    if(mainEl.textContent!==name)mainEl.textContent=name;
+    if(planEl.textContent!==plan)planEl.textContent=plan;
   }
 
   function renderReturnStart(){
@@ -260,10 +275,10 @@
   });
 
   function resetAlerts(){activeHoldKey='';activeApproachKey='';alertedApproachKey='';alertedHoldKey='';alertedReadyKey='';stoppedSince=0}
-  body.addEventListener('route-direction-change',()=>{resetAlerts();render()});
-  body.addEventListener('route-mode-change',()=>{resetAlerts();render()});
-  body.addEventListener('return-origin-change',()=>{resetAlerts();render()});
-  body.addEventListener('schedule-rendered',()=>{resetAlerts();render()});
+  body.addEventListener('route-direction-change',()=>{resetPlanCache();resetAlerts();render()});
+  body.addEventListener('route-mode-change',()=>{resetPlanCache();resetAlerts();render()});
+  body.addEventListener('return-origin-change',()=>{resetPlanCache();resetAlerts();render()});
+  body.addEventListener('schedule-rendered',()=>{resetPlanCache();resetAlerts();render()});
 
   render();
 })();
