@@ -4,7 +4,18 @@ import { isNightAt } from './map-theme-core.js?v=1';
   const PTV_STYLE_URL='https://vectormaps-resources.myptv.com/styles/latest/standard.json';
   const PTV_API_ORIGIN='https://api.myptv.com';
   const PROXY_PREFIX='/ptv-map';
-  const FALLBACK_DAY_STYLE='https://tiles.openfreemap.org/styles/liberty';
+  const OSM_FALLBACK_STYLE={
+    version:8,
+    sources:{
+      osm:{
+        type:'raster',
+        tiles:['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+        tileSize:256,
+        attribution:'© OpenStreetMap contributors'
+      }
+    },
+    layers:[{id:'osm-fallback',type:'raster',source:'osm'}]
+  };
   const HEALTH_TILE=`${PROXY_PREFIX}/maps/v1/vector-tiles/0/0/0`;
   const REQUEST_TIMEOUT_MS=6500;
   const PTV_RETRY_MS=300000;
@@ -145,7 +156,7 @@ import { isNightAt } from './map-theme-core.js?v=1';
   }
 
   function setStyle(target,nextProvider,reason=''){
-    if(!map||switching||!ensureRouteReady())return;
+    if(!map||switching)return;
     const route=snapshotRoute();
     const localGeneration=++generation;
     switching=true;
@@ -191,42 +202,48 @@ import { isNightAt } from './map-theme-core.js?v=1';
   }
 
   function applyFallback(reason){
-    if(!map||isNightNow()||!ensureRouteReady())return;
-    setStyle(FALLBACK_DAY_STYLE,'openfreemap',reason);
+    if(!map||provider==='osm')return;
+    setStyle(clone(OSM_FALLBACK_STYLE),'osm',reason);
   }
 
   async function applyDay(force=false){
     if(!map||isNightNow()||!ensureRouteReady())return;
     if(!force&&provider==='ptv')return;
+    if(provider==='ptv')return;
     try{
       const style=await loadPtvStyle();
       if(!map||isNightNow()||!ensureRouteReady())return;
       setStyle(style,'ptv','secure-proxy');
     }catch(error){
-      console.warn('PTV niedostępne — OpenFreeMap:',error);
+      console.warn('PTV niedostępne — awaryjnie OSM:',error);
       disabledUntil=Math.max(disabledUntil,Date.now()+PTV_RETRY_MS);
       applyFallback('ptv-unavailable');
     }
   }
 
   function onMapError(event){
-    if(provider!=='ptv')return;
+    if(provider==='osm'||provider==='initial')return;
     const message=String(event?.error?.message||event?.message||'').toLowerCase();
-    if(!message.includes('ptv-map')&&!message.includes('myptv'))return;
+    const ptvError=provider==='ptv'&&(message.includes('ptv-map')||message.includes('myptv')||message.includes('vectormaps-resources'));
+    const nightError=provider==='openfreemap-dark'&&(message.includes('openfreemap')||message.includes('tiles.openfreemap'));
+    if(!ptvError&&!nightError)return;
     const now=Date.now();
     errorTimes=errorTimes.filter(time=>now-time<=ERROR_WINDOW_MS);
     errorTimes.push(now);
     if(errorTimes.length<ERROR_LIMIT)return;
     errorTimes=[];
-    disabledUntil=now+PTV_RETRY_MS;
-    ptvStylePromise=null;
-    applyFallback('ptv-tile-errors');
+    if(provider==='ptv'){
+      disabledUntil=now+PTV_RETRY_MS;
+      ptvStylePromise=null;
+    }
+    applyFallback(provider==='ptv'?'ptv-tile-errors':'night-style-errors');
   }
 
   function activateAfterRoute(){
     if(routeReady)return;
     routeReady=true;
-    if(!map||isNightNow())return;
+    if(!map||isNightNow()||provider==='ptv')return;
+    if(provider==='osm'&&Date.now()<disabledUntil)return;
     applyDay(true);
   }
 
@@ -234,20 +251,20 @@ import { isNightAt } from './map-theme-core.js?v=1';
     if(!nextMap||nextMap===map)return;
     map=nextMap;
     map.on('error',onMapError);
-    if(hasRoute()){
-      routeReady=true;
-      const theme=document.documentElement.dataset.mapTheme;
-      if(theme!=='night'&&!isNightNow())setTimeout(()=>applyDay(true),0);
-    }
+    const markedProvider=map.getContainer?.()?.dataset?.mapProvider||document.documentElement.dataset.mapProvider;
+    if(markedProvider)provider=markedProvider;
+    routeReady=hasRoute();
+    markProvider(provider||'initial','initial-style');
+    if(routeReady&&!isNightNow()&&provider!=='ptv')setTimeout(()=>applyDay(true),0);
   }
 
   document.addEventListener('trasy:route-progress-rendered',activateAfterRoute);
   document.addEventListener('trasy:map-theme-change',event=>{
     if(event.detail?.theme==='night'){
-      markProvider('openfreemap-dark','night-theme');
+      if(provider!=='osm')markProvider('openfreemap-dark','night-theme');
       return;
     }
-    if(event.detail?.theme==='day'&&ensureRouteReady())applyDay(true);
+    if(event.detail?.theme==='day'&&ensureRouteReady()&&provider!=='ptv')applyDay(true);
   });
   document.addEventListener('trasy:route-map-ready',event=>install(event.detail?.map||window.__routeMap));
   window.addEventListener('online',()=>{
@@ -256,9 +273,10 @@ import { isNightAt } from './map-theme-core.js?v=1';
 
   window.__trasyBasemapProvider={
     applyDay:()=>applyDay(true),
+    applyFallback,
     state:()=>window.__trasyBasemapState||{provider,disabledUntil,routeReady},
     ptvStyleUrl:PTV_STYLE_URL,
-    fallbackDayStyle:FALLBACK_DAY_STYLE
+    fallbackDayStyle:OSM_FALLBACK_STYLE
   };
 
   if(window.__routeMap)install(window.__routeMap);
