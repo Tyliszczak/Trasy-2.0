@@ -310,7 +310,23 @@
     return headingFromRoute(origin);
   }
 
+  function cachedPosition(maxAgeMs=15000){
+    const position=window.__trasyGps?.current?.();
+    const age=Date.now()-Number(position?.timestamp||0);
+    return position&&age>=0&&age<=maxAgeMs?position:null;
+  }
+
   function posOnce(){
+    const cached=cachedPosition();
+    if(cached){
+      window.__trasyGps?.refresh?.({restartWatch:false}).catch(()=>{});
+      return Promise.resolve(cached);
+    }
+
+    if(window.__trasyGps?.refresh){
+      return window.__trasyGps.refresh({restartWatch:false});
+    }
+
     return new Promise(
       (resolve,reject)=>
         navigator.geolocation.getCurrentPosition(

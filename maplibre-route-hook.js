@@ -8,6 +8,9 @@
   const PTV_API_ORIGIN='https://api.myptv.com';
   const PROXY_PREFIX='/ptv-map';
 
+  // Rozgrzej styl PTV zanim kierowca otworzy nawigację.
+  window.__trasyPtvStyleWarmup=fetch(PTV_STYLE,{cache:'force-cache',mode:'cors'}).catch(()=>null);
+
   function wrapTransformRequest(options){
     const previous=typeof options.transformRequest==='function'?options.transformRequest:null;
     options.transformRequest=(url,type)=>{
