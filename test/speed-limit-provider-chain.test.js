@@ -8,18 +8,10 @@ const display=read('speed-display.js');
 const ptvProxy=read('functions/ptv-map/[[path]].js');
 const serviceWorker=read('sw.js');
 
-test('aplikacja pyta bezpieczny backend przed OSM',()=>{
-  assert.match(limitSource,/driverRoadSpeedLimit/);
-  const backendCall=limitSource.indexOf('await requestBackendLimit');
-  const osmCall=limitSource.indexOf('await osmFallback',backendCall);
-  assert.ok(backendCall>=0);
-  assert.ok(osmCall>backendCall);
-});
-
-test('SpeedMax używa działającego proxy PTV Map Matching i nie ujawnia klucza',()=>{
+test('SpeedMax ma jedno źródło: PTV Map Matching',()=>{
   assert.match(limitSource,/PTV_PROXY='\/ptv-map\/mapmatch\/v1\/positions'/);
-  assert.match(limitSource,/segmentAttributes/);
-  assert.match(limitSource,/attributes\.speedLimit/);
+  assert.match(limitSource,/normalizePtvSpeedLimit/);
+  assert.doesNotMatch(limitSource,/Overpass|requestElements|driverRoadSpeedLimit/);
   assert.match(ptvProxy,/MAPMATCH_PATH/);
   assert.match(ptvProxy,/SEGMENT_ATTRIBUTES/);
   assert.match(ptvProxy,/PTV_API_KEY/);
@@ -27,15 +19,22 @@ test('SpeedMax używa działającego proxy PTV Map Matching i nie ujawnia klucza
   assert.match(serviceWorker,/url\.pathname\.startsWith\('\/ptv-map\/'\)/);
 });
 
-test('OSM pozostaje fallbackiem po braku limitu z backendu',()=>{
-  assert.match(limitSource,/openstreetmap/);
-  assert.match(limitSource,/requestElements/);
-  assert.match(limitSource,/backend\?\.limit/);
+test('SpeedMax działa także podczas postoju i odświeża się okresowo',()=>{
+  assert.match(limitSource,/STATIONARY_QUERY_INTERVAL_MS=30000/);
+  assert.match(limitSource,/MIN_QUERY_INTERVAL_MS=10000/);
+  assert.match(limitSource,/elapsed>=STATIONARY_QUERY_INTERVAL_MS/);
+  assert.doesNotMatch(limitSource,/if\([^\n]*speed[^\n]*return/);
 });
 
-test('brak limitu całkowicie ukrywa znak, ale nie prędkościomierz',()=>{
+test('heading pomaga PTV rozpoznać właściwą jezdnię, ale nie narzuca przebiegu trasy',()=>{
+  assert.match(limitSource,/HEADING_MAX_AGE_MS=45000/);
+  assert.match(limitSource,/url\.searchParams\.set\('heading'/);
+  assert.doesNotMatch(limitSource,/continue_straight|bearings/);
+});
+
+test('brak limitu ukrywa znak, ale prędkościomierz zostaje',()=>{
   assert.match(display,/routeSpeedLimitWrap" hidden/);
   assert.match(display,/wrap\.hidden=!limit/);
   assert.match(display,/routeCurrentSpeed/);
-  assert.doesNotMatch(display,/>—<\/span>/);
+  assert.doesNotMatch(display,/effectiveVehicleSpeedLimit|vehicle-speed-profile-core/);
 });
