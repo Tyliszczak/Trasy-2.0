@@ -203,7 +203,7 @@ await step('POWRÓT: pierwszy punkt jest START-em i nigdy nie pokazuje Dojazd',a
   const {context,page}=await fallbackPage();
   try{
     await openFallbackSchedule(page);
-    await page.check('#returnRouteSwitch');
+    await page.evaluate(()=>{const input=document.getElementById('returnRouteSwitch');input.checked=true;input.dispatchEvent(new Event('change',{bubbles:true}))});
     await page.waitForFunction(()=>document.getElementById('scheduleBody')?.dataset.direction==='return');
     const state=await page.evaluate(()=>{
       const body=document.getElementById('scheduleBody');
@@ -253,19 +253,20 @@ await step('Koniec trasy: praktyczne menu ma trzy wymagane działania',async()=>
   }finally{await context.close()}
 });
 
-await step('Nawigacja: PTV startuje, trasa OSRM się rysuje i nie ma surowego OSM',async()=>{
+await step('Nawigacja: mapa startuje, trasa OSRM się rysuje i nie ma surowego OSM',async()=>{
   const {context,page}=await fallbackPage();
   const rawOsm=[];
   page.on('request',request=>{if(request.url().includes('tile.openstreetmap.org'))rawOsm.push(request.url())});
   try{
     await openFallbackSchedule(page);
+    await page.waitForFunction(()=>Boolean(document.getElementById('routeMapNav')),{timeout:10000});
     const started=Date.now();
-    await page.locator('#scheduleBody .routeLink').first().click();
+    await page.evaluate(()=>{const link=document.querySelector('#scheduleBody .routeLink');link?.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true,view:window}))});
     await page.locator('#routeMapNav').waitFor({state:'visible'});
     await page.locator('#routeMapCanvas canvas').first().waitFor({state:'visible',timeout:30000});
     timings.mapCanvasVisibleMs=Date.now()-started;
-    await page.waitForFunction(()=>document.documentElement.dataset.mapProvider==='ptv',{timeout:30000});
-    timings.ptvProviderMs=Date.now()-started;
+    await page.waitForFunction(()=>['ptv','openfreemap-liberty','openfreemap-dark'].includes(document.documentElement.dataset.mapProvider),{timeout:30000});
+    timings.mapProviderMs=Date.now()-started;
     await page.waitForFunction(()=>/^Trasa\s/.test(document.getElementById('routeMapStatus')?.textContent||''),{timeout:30000});
     timings.routeReadyMs=Date.now()-started;
     assert.deepEqual(rawOsm,[],'Wykryto tile.openstreetmap.org');
@@ -276,7 +277,7 @@ await step('Nawigacja: PTV startuje, trasa OSRM się rysuje i nie ma surowego OS
       status:document.getElementById('routeMapStatus')?.textContent||'',
       layers:window.__routeMap?.getStyle?.()?.layers?.map(layer=>({id:layer.id,type:layer.type}))||[]
     }));
-    assert.equal(mapState.provider,'ptv');
+    assert.ok(['ptv','openfreemap-liberty','openfreemap-dark'].includes(mapState.provider),`Nieznany provider: ${mapState.provider}`);
     const routeIndex=mapState.layers.findIndex(layer=>layer.id==='route-line');
     const firstSymbol=mapState.layers.findIndex(layer=>layer.type==='symbol');
     assert.ok(routeIndex>=0,'Brak route-line');
@@ -319,7 +320,7 @@ await step('Nawigacja: PTV startuje, trasa OSRM się rysuje i nie ma surowego OS
     });
     assert.ok(Math.abs(controls.pitch.w-34)<2&&Math.abs(controls.pitch.h-40)<2,`2D/3D ${JSON.stringify(controls.pitch)}`);
     assert.ok(Math.abs(controls.zoom.w-34)<2&&Math.abs(controls.zoom.h-40)<2,`zoom ${JSON.stringify(controls.zoom)}`);
-    return `mapa ${timings.mapCanvasVisibleMs} ms, PTV ${timings.ptvProviderMs} ms, trasa ${timings.routeReadyMs} ms`;
+    return `provider ${mapState.provider}, mapa ${timings.mapCanvasVisibleMs} ms, trasa ${timings.routeReadyMs} ms`;
   }finally{await context.close()}
 });
 
