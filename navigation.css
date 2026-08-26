@@ -1,0 +1,127 @@
+/* Trasy 2.0 — jeden arkusz dla UI nawigacji i harmonogramu. */
+
+/* Pasek techniczny / TEST */
+#globalTestVersion{position:fixed;top:4.5px;right:7.5px;z-index:2147483647;padding:2.5px 6.5px;border-radius:5.5px;background:#111e;color:#f2f2f2;font:900 15px/1 Arial,sans-serif;letter-spacing:.02em;pointer-events:none;opacity:.89}
+html body .header{position:fixed!important;top:0;left:0;right:0;z-index:2147483640;min-height:27px!important;height:27px!important;padding:3px 8px!important}
+html body .headerActions{padding-right:118px!important}
+html body .container{margin-top:33px!important}
+#routeNavRoot{inset:27px 0 0 0!important}
+
+/* Harmonogram — techniczny pasek nie może przykrywać belki kursu. */
+body:has(#scheduleView:not([hidden])){height:100dvh;max-height:100dvh;overflow:hidden!important}
+body:has(#scheduleView:not([hidden])) .container{margin-top:0!important;padding-top:33px!important;margin-bottom:0!important;height:100dvh!important;max-height:100dvh!important;overflow:hidden!important}
+body:has(#scheduleView:not([hidden])) #scheduleView{height:calc(100dvh - 33px)!important;max-height:calc(100dvh - 33px)!important;overflow:hidden!important}
+body:has(#scheduleView:not([hidden])) #scheduleView .scheduleHeading{position:relative!important;top:auto!important;flex:0 0 auto!important;margin:0 -8px 6px!important;padding-top:9px!important;z-index:30!important}
+body:has(#scheduleView:not([hidden])) #scheduleView .tableWrap{flex:1 1 auto!important;min-height:0!important;overflow-y:auto!important;overflow-x:hidden!important;overscroll-behavior:contain!important}
+#scheduleView table thead th{text-align:center!important}
+.routeSpeedStatus{display:none!important}
+.routeIconLink{display:inline-flex!important;align-items:center;justify-content:center;padding:3px 5px!important;min-width:34px}
+.stopRouteIcon{display:block;width:30px;height:24px}
+.stopRouteIcon svg{display:block;width:100%;height:100%;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+#backFromSchedule{width:38px!important;height:38px!important;min-width:38px!important;min-height:38px!important;padding:0!important;border:1px solid #fff8!important;border-radius:19px!important;background:#111d!important;color:#fff!important;font-size:32px!important;line-height:32px!important;box-shadow:0 2px 9px #000a!important;display:flex!important;align-items:center!important;justify-content:center!important;flex:0 0 38px!important}
+
+/* Kierunek TAM / POWRÓT / NA PUSTO */
+.routeModeSwitches{display:flex;flex-direction:column;align-items:flex-end;gap:10px}
+.returnRouteSwitchLabel,.emptyRouteSwitchLabel{display:inline-flex;align-items:center;gap:5px;font-weight:900;white-space:nowrap;font-size:.78rem;margin:0;flex:0 0 auto}
+.returnSwitch{position:relative;display:inline-block;width:28px;height:16px;flex:0 0 28px}
+.returnSwitch input{opacity:0;width:0;height:0}
+.returnSlider{position:absolute;inset:0;border-radius:999px;background:#555;cursor:pointer;transition:.2s}
+.returnSlider:before{content:"";position:absolute;width:12px;height:12px;left:2px;top:2px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 1px 3px #0008}
+.returnSwitch input:checked+.returnSlider{background:#22c55e}
+.returnSwitch input:checked+.returnSlider:before{transform:translateX(12px)}
+#returnStartLabel{font-weight:900;color:#ccff33;white-space:nowrap}
+#parkingChoiceDialog[hidden]{display:none!important}
+#parkingChoiceDialog{position:fixed;inset:0;z-index:71000;display:flex;align-items:center;justify-content:center;padding:16px;background:#000c}
+.parkingChoiceCard{width:min(100%,480px);padding:18px;border:2px solid #ccff33;border-radius:14px;background:#222;box-shadow:0 12px 40px #000}
+.parkingChoiceCard h2{margin:0 0 14px}
+.parkingChoiceList{display:grid;gap:9px}
+.parkingChoiceButton{margin:0;padding:12px;background:#ccff33;color:#111}
+.parkingChoiceCancel{margin-top:12px;background:#555;color:#fff}
+@media(max-width:520px){.returnRouteSwitchLabel,.emptyRouteSwitchLabel{font-size:.7rem}}
+
+/* Aktywny przystanek i status punktualności. */
+#scheduleBody tr.isActiveStop:not(.gpsNextStop){background:transparent!important;box-shadow:none!important}
+#scheduleBody tr.isActiveStop:not(.gpsNextStop) td:first-child{color:#fff!important;font-weight:inherit!important}
+#scheduleBody tr.gpsNextStop{background:rgba(255,255,255,.035)!important;box-shadow:inset 5px 0 0 var(--gps-status-color,#ccff33),inset 0 1.5px 0 var(--gps-status-color,#ccff33),inset -1.5px 0 0 var(--gps-status-color,#ccff33),inset 0 -1.5px 0 var(--gps-status-color,#ccff33),0 4px 10px #0006!important}
+#scheduleBody tr.gpsNextStop td:first-child,#scheduleBody tr.gpsNextStop td:first-child>*:not(.etaPunctuality):not(.stopGuardNotice){font-weight:900!important;color:#fff!important}
+#scheduleBody tr td:first-child,#scheduleBody tr td:first-child>*:not(.etaPunctuality):not(.stopGuardNotice){color:#fff!important}
+#scheduleBody .punctualityLamp{display:none!important}
+#scheduleBody tr.gpsNextStop td:nth-child(2){font-size:22px!important;font-weight:1000!important;line-height:1.05!important;text-align:center!important;white-space:nowrap}
+#scheduleBody .etaPunctuality{display:flex!important;align-items:center;justify-content:center;gap:7px;margin-top:6px!important;font-size:13px!important;line-height:1.15!important;font-weight:1000!important;white-space:nowrap;color:#39ff69!important;text-shadow:0 1px 2px #000,0 0 5px #000}
+#scheduleBody .etaPunctuality:before{content:"";display:block;width:14px;height:14px;flex:0 0 14px;border-radius:50%;background:#34c759;box-shadow:0 0 0 2px #111,0 0 6px #000}
+#scheduleBody .etaPunctuality.early:before{background:#ffd60a}
+#scheduleBody .etaPunctuality.onTime:before,#scheduleBody .etaPunctuality.arrived:before{background:#34c759}
+#scheduleBody .etaPunctuality.late:before{background:#ff3b30}
+#scheduleBody .etaPunctuality.early,#scheduleBody .etaPunctuality.onTime,#scheduleBody .etaPunctuality.late{color:#39ff69!important}
+#scheduleBody .etaPunctuality.neutral{display:none!important}
+#scheduleBody .etaPunctuality.returnArrival{display:block!important;margin-top:4px!important;font-size:14px!important;color:#fff!important;text-shadow:none!important}
+#scheduleBody .etaPunctuality.returnArrival:before{display:none!important}
+#scheduleBody .stopGuardNotice{display:block;margin-top:5px;padding:7px 9px;border-radius:7px;font-size:.95rem!important;line-height:1.2!important;font-weight:1000;white-space:normal}
+#scheduleBody .stopGuardNotice.hold{background:#ff3b30!important;color:#fff!important}
+#scheduleBody .stopGuardNotice.ready{background:#34c759!important;color:#071407!important}
+
+/* Górna belka nawigacji — stałe miejsce na godzinę planową. */
+#routeNextStop{order:-1!important;flex:1 1 auto!important;min-width:0!important;max-width:72%!important;text-align:left!important;font-size:13px!important;font-weight:800!important;line-height:1.2!important}
+#routeNextStop .nextStopLabel{display:block;color:#aaa;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}
+#routeNextStop .nextStopMain{display:block;color:#fff;font-size:13px!important;line-height:1.15!important;font-weight:900!important;white-space:normal}
+#routeNextStop .nextStopPlan{display:block;min-height:14px;margin-top:1px;color:#ddd;font-size:12px;line-height:14px;font-weight:900;white-space:nowrap}
+#routeNextStop .nextStopPlan:empty{visibility:hidden}
+#routeNextStop .nextStopStatus{display:flex!important;align-items:center!important;gap:8px!important;margin-top:2px;color:#39ff69!important;font-size:14px!important;font-weight:1000!important;text-align:left!important;text-shadow:0 1px 2px #000,0 0 5px #000}
+#routeNextStop .nextStopStatus[hidden],#routeNextStop .nextStopGuard[hidden]{display:none!important}
+#routeNextStop .nextStopStatus:before{content:"";display:block;width:16px;height:16px;flex:0 0 16px;border-radius:50%;background:#34c759;box-shadow:0 0 0 2px #111,0 0 6px #000}
+#routeNextStop .nextStopStatus.early:before{background:#ffd60a!important}
+#routeNextStop .nextStopStatus.onTime:before{background:#34c759!important}
+#routeNextStop .nextStopStatus.late:before{background:#ff3b30!important}
+#routeNextStop .nextStopGuard{display:block;margin-top:5px;padding:7px 10px;border-radius:7px;font-size:14px;line-height:1.15;font-weight:1000;text-align:center;white-space:normal}
+#routeNextStop .nextStopGuard.approach{background:#ffd60a;color:#111}
+#routeNextStop .nextStopGuard.hold{background:#ff3b30;color:#fff}
+#routeNextStop .nextStopGuard.ready{background:#34c759;color:#071407}
+#routeNextStop .nextStopGuard.flash3{animation:trasyHoldFlash .36s ease-in-out 3}
+@keyframes trasyHoldFlash{0%,100%{background:#ff3b30;opacity:1;transform:scale(1)}50%{background:#730000;opacity:.3;transform:scale(.98)}}
+.activeStopEtaBubble{display:none!important}
+#routeNavRoot .maplibregl-popup{display:none!important}
+
+/* Ostrzeżenia GPS / wcześniejszy odjazd. */
+#earlyDepartureWarning,#returnEarlyDepartureWarning{position:fixed;z-index:100001;left:50%;top:18px;transform:translateX(-50%);width:min(92vw,520px);padding:16px 18px;border:3px solid #fff;border-radius:12px;background:#e11d2e;color:#fff;box-shadow:0 8px 28px #000c;text-align:center;font-size:1.12rem;font-weight:1000;line-height:1.2;letter-spacing:.02em}
+#earlyDepartureWarning{pointer-events:none}
+#returnEarlyDepartureWarning{pointer-events:auto;animation:returnEarlyDeparturePulse 1.6s ease-in-out infinite}
+#returnEarlyDepartureWarning[hidden]{display:none!important}
+#earlyDepartureWarning small,#returnEarlyDepartureWarning small{display:block;margin-top:5px;font-size:.78rem;font-weight:800;opacity:.95}
+#returnEarlyDepartureWarning button{display:block;margin:12px auto 0;min-width:94px;padding:8px 18px;border:2px solid #fff;border-radius:9px;background:#fff;color:#9f1020;font:1000 .95rem/1 Arial,sans-serif;cursor:pointer}
+@keyframes returnEarlyDeparturePulse{0%,100%{transform:translateX(-50%) scale(1);box-shadow:0 8px 28px #000c}50%{transform:translateX(-50%) scale(1.018);box-shadow:0 8px 32px #e11d2e88}}
+#missedStopWarning{position:fixed;z-index:100000;left:50%;top:86px;transform:translateX(-50%);width:min(90vw,520px);display:flex;align-items:center;gap:10px;padding:11px 12px 11px 15px;border:2px solid #ffb020;border-radius:12px;background:#241b08f2;color:#fff;box-shadow:0 5px 18px #000b,0 0 0 0 #ffb02066;font-weight:1000;line-height:1.18;animation:missedStopPulse 1.8s ease-in-out infinite}
+#missedStopWarning[hidden]{display:none!important}
+#missedStopWarning .missedStopText{flex:1;min-width:0}
+#missedStopWarning .missedStopText strong{display:block;color:#ffca55;font-size:.82rem;letter-spacing:.03em}
+#missedStopWarning .missedStopText span{display:block;margin-top:2px;font-size:1rem;overflow-wrap:anywhere}
+#missedStopWarning button{flex:0 0 34px;width:34px;height:34px;min-width:34px;padding:0;margin:0;border:1px solid #fff8;border-radius:17px;background:#0008;color:#fff;font-size:22px;font-weight:900;line-height:30px}
+@keyframes missedStopPulse{0%,100%{box-shadow:0 5px 18px #000b,0 0 0 0 #ffb02055}50%{box-shadow:0 5px 18px #000b,0 0 0 7px #ffb02018}}
+
+/* Stały dymek następnego manewru — element okna, nie mapy. */
+#routeManeuverBubble{position:fixed;left:50%;top:73dvh;z-index:40050;width:min(72vw,310px);max-width:310px;padding:8px 11px 7px;border:1px solid #777;border-radius:11px;background:#141414ee;color:#fff;box-shadow:0 4px 14px #000b;text-align:center;pointer-events:none;user-select:none;transform:translateX(-50%)}
+#routeManeuverBubble #routeManeuver{margin:0;color:#fff;font-size:16px;font-weight:900;line-height:1.15;text-align:center;overflow-wrap:anywhere}
+#routeManeuverBubble #routeManeuverDistance{display:block;margin-top:3px;color:#ccff33;font-size:14px;font-weight:1000;line-height:1.1;text-align:center}
+
+/* Kontrolki mapy i kamera. */
+.maplibregl-ctrl-compass{display:none!important}
+.route-view-control{box-shadow:0 0 0 2px rgba(0,0,0,.1)}
+#routeMapCanvas .maplibregl-ctrl-group:has(.maplibregl-ctrl-zoom-in) button,#routePitchToggle{width:34px!important;min-width:34px!important;height:40px!important;min-height:40px!important;margin:0!important;border-radius:0!important;box-shadow:none!important}
+#routePitchToggle{box-sizing:border-box;padding:2px 0 3px!important;border:0!important;background:#fff!important;color:#333!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;gap:1px!important;font:900 10px/10px Arial,sans-serif!important;cursor:pointer}
+#routePitchToggle svg{width:20px!important;height:15px!important;margin:0!important;display:block!important;order:0!important}
+#routePitchToggle span{display:block!important;height:10px!important;line-height:10px!important;order:1!important}
+#routePitchToggle:hover{background:#f2f2f2!important}
+.route-view-control:empty,.route-view-control-anchor{display:none!important}
+#routeNorthIndicator{position:fixed;right:14px;top:212px;z-index:50100;width:42px;height:42px;border:1px solid #fff8;border-radius:21px;background:#111d;color:#fff;box-shadow:0 2px 9px #000a;pointer-events:none;display:flex;flex-direction:column;align-items:center;justify-content:center;font:1000 12px/1 Arial,sans-serif}
+#routeNorthIndicator[hidden]{display:none!important}
+#routeNorthIndicator .northArrow{display:block;margin-top:-1px;color:#ccff33;font-size:23px;line-height:18px;transform-origin:50% 52%}
+
+/* Nocny interfejs MapLibre. */
+html[data-map-theme="night"] #routeMapCanvas .maplibregl-ctrl-group,html[data-map-theme="night"] #routeMapCanvas .maplibregl-ctrl-group button,html[data-map-theme="night"] #routePitchToggle{background:#24282d!important;color:#f1f3f4!important}
+html[data-map-theme="night"] #routeMapCanvas .maplibregl-ctrl-group button,html[data-map-theme="night"] #routePitchToggle{border-color:#454b52!important}
+html[data-map-theme="night"] #routeMapCanvas .maplibregl-ctrl-group button:hover,html[data-map-theme="night"] #routePitchToggle:hover{background:#343a40!important}
+html[data-map-theme="night"] #routeMapCanvas .maplibregl-ctrl-icon{filter:invert(1) brightness(1.35)!important}
+html[data-map-theme="night"] #routeMapCanvas .maplibregl-popup-content{background:#25292e!important;color:#f1f3f4!important;border:1px solid #4a5057!important;box-shadow:0 3px 14px #000a!important}
+html[data-map-theme="night"] #routeMapCanvas .maplibregl-popup-tip{border-top-color:#25292e!important;border-bottom-color:#25292e!important}
+html[data-map-theme="night"] #routeMapCanvas .maplibregl-popup-close-button{color:#f1f3f4!important;background:transparent!important}
+html[data-map-theme="night"] #routeMapCanvas .maplibregl-ctrl-attrib,html[data-map-theme="night"] #routeMapCanvas .maplibregl-ctrl-attrib.maplibregl-compact-show{background:rgba(31,35,39,.9)!important;color:#d8dde2!important}
+html[data-map-theme="night"] #routeMapCanvas .maplibregl-ctrl-attrib a{color:#d8dde2!important}
