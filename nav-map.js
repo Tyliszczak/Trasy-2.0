@@ -6,6 +6,8 @@
   let positionMarker=null;
   let positionEl=null;
   let watchId=null;
+  let positionAnimation=0;
+  let lastMarkerUpdateAt=0;
 
   let steps=[];
   let stepProgress=[];
@@ -1121,47 +1123,9 @@
 
       mapStepsToProgress();
 
-      if(map.getSource('route')){
-        map.getSource('route').setData(geo);
-
-      }else{
-        map.addSource('route',{
-          type:'geojson',
-          data:geo
-        });
-
-        const routeBeforeId=map.getStyle?.()?.layers?.find(layer=>layer.type==='symbol')?.id;
-
-        map.addLayer({
-          id:'route-outline',
-          type:'line',
-          source:'route',
-          layout:{
-            'line-cap':'round',
-            'line-join':'round'
-          },
-          paint:{
-            'line-color':'#202020',
-            'line-width':11,
-            'line-opacity':.7
-          }
-        },routeBeforeId);
-
-        map.addLayer({
-          id:'route-line',
-          type:'line',
-          source:'route',
-          layout:{
-            'line-cap':'round',
-            'line-join':'round'
-          },
-          paint:{
-            'line-color':'#ccff33',
-            'line-width':7,
-            'line-opacity':.95
-          }
-        },routeBeforeId);
-      }
+      const renderer=window.__trasyRouteRenderer;
+      if(!renderer?.setRoute)throw Error('Renderer trasy nie jest gotowy.');
+      renderer.setRoute(geo);
 
       refreshStopMarkers(
         stops,
@@ -1319,6 +1283,8 @@
      ========================================================= */
 
   function clearMarkers(){
+    if(positionAnimation){cancelAnimationFrame(positionAnimation);positionAnimation=0}
+    lastMarkerUpdateAt=0;
     if(positionMarker){
       positionMarker.remove();
       positionMarker=null;
@@ -1330,6 +1296,29 @@
     );
 
     stopMarkers=[];
+  }
+
+  function setVehiclePosition(ll,instant=false){
+    if(!positionMarker)return;
+    const target=[ll[1],ll[0]];
+    const current=positionMarker.getLngLat?.();
+    if(positionAnimation){cancelAnimationFrame(positionAnimation);positionAnimation=0}
+    if(instant||!current){positionMarker.setLngLat(target);lastMarkerUpdateAt=performance.now();return}
+    const from=[Number(current.lng),Number(current.lat)];
+    const jump=hav([from[1],from[0]],ll);
+    if(!Number.isFinite(jump)||jump>250){positionMarker.setLngLat(target);lastMarkerUpdateAt=performance.now();return}
+    const now=performance.now();
+    const interval=lastMarkerUpdateAt?now-lastMarkerUpdateAt:900;
+    lastMarkerUpdateAt=now;
+    const duration=Math.max(550,Math.min(1350,interval*1.12));
+    const started=now;
+    const animate=time=>{
+      const t=Math.min(1,(time-started)/duration);
+      positionMarker?.setLngLat([from[0]+(target[0]-from[0])*t,from[1]+(target[1]-from[1])*t]);
+      if(t<1&&!panel.hidden&&positionMarker)positionAnimation=requestAnimationFrame(animate);
+      else{positionAnimation=0;positionMarker?.setLngLat(target)}
+    };
+    positionAnimation=requestAnimationFrame(animate);
   }
 
   function applyNavigationPosition(position){
@@ -1345,7 +1334,7 @@
     }
 
     window.__navAcc=position.coords.accuracy||0;
-    positionMarker?.setLngLat([ll[1],ll[0]]);
+    setVehiclePosition(ll,instant);
 
     const sensorHeading=Number(position.coords.heading);
     if(instant&&(!Number.isFinite(sensorHeading)||sensorHeading<0)){
@@ -1466,41 +1455,14 @@
         pos.coords.accuracy||0;
 
       if(!map){
-        map=new maplibregl.Map({
+        const createMap=window.__trasyMapRuntime?.createMap;
+        if(typeof createMap!=='function')throw Error('Runtime mapy nie jest gotowy.');
+        map=createMap({
           container:'routeMapCanvas',
-
-          style:{
-            version:8,
-
-            sources:{
-              osm:{
-                type:'raster',
-                tiles:[
-                  'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
-                ],
-                tileSize:256,
-                attribution:'© OpenStreetMap contributors'
-              }
-            },
-
-            layers:[
-              {
-                id:'osm',
-                type:'raster',
-                source:'osm'
-              }
-            ]
-          },
-
-          center:[
-            origin[1],
-            origin[0]
-          ],
-
+          center:[origin[1],origin[0]],
           zoom:ZOOM,
           pitch:PITCH,
           bearing:0,
-
           attributionControl:true,
           maxPitch:60
         });
@@ -1528,10 +1490,7 @@
       }else{
         map.resize();
 
-        if(map.getSource('route')){
-          map.getSource('route')
-            .setData(routeGeoJSON([]));
-        }
+        window.__trasyRouteRenderer?.clear?.();
       }
 
       clearMarkers();

@@ -12,19 +12,19 @@ test('prowadzenie nie skanuje całej przyszłej trasy przy każdym GPS',()=>{
 });
 
 test('zielona trasa pozostaje pod symbolami i numerami dróg',()=>{
-  const nav=read('nav-map.js');
-  const progress=read('route-progress-style.js');
-  const ptv=read('ptv-basemap.js');
-  assert.match(nav,/layer=>layer\.type==='symbol'/);
-  assert.match(progress,/keepRouteBelowMapLabels/);
-  assert.match(progress,/map\.moveLayer\(id,beforeId\)/);
-  assert.match(ptv,/layer=>layer\.type==='symbol'/);
+  const renderer=read('route-progress-style.js');
+  assert.match(renderer,/function firstSymbolLayer/);
+  assert.match(renderer,/function keepBelowLabels/);
+  assert.match(renderer,/map\.moveLayer\(id,beforeId\)/);
+  assert.match(renderer,/ACTIVE_OUTLINE/);
+  assert.match(renderer,/ACTIVE_LINE/);
 });
 
-test('PTV nie przełącza się na fallback po samych pojedynczych błędach kafelków',()=>{
-  const ptv=read('ptv-basemap.js');
-  assert.match(ptv,/currentHealthTile/);
-  assert.match(ptv,/verifyPtvBeforeFallback/);
-  assert.match(ptv,/scheduleFallback\('ptv-health-failed'\)/);
-  assert.match(ptv,/FALLBACK_CONFIRM_ATTEMPTS=3/);
+test('PTV przełącza się na fallback dopiero po potwierdzonej awarii',()=>{
+  const runtime=read('map-runtime.js');
+  assert.match(runtime,/FALLBACK_GRACE_MS=8000/);
+  assert.match(runtime,/FALLBACK_CONFIRM_ATTEMPTS=3/);
+  assert.match(runtime,/confirmPtvUnavailable/);
+  assert.match(runtime,/scheduleFallback\('ptv-tile-errors'\)/);
+  assert.match(runtime,/PTV_RETRY_MS=15000/);
 });

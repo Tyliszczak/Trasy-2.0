@@ -16,7 +16,6 @@ import { normalizePtvSpeedLimit,distanceMeters,bearingDegrees } from './road-spe
   const REQUEST_TIMEOUT_MS=10000;
   const LIMIT_TTL_MS=45000;
 
-  // Brak fallbacków typu source:'openstreetmap': od tej wersji źródłem SpeedMax jest wyłącznie PTV Map Matching.
 
   let lastQueryAt=0;
   let lastQueryPoint=null;

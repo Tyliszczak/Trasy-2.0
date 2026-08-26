@@ -5,6 +5,9 @@ import { advanceRouteProgress, projectRoutePosition, splitRemainingRouteAtPositi
   const gps=window.__trasyGps;
   if(!body||!gps)return;
 
+  const ACTIVE_SOURCE='route';
+  const ACTIVE_OUTLINE='route-outline';
+  const ACTIVE_LINE='route-line';
   const FUTURE_SOURCE='route-future';
   const FUTURE_OUTLINE='route-future-outline';
   const FUTURE_LINE='route-future-line';
@@ -17,28 +20,22 @@ import { advanceRouteProgress, projectRoutePosition, splitRemainingRouteAtPositi
   let targetRoutePosition=0;
   let animationFromPosition=0;
   let animationStartedAt=0;
-  let latestPosition=null;
+  let latestPosition=gps.current?.()||null;
   let renderQueued=false;
-  let internalWrite=false;
 
   function cloneCoords(coords){
-    return (Array.isArray(coords)?coords:[])
+    return(Array.isArray(coords)?coords:[])
       .map(point=>[Number(point?.[0]),Number(point?.[1])])
       .filter(point=>Number.isFinite(point[0])&&Number.isFinite(point[1]));
   }
 
   function coordsFromGeoJson(data){
     if(data?.type==='Feature'&&data?.geometry?.type==='LineString')return cloneCoords(data.geometry.coordinates);
-    return [];
+    return[];
   }
 
-  function routeGeoJson(coords){
-    return {
-      type:'Feature',
-      properties:{},
-      geometry:{type:'LineString',coordinates:cloneCoords(coords)}
-    };
-  }
+  function routeGeoJson(coords){return{type:'Feature',properties:{},geometry:{type:'LineString',coordinates:cloneCoords(coords)}}}
+  const emptyRoute=()=>routeGeoJson([]);
 
   function parseCoord(value){
     const match=String(value||'').match(/(-?\d+(?:\.\d+)?)\s*[,; ]\s*(-?\d+(?:\.\d+)?)/);
@@ -63,16 +60,43 @@ import { advanceRouteProgress, projectRoutePosition, splitRemainingRouteAtPositi
     return Number.isFinite(lat)&&Number.isFinite(lng)?[lng,lat]:null;
   }
 
-  function rawSetData(source,data){
-    if(!source)return;
-    const raw=source.__trasyProgressRawSetData;
-    internalWrite=true;
+  function firstSymbolLayer(){return map?.getStyle?.()?.layers?.find(layer=>layer.type==='symbol')?.id}
+
+  function addLayer(spec,beforeId){
+    if(!map||map.getLayer?.(spec.id))return;
+    if(beforeId)map.addLayer(spec,beforeId);else map.addLayer(spec);
+  }
+
+  function ensureLayers(){
+    if(!map?.isStyleLoaded?.())return false;
     try{
-      if(typeof raw==='function')raw(data);
-      else source.setData(data);
-    }finally{
-      internalWrite=false;
+      const beforeId=firstSymbolLayer();
+      if(!map.getSource(FUTURE_SOURCE))map.addSource(FUTURE_SOURCE,{type:'geojson',data:emptyRoute()});
+      if(!map.getSource(ACTIVE_SOURCE))map.addSource(ACTIVE_SOURCE,{type:'geojson',data:emptyRoute()});
+
+      addLayer({id:FUTURE_OUTLINE,type:'line',source:FUTURE_SOURCE,layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'#4b5442','line-width':9,'line-opacity':.28}},beforeId);
+      addLayer({id:FUTURE_LINE,type:'line',source:FUTURE_SOURCE,layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'#b8c99f','line-width':6,'line-opacity':.5}},beforeId);
+      addLayer({id:ACTIVE_OUTLINE,type:'line',source:ACTIVE_SOURCE,layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'#203000','line-width':11,'line-opacity':.82}},beforeId);
+      addLayer({id:ACTIVE_LINE,type:'line',source:ACTIVE_SOURCE,layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'#86c900','line-width':7,'line-opacity':1}},beforeId);
+      keepBelowLabels();
+      return true;
+    }catch(error){
+      console.warn('Warstwy trasy:',error);
+      return false;
     }
+  }
+
+  function keepBelowLabels(){
+    if(!map)return;
+    const beforeId=firstSymbolLayer();
+    if(!beforeId)return;
+    for(const id of[FUTURE_OUTLINE,FUTURE_LINE,ACTIVE_OUTLINE,ACTIVE_LINE]){
+      try{if(map.getLayer?.(id))map.moveLayer(id,beforeId)}catch{}
+    }
+  }
+
+  function setSource(id,data){
+    try{map?.getSource?.(id)?.setData(data)}catch(error){console.warn(`Źródło ${id}:`,error)}
   }
 
   function snapVisualPosition(point,index,accuracy){
@@ -82,108 +106,31 @@ import { advanceRouteProgress, projectRoutePosition, splitRemainingRouteAtPositi
     return Number.isFinite(projected.distance)&&projected.distance<=tolerance?projected:null;
   }
 
-  function captureFullRoute(data){
-    const coords=coordsFromGeoJson(data);
-    if(coords.length<2)return false;
-    fullCoords=coords;
+  function resetProgress(){
     progressIndex=0;
-    let initialPosition=0;
+    displayRoutePosition=0;
+    targetRoutePosition=0;
+    animationFromPosition=0;
+    animationStartedAt=0;
+  }
+
+  function capture(data){
+    const coords=coordsFromGeoJson(data);
+    fullCoords=coords;
+    resetProgress();
+    if(coords.length<2)return false;
+
     const point=latestLngLat();
     if(point){
       const progress=advanceRouteProgress(fullCoords,point,0,latestPosition?.coords?.accuracy);
       progressIndex=progress.index;
       const projected=snapVisualPosition(point,progressIndex,latestPosition?.coords?.accuracy);
-      if(projected)initialPosition=projected.position;
-      else initialPosition=progressIndex;
+      const initial=projected?.position??progressIndex;
+      displayRoutePosition=initial;
+      targetRoutePosition=initial;
+      animationFromPosition=initial;
     }
-    displayRoutePosition=initialPosition;
-    targetRoutePosition=initialPosition;
-    animationFromPosition=initialPosition;
-    animationStartedAt=0;
-    window.__routeProgressState={fullPoints:fullCoords.length,progressIndex,displayRoutePosition,nextStopIndex:null};
     return true;
-  }
-
-  function wrapRouteSource(source){
-    if(!source||source.__trasyProgressWrapped)return;
-    const raw=source.setData.bind(source);
-    source.__trasyProgressWrapped=true;
-    source.__trasyProgressRawSetData=raw;
-    source.setData=function(data){
-      if(internalWrite)return raw(data);
-      captureFullRoute(data);
-      const result=raw(data);
-      queueRender();
-      return result;
-    };
-  }
-
-  function patchAddSource(){
-    if(!map||map.__trasyProgressAddSourcePatched)return;
-    map.__trasyProgressAddSourcePatched=true;
-    const rawAddSource=map.addSource.bind(map);
-    map.addSource=function(id,spec){
-      if(id==='route'&&!fullCoords.length)captureFullRoute(spec?.data);
-      const result=rawAddSource(id,spec);
-      if(id==='route')wrapRouteSource(map.getSource('route'));
-      return result;
-    };
-  }
-
-  function paintActiveRoute(){
-    try{
-      if(map.getLayer('route-outline')){
-        map.setPaintProperty('route-outline','line-color','#203000');
-        map.setPaintProperty('route-outline','line-width',11);
-        map.setPaintProperty('route-outline','line-opacity',.82);
-      }
-      if(map.getLayer('route-line')){
-        map.setPaintProperty('route-line','line-color','#86c900');
-        map.setPaintProperty('route-line','line-width',7);
-        map.setPaintProperty('route-line','line-opacity',1);
-      }
-    }catch(error){console.warn('Kolor aktywnego odcinka trasy:',error)}
-  }
-
-  function ensureFutureLayers(){
-    if(!map||!map.getLayer('route-outline')||!map.getLayer('route-line'))return false;
-    try{
-      if(!map.getSource(FUTURE_SOURCE)){
-        map.addSource(FUTURE_SOURCE,{type:'geojson',data:routeGeoJson([])});
-      }
-      const before='route-outline';
-      if(!map.getLayer(FUTURE_OUTLINE)){
-        map.addLayer({
-          id:FUTURE_OUTLINE,
-          type:'line',
-          source:FUTURE_SOURCE,
-          layout:{'line-cap':'round','line-join':'round'},
-          paint:{'line-color':'#4b5442','line-width':9,'line-opacity':.28}
-        },before);
-      }
-      if(!map.getLayer(FUTURE_LINE)){
-        map.addLayer({
-          id:FUTURE_LINE,
-          type:'line',
-          source:FUTURE_SOURCE,
-          layout:{'line-cap':'round','line-join':'round'},
-          paint:{'line-color':'#b8c99f','line-width':6,'line-opacity':.5}
-        },before);
-      }
-      return true;
-    }catch(error){
-      console.warn('Dalszy odcinek trasy:',error);
-      return false;
-    }
-  }
-
-  function keepRouteBelowMapLabels(){
-    if(!map)return;
-    const beforeId=map.getStyle?.()?.layers?.find(layer=>layer.type==='symbol')?.id;
-    if(!beforeId)return;
-    for(const id of [FUTURE_OUTLINE,FUTURE_LINE,'route-outline','route-line']){
-      try{if(map.getLayer?.(id))map.moveLayer(id,beforeId)}catch{}
-    }
   }
 
   function startEraseAnimation(nextPosition){
@@ -195,31 +142,19 @@ import { advanceRouteProgress, projectRoutePosition, splitRemainingRouteAtPositi
   }
 
   function advanceEraseAnimation(now=performance.now()){
-    if(targetRoutePosition<=displayRoutePosition+1e-6){
-      displayRoutePosition=targetRoutePosition;
-      return false;
-    }
-    if(!animationStartedAt){
-      displayRoutePosition=targetRoutePosition;
-      return false;
-    }
+    if(targetRoutePosition<=displayRoutePosition+1e-6){displayRoutePosition=targetRoutePosition;return false}
+    if(!animationStartedAt){displayRoutePosition=targetRoutePosition;return false}
     const linear=Math.max(0,Math.min(1,(now-animationStartedAt)/ERASE_ANIMATION_MS));
     const eased=1-Math.pow(1-linear,3);
     displayRoutePosition=animationFromPosition+(targetRoutePosition-animationFromPosition)*eased;
-    if(linear>=1){
-      displayRoutePosition=targetRoutePosition;
-      animationStartedAt=0;
-      return false;
-    }
+    if(linear>=1){displayRoutePosition=targetRoutePosition;animationStartedAt=0;return false}
     return true;
   }
 
   function render(){
     renderQueued=false;
     if(!map||fullCoords.length<2)return;
-    const routeSource=map.getSource?.('route');
-    if(!routeSource)return;
-    wrapRouteSource(routeSource);
+    if(!ensureLayers()){setTimeout(queueRender,80);return}
 
     const animationContinues=advanceEraseAnimation();
     const point=latestLngLat();
@@ -230,16 +165,10 @@ import { advanceRouteProgress, projectRoutePosition, splitRemainingRouteAtPositi
       if(projected)startEraseAnimation(Math.max(targetRoutePosition,projected.position));
     }
 
-    paintActiveRoute();
-    if(!ensureFutureLayers()){
-      setTimeout(queueRender,80);
-      return;
-    }
-    keepRouteBelowMapLabels();
-
     const split=splitRemainingRouteAtPosition(fullCoords,displayRoutePosition,nextStopPoint());
-    rawSetData(routeSource,routeGeoJson(split.active));
-    rawSetData(map.getSource(FUTURE_SOURCE),routeGeoJson(split.future));
+    setSource(ACTIVE_SOURCE,routeGeoJson(split.active));
+    setSource(FUTURE_SOURCE,routeGeoJson(split.future));
+    keepBelowLabels();
 
     window.__routeProgressState={
       fullPoints:fullCoords.length,
@@ -252,42 +181,40 @@ import { advanceRouteProgress, projectRoutePosition, splitRemainingRouteAtPositi
       futurePoints:split.future.length
     };
     document.dispatchEvent(new CustomEvent('trasy:route-progress-rendered',{detail:window.__routeProgressState}));
-
     if(animationContinues||targetRoutePosition>displayRoutePosition+1e-6)queueRender();
   }
 
-  function queueRender(){
-    if(renderQueued)return;
-    renderQueued=true;
-    requestAnimationFrame(render);
+  function queueRender(){if(renderQueued)return;renderQueued=true;requestAnimationFrame(render)}
+
+  function setRoute(data){
+    if(!capture(data)){
+      clear();
+      return false;
+    }
+    ensureLayers();
+    queueRender();
+    return true;
   }
 
-  function resetProgress(){
-    progressIndex=0;
-    displayRoutePosition=0;
-    targetRoutePosition=0;
-    animationFromPosition=0;
-    animationStartedAt=0;
-    queueRender();
+  function clear(){
+    fullCoords=[];
+    resetProgress();
+    if(map&&ensureLayers()){
+      setSource(ACTIVE_SOURCE,emptyRoute());
+      setSource(FUTURE_SOURCE,emptyRoute());
+    }
+    window.__routeProgressState={fullPoints:0,progressIndex:0,displayRoutePosition:0,targetRoutePosition:0,activePoints:0,futurePoints:0};
   }
 
   function install(nextMap){
     if(!nextMap||nextMap===map)return;
     map=nextMap;
-    fullCoords=[];
-    resetProgress();
-    patchAddSource();
-
-    const existing=map.getSource?.('route');
-    if(existing){
-      wrapRouteSource(existing);
-      let data=null;
-      try{data=existing.serialize?.().data}catch{}
-      if(!data&&existing._data)data=existing._data;
-      captureFullRoute(data);
-    }
-
-    map.on('style.load',()=>setTimeout(queueRender,0));
+    map.on('style.load',()=>{
+      // Po zmianie PTV / noc / fallback odtwarza warstwy jeden właściciel.
+      ensureLayers();
+      queueRender();
+    });
+    ensureLayers();
     queueRender();
   }
 
@@ -299,9 +226,10 @@ import { advanceRouteProgress, projectRoutePosition, splitRemainingRouteAtPositi
   },()=>{});
 
   body.addEventListener('gps-next-stop-change',queueRender);
-  body.addEventListener('route-direction-change',resetProgress);
-  body.addEventListener('route-mode-change',resetProgress);
-  document.addEventListener('trasy:map-theme-change',()=>setTimeout(queueRender,0));
+  body.addEventListener('route-direction-change',()=>{resetProgress();queueRender()});
+  body.addEventListener('route-mode-change',()=>{resetProgress();queueRender()});
   document.addEventListener('trasy:route-map-ready',event=>install(event.detail?.map||window.__routeMap));
+
+  window.__trasyRouteRenderer={setRoute,clear,state:()=>({...window.__routeProgressState}),install};
   if(window.__routeMap)install(window.__routeMap);
 })();

@@ -17,24 +17,6 @@ import'./geo-core.js';
   let etaSeconds=null,etaMeasuredAt=0,requesting=false;
   let infoEl=null,infoRow=null;
 
-  const style=document.createElement('style');
-  style.textContent=`
-    #scheduleBody .punctualityLamp{display:none!important}
-    #scheduleBody tr.gpsNextStop td:nth-child(2){font-size:22px!important;font-weight:1000!important;line-height:1.05!important;text-align:center!important;white-space:nowrap}
-    #scheduleBody .etaPunctuality{display:flex;align-items:center;justify-content:center;gap:7px;margin-top:6px;font-size:13px!important;line-height:1.15;font-weight:1000;white-space:nowrap;color:#39ff69!important;text-shadow:0 1px 2px #000,0 0 5px #000}
-    #scheduleBody .etaPunctuality:before{content:"";display:block;width:14px;height:14px;flex:0 0 14px;border-radius:50%;background:#34c759;box-shadow:0 0 0 2px #111,0 0 6px #000}
-    #scheduleBody .etaPunctuality.early:before{background:#ffd60a}
-    #scheduleBody .etaPunctuality.onTime:before{background:#34c759}
-    #scheduleBody .etaPunctuality.late:before{background:#ff3b30}
-    #scheduleBody .etaPunctuality.early,
-    #scheduleBody .etaPunctuality.onTime,
-    #scheduleBody .etaPunctuality.late{color:#39ff69!important}
-    #scheduleBody .etaPunctuality.arrived:before{background:#34c759}
-    #scheduleBody .etaPunctuality.neutral{display:none!important}
-    #scheduleBody .etaPunctuality.returnArrival{display:block!important;margin-top:4px!important;font-size:14px!important;color:#fff!important;text-shadow:none!important}
-    #scheduleBody .etaPunctuality.returnArrival:before{display:none!important}
-  `;
-  document.head.appendChild(style);
 
   const coord=value=>geo.parseCoordinate(value);
   function activeRow(){return body.querySelector('tr.gpsNextStop')}

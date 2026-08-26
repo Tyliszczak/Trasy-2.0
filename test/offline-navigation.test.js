@@ -45,13 +45,13 @@ test('stałe geometrie tras są pobierane w tle i używane jako fallback OSRM',(
   assert.match(nav,/window\.__trasyRouteFetch\|\|window\.fetch/);
 });
 
-test('TEST 2.0.162 ładuje moduły offline i service worker ma tę samą wersję',()=>{
+test('TEST 2.0.163 ładuje moduły offline i service worker ma tę samą wersję',()=>{
   const html=read('index.html');
   const worker=read('sw.js');
-  assert.match(html,/data-version="2\.0\.162"/);
+  assert.match(html,/data-version="2\.0\.163"/);
   assert.match(html,/offline-map-cache\.js\?v=1/);
   assert.match(html,/offline-route-cache\.js\?v=1/);
-  assert.match(worker,/const APP_VERSION='2\.0\.162'/);
+  assert.match(worker,/const APP_VERSION='2\.0\.163'/);
   assert.match(worker,/\.\/offline-map-cache\.js/);
   assert.match(worker,/\.\/offline-route-cache\.js/);
 });
