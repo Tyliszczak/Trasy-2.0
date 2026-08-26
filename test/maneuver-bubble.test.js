@@ -7,23 +7,22 @@ const bubble=read('maneuver-bubble.js');
 const mapUi=read('map-night-ui.js');
 const sw=read('sw.js');
 
-test('manewr i odległość są przenoszone z górnej belki do dymka pod wskaźnikiem',()=>{
+test('manewr i odległość są przenoszone z górnej belki do stałego dymka okna',()=>{
   assert.match(bubble,/getElementById\('routeManeuver'\)/);
   assert.match(bubble,/getElementById\('routeManeuverDistance'\)/);
   assert.match(bubble,/bubble\.append\(maneuver,distance\)/);
-  assert.match(bubble,/position:absolute/);
-  assert.match(bubble,/vehicle\.getBoundingClientRect\(\)/);
-  assert.match(bubble,/vehicleRect\.bottom-canvasRect\.top\+8/);
-  assert.doesNotMatch(bubble,/new maplibregl\.Marker/);
-  assert.doesNotMatch(bubble,/gps\.subscribe/);
+  assert.match(bubble,/position:fixed/);
+  assert.match(bubble,/left:50%/);
+  assert.match(bubble,/top:68dvh/);
+  assert.match(bubble,/document\.body\.appendChild\(bubble\)/);
 });
 
-test('dymek śledzi faktycznie narysowany wskaźnik i nie ma własnego markera GPS',()=>{
-  assert.match(bubble,/findVehicleElement/);
-  assert.match(bubble,/clip\.includes\('polygon'\)/);
-  assert.match(bubble,/el\.style\.width==='36px'/);
-  assert.match(bubble,/requestAnimationFrame\(positionBubble\)/);
-  assert.match(bubble,/if\(!attached\|\|!bubble\.isConnected\|\|panel\.hidden\)return/);
+test('dymek nie jest powiązany z mapą, GPS ani wskaźnikiem pojazdu',()=>{
+  assert.doesNotMatch(bubble,/new maplibregl\.Marker/);
+  assert.doesNotMatch(bubble,/gps\.subscribe/);
+  assert.doesNotMatch(bubble,/getBoundingClientRect/);
+  assert.doesNotMatch(bubble,/requestAnimationFrame/);
+  assert.doesNotMatch(bubble,/findVehicleElement/);
 });
 
 test('górna belka nie trzyma już marginesu po manewrze, a nazwa przystanku jest lekko mniejsza',()=>{
