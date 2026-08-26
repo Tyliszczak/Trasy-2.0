@@ -254,7 +254,7 @@ await step('Koniec trasy: praktyczne menu ma trzy wymagane działania',async()=>
 });
 
 await step('Nawigacja: mapa startuje, trasa OSRM się rysuje i nie ma surowego OSM',async()=>{
-  const {context,page}=await fallbackPage();
+  const {context,page}=await fallbackPage({serviceWorkers:'block'});
   const rawOsm=[];
   page.on('request',request=>{if(request.url().includes('tile.openstreetmap.org'))rawOsm.push(request.url())});
   try{
