@@ -4,21 +4,10 @@ import { isNightAt } from './map-theme-core.js?v=1';
   const PTV_STYLE_URL='https://vectormaps-resources.myptv.com/styles/latest/standard.json';
   const PTV_API_ORIGIN='https://api.myptv.com';
   const PROXY_PREFIX='/ptv-map';
-  const OSM_FALLBACK_STYLE={
-    version:8,
-    sources:{
-      osm:{
-        type:'raster',
-        tiles:['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-        tileSize:256,
-        attribution:'© OpenStreetMap contributors'
-      }
-    },
-    layers:[{id:'osm-fallback',type:'raster',source:'osm'}]
-  };
+  const FALLBACK_DAY_STYLE='https://tiles.openfreemap.org/styles/liberty';
   const HEALTH_TILE=`${PROXY_PREFIX}/maps/v1/vector-tiles/0/0/0`;
   const REQUEST_TIMEOUT_MS=6500;
-  const PTV_RETRY_MS=300000;
+  const PTV_RETRY_MS=15000;
   const ERROR_WINDOW_MS=12000;
   const ERROR_LIMIT=3;
 
@@ -31,6 +20,8 @@ import { isNightAt } from './map-theme-core.js?v=1';
   let errorTimes=[];
   let routeReady=false;
   let errorCheckPending=false;
+  let retryTimer=0;
+  let lastPtvError='';
 
   function clone(value){
     if(value===undefined||value===null)return value;
@@ -109,9 +100,19 @@ import { isNightAt } from './map-theme-core.js?v=1';
   }
 
   async function probePtv(){
-    if(Date.now()<disabledUntil)throw Error('PTV map temporarily disabled');
+    if(Date.now()<disabledUntil)throw Error(`PTV_RETRY_WAIT:${Math.max(0,disabledUntil-Date.now())}`);
     const response=await fetchWithTimeout(currentHealthTile(),{cache:'no-store',credentials:'same-origin'});
-    if(!response.ok)throw Error(`PTV map proxy ${response.status}`);
+    if(response.ok){
+      lastPtvError='';
+      return;
+    }
+    let code='';
+    try{
+      const data=await response.clone().json();
+      code=String(data?.code||data?.message||'').trim();
+    }catch{}
+    lastPtvError=`HTTP_${response.status}${code?`:${code}`:''}`;
+    throw Error(`PTV map proxy ${response.status}${code?` ${code}`:''}`);
   }
 
   async function loadPtvStyle(){
@@ -126,6 +127,7 @@ import { isNightAt } from './map-theme-core.js?v=1';
       return rewritten;
     })().catch(error=>{
       ptvStylePromise=null;
+      if(!lastPtvError)lastPtvError=String(error?.message||error||'PTV_STYLE_ERROR');
       throw error;
     });
     return clone(await ptvStylePromise);
@@ -164,8 +166,26 @@ import { isNightAt } from './map-theme-core.js?v=1';
     const container=map?.getContainer?.();
     if(container)container.dataset.mapProvider=next;
     document.documentElement.dataset.mapProvider=next;
-    window.__trasyBasemapState={provider:next,reason,disabledUntil};
+    window.__trasyBasemapState={provider:next,reason,disabledUntil,lastPtvError};
     document.dispatchEvent(new CustomEvent('trasy:basemap-provider-change',{detail:window.__trasyBasemapState}));
+  }
+
+  function clearRetry(){
+    if(retryTimer){
+      clearTimeout(retryTimer);
+      retryTimer=0;
+    }
+  }
+
+  function schedulePtvRetry(){
+    clearRetry();
+    if(!routeReady||isNightNow()||provider==='ptv')return;
+    const delay=Math.max(1000,disabledUntil-Date.now(),PTV_RETRY_MS);
+    retryTimer=setTimeout(()=>{
+      retryTimer=0;
+      disabledUntil=0;
+      applyDay(true);
+    },delay);
   }
 
   function setStyle(target,nextProvider,reason=''){
@@ -184,6 +204,7 @@ import { isNightAt } from './map-theme-core.js?v=1';
       settled=true;
       finish();
       if(nextProvider==='ptv'){
+        lastPtvError='PTV_STYLE_TIMEOUT';
         disabledUntil=Date.now()+PTV_RETRY_MS;
         ptvStylePromise=null;
         applyFallback('ptv-style-timeout');
@@ -195,8 +216,14 @@ import { isNightAt } from './map-theme-core.js?v=1';
       settled=true;
       clearTimeout(timeout);
       restoreRoute(route);
+      if(nextProvider==='ptv'){
+        lastPtvError='';
+        disabledUntil=0;
+        clearRetry();
+      }
       markProvider(nextProvider,reason);
       finish();
+      if(nextProvider==='openfreemap-liberty')schedulePtvRetry();
     });
 
     try{
@@ -206,6 +233,7 @@ import { isNightAt } from './map-theme-core.js?v=1';
       clearTimeout(timeout);
       finish();
       if(nextProvider==='ptv'){
+        lastPtvError=String(error?.message||error||'PTV_STYLE_ERROR');
         disabledUntil=Date.now()+PTV_RETRY_MS;
         ptvStylePromise=null;
         console.warn('PTV map:',error);
@@ -215,8 +243,13 @@ import { isNightAt } from './map-theme-core.js?v=1';
   }
 
   function applyFallback(reason){
-    if(!map||provider==='osm')return;
-    setStyle(clone(OSM_FALLBACK_STYLE),'osm',reason);
+    if(!map)return;
+    if(provider==='openfreemap-liberty'){
+      markProvider(provider,reason);
+      schedulePtvRetry();
+      return;
+    }
+    setStyle(FALLBACK_DAY_STYLE,'openfreemap-liberty',reason);
   }
 
   async function applyDay(force=false){
@@ -228,7 +261,7 @@ import { isNightAt } from './map-theme-core.js?v=1';
       if(!map||isNightNow()||!ensureRouteReady())return;
       setStyle(style,'ptv','secure-proxy');
     }catch(error){
-      console.warn('PTV niedostępne — awaryjnie OSM:',error);
+      console.warn('PTV niedostępne — awaryjnie OpenFreeMap:',error);
       disabledUntil=Math.max(disabledUntil,Date.now()+PTV_RETRY_MS);
       applyFallback('ptv-unavailable');
     }
@@ -241,7 +274,7 @@ import { isNightAt } from './map-theme-core.js?v=1';
       await probePtv();
       errorTimes=[];
     }catch(error){
-      console.warn('PTV nie odpowiada dla aktualnego obszaru — awaryjnie OSM:',error);
+      console.warn('PTV nie odpowiada dla aktualnego obszaru — awaryjnie OpenFreeMap:',error);
       disabledUntil=Date.now()+PTV_RETRY_MS;
       ptvStylePromise=null;
       applyFallback('ptv-health-failed');
@@ -251,7 +284,7 @@ import { isNightAt } from './map-theme-core.js?v=1';
   }
 
   function onMapError(event){
-    if(provider==='osm'||provider==='initial')return;
+    if(provider==='openfreemap-liberty'||provider==='initial')return;
     const message=String(event?.error?.message||event?.message||'').toLowerCase();
     const ptvError=provider==='ptv'&&(message.includes('ptv-map')||message.includes('myptv')||message.includes('vectormaps-resources'));
     const nightError=provider==='openfreemap-dark'&&(message.includes('openfreemap')||message.includes('tiles.openfreemap'));
@@ -272,7 +305,6 @@ import { isNightAt } from './map-theme-core.js?v=1';
     if(routeReady)return;
     routeReady=true;
     if(!map||isNightNow()||provider==='ptv')return;
-    if(provider==='osm'&&Date.now()<disabledUntil)return;
     applyDay(true);
   }
 
@@ -290,22 +322,26 @@ import { isNightAt } from './map-theme-core.js?v=1';
   document.addEventListener('trasy:route-progress-rendered',activateAfterRoute);
   document.addEventListener('trasy:map-theme-change',event=>{
     if(event.detail?.theme==='night'){
-      if(provider!=='osm')markProvider('openfreemap-dark','night-theme');
+      clearRetry();
+      markProvider('openfreemap-dark','night-theme');
       return;
     }
     if(event.detail?.theme==='day'&&ensureRouteReady()&&provider!=='ptv')applyDay(true);
   });
   document.addEventListener('trasy:route-map-ready',event=>install(event.detail?.map||window.__routeMap));
   window.addEventListener('online',()=>{
-    if(routeReady&&provider!=='ptv'&&!isNightNow()&&Date.now()>=disabledUntil)applyDay(true);
+    if(routeReady&&provider!=='ptv'&&!isNightNow()){
+      disabledUntil=0;
+      applyDay(true);
+    }
   });
 
   window.__trasyBasemapProvider={
     applyDay:()=>applyDay(true),
     applyFallback,
-    state:()=>window.__trasyBasemapState||{provider,disabledUntil,routeReady},
+    state:()=>window.__trasyBasemapState||{provider,disabledUntil,routeReady,lastPtvError},
     ptvStyleUrl:PTV_STYLE_URL,
-    fallbackDayStyle:OSM_FALLBACK_STYLE
+    fallbackDayStyle:FALLBACK_DAY_STYLE
   };
 
   if(window.__routeMap)install(window.__routeMap);
