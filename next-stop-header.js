@@ -18,19 +18,23 @@
   labelEl.textContent='Następny przystanek';
   const mainEl=document.createElement('span');
   mainEl.className='nextStopMain';
+  const planEl=document.createElement('span');
+  planEl.className='nextStopPlan';
   const statusEl=document.createElement('span');
   statusEl.className='nextStopStatus';
   statusEl.hidden=true;
   const guardEl=document.createElement('span');
   guardEl.className='nextStopGuard';
   guardEl.hidden=true;
-  header.append(labelEl,mainEl,statusEl,guardEl);
+  header.append(labelEl,mainEl,planEl,statusEl,guardEl);
 
   const style=document.createElement('style');
   style.textContent=`
-    #routeNextStop{font-size:14px!important;font-weight:800!important;line-height:1.25!important;max-width:62%;}
+    #routeNextStop{font-size:13px!important;font-weight:800!important;line-height:1.2!important;max-width:62%;}
     #routeNextStop .nextStopLabel{display:block;color:#aaa;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}
-    #routeNextStop .nextStopMain{display:block;color:#fff;font-size:14px;font-weight:900}
+    #routeNextStop .nextStopMain{display:block;color:#fff;font-size:13px!important;line-height:1.15!important;font-weight:900!important;white-space:normal}
+    #routeNextStop .nextStopPlan{display:block;min-height:14px;margin-top:1px;color:#ddd;font-size:12px;line-height:14px;font-weight:900;white-space:nowrap}
+    #routeNextStop .nextStopPlan:empty{visibility:hidden}
     #routeNextStop .nextStopStatus{display:block;margin-top:2px;font-size:13px;font-weight:1000}
     #routeNextStop .nextStopStatus[hidden],#routeNextStop .nextStopGuard[hidden]{display:none!important}
     #routeNextStop .nextStopStatus.early,
@@ -89,7 +93,11 @@
     return{name,plan:planTextFromRow(row)};
   }
   const coord=value=>geo.parseCoordinate(value);
-  function arrivalClock(seconds){if(!Number.isFinite(seconds))return'';const date=new Date(Date.now()+seconds*1000);return`${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`}
+
+  function setStopText(data){
+    mainEl.textContent=data?.name||'';
+    planEl.textContent=data?.plan||'';
+  }
 
   function stopKey(row=activeRow(),detail=lastGuardDetail){
     const data=dataFromRow(row);
@@ -117,11 +125,11 @@
 
   function render(){
     const data=dataFromRow(activeRow());
-    if(!data){mainEl.textContent='';statusEl.hidden=true;guardEl.hidden=true;return}
+    if(!data){setStopText(null);statusEl.hidden=true;guardEl.hidden=true;return}
+
+    setStopText(data);
 
     if(body.dataset.direction==='return'){
-      const seconds=Number(lastStatusDetail?.etaSeconds);
-      mainEl.textContent=`${data.name}${Number.isFinite(seconds)?` · Dojazd ${arrivalClock(seconds)}`:''}`;
       statusEl.hidden=true;
       statusEl.className='nextStopStatus';
       statusEl.textContent='';
@@ -130,7 +138,6 @@
       return;
     }
 
-    mainEl.textContent=`${data.name}${data.plan?` · ${data.plan}`:''}`;
     const guard=guardData();
     const status=etaCore.statusFromDiff(lastStatusDetail?.diffSeconds);
 
@@ -263,7 +270,7 @@
   function resetAlerts(){activeHoldKey='';activeApproachKey='';alertedApproachKey='';alertedHoldKey='';alertedReadyKey='';stoppedSince=0}
   body.addEventListener('route-direction-change',()=>{resetAlerts();render()});
   body.addEventListener('route-mode-change',()=>{resetAlerts();render()});
-  body.addEventListener('schedule-rendered',resetAlerts);
+  body.addEventListener('schedule-rendered',()=>{resetAlerts();render()});
 
   render();
 })();
