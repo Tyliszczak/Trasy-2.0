@@ -4,28 +4,31 @@
 
   const style=document.createElement('style');
   style.textContent=`
-    /* 2D/3D ma być trzecim przyciskiem tej samej pionowej belki co + i -. */
+    /* + / - / 2D-3D jako jedna, nieco większa pionowa belka. */
+    #routeMapCanvas .maplibregl-ctrl-group:has(.maplibregl-ctrl-zoom-in) button,
     #routePitchToggle{
-      width:29px!important;
-      min-width:29px!important;
-      height:29px!important;
-      min-height:29px!important;
-      padding:0!important;
+      width:34px!important;
+      min-width:34px!important;
+      height:34px!important;
+      min-height:34px!important;
       margin:0!important;
-      border:0!important;
       border-radius:0!important;
+      box-shadow:none!important;
+    }
+    #routePitchToggle{
+      padding:1px 0 2px!important;
+      border:0!important;
       background:#fff!important;
       color:#333!important;
-      box-shadow:none!important;
       display:flex!important;
       flex-direction:column!important;
       align-items:center!important;
       justify-content:center!important;
-      gap:0!important;
-      font:800 7px/7px Arial,sans-serif!important;
+      gap:1px!important;
+      font:900 10px/10px Arial,sans-serif!important;
     }
-    #routePitchToggle svg{width:19px!important;height:14px!important;margin:0!important;display:block!important}
-    #routePitchToggle span{display:block!important;height:7px!important;line-height:7px!important}
+    #routePitchToggle span{display:block!important;height:10px!important;line-height:10px!important;order:0!important}
+    #routePitchToggle svg{width:19px!important;height:14px!important;margin:0!important;display:block!important;order:1!important}
     #routePitchToggle:hover{background:#f2f2f2!important}
     .route-view-control:empty,.route-view-control-anchor{display:none!important}
 
