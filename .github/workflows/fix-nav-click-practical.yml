@@ -1,0 +1,31 @@
+name: Fix nav click practical
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/fix-nav-click-practical.yml']
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('scripts/practical-live.mjs')
+          s=p.read_text()
+          old="    await page.waitForFunction(()=>Boolean(document.getElementById('routeMapNav')),{timeout:10000});\n    const started=Date.now();\n    await page.evaluate(()=>{const link=document.querySelector('#scheduleBody .routeLink');link?.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true,view:window}))});"
+          new="    await page.waitForFunction(()=>Boolean(document.getElementById('routeMapNav')),{timeout:10000});\n    const started=Date.now();\n    await page.locator('#scheduleBody .routeLink').first().click();"
+          if old not in s: raise SystemExit('click marker not found')
+          p.write_text(s.replace(old,new,1))
+          Path('.github/workflows/fix-nav-click-practical.yml').unlink()
+          PY
+      - name: Commit
+        run: |
+          git config user.name Tyliszczak
+          git config user.email kswiderski.de@gmail.com
+          git add -A
+          git commit -m "Użyj rzeczywistego kliknięcia w teście nawigacji"
+          git push
