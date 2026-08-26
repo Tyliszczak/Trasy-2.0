@@ -5,7 +5,7 @@ import fs from 'node:fs';
 const read=path=>fs.readFileSync(new URL('../'+path,import.meta.url),'utf8');
 const limitSource=read('road-speed-limit.js');
 const display=read('speed-display.js');
-const speedmaxProxy=read('functions/speedmax.js');
+const ptvProxy=read('functions/ptv-map/[[path]].js');
 const serviceWorker=read('sw.js');
 
 test('aplikacja pyta bezpieczny backend przed OSM',()=>{
@@ -16,15 +16,15 @@ test('aplikacja pyta bezpieczny backend przed OSM',()=>{
   assert.ok(osmCall>backendCall);
 });
 
-test('SpeedMax używa PTV Map Matching przez proxy Cloudflare i nie ujawnia klucza',()=>{
-  assert.match(limitSource,/PTV_ENDPOINT='\/speedmax'/);
-  assert.match(limitSource,/await requestPtvLimit/);
-  assert.match(speedmaxProxy,/PTV_API_KEY/);
-  assert.match(speedmaxProxy,/mapmatch\/v1\/positions/);
-  assert.match(speedmaxProxy,/SEGMENT_ATTRIBUTES/);
-  assert.match(speedmaxProxy,/attributes\.speedLimit/);
+test('SpeedMax używa działającego proxy PTV Map Matching i nie ujawnia klucza',()=>{
+  assert.match(limitSource,/PTV_PROXY='\/ptv-map\/mapmatch\/v1\/positions'/);
+  assert.match(limitSource,/segmentAttributes/);
+  assert.match(limitSource,/attributes\.speedLimit/);
+  assert.match(ptvProxy,/MAPMATCH_PATH/);
+  assert.match(ptvProxy,/SEGMENT_ATTRIBUTES/);
+  assert.match(ptvProxy,/PTV_API_KEY/);
   assert.doesNotMatch(limitSource,/PTV_API_KEY/);
-  assert.match(serviceWorker,/url\.pathname==='\/speedmax'/);
+  assert.match(serviceWorker,/url\.pathname\.startsWith\('\/ptv-map\/'\)/);
 });
 
 test('OSM pozostaje fallbackiem po braku limitu z backendu',()=>{
