@@ -32,6 +32,9 @@
     #routePitchToggle:hover{background:#f2f2f2!important}
     .route-view-control:empty,.route-view-control-anchor{display:none!important}
 
+    /* Nazwa następnego przystanku odrobinę mniejsza, żeby górna belka była spokojniejsza. */
+    #routeNextStop .nextStopMain{font-size:13px!important;line-height:1.18!important}
+
     /* Nocą żadna kontrolka MapLibre ani dymek informacyjny nie ma białego tła. */
     html[data-map-theme="night"] #routeMapCanvas .maplibregl-ctrl-group,
     html[data-map-theme="night"] #routeMapCanvas .maplibregl-ctrl-group button,
@@ -74,6 +77,14 @@
     }
   `;
   document.head.append(style);
+
+  function loadManeuverBubble(){
+    if(document.querySelector('script[data-trasy-maneuver-bubble]'))return;
+    const script=document.createElement('script');
+    script.src='./maneuver-bubble.js?v=1';
+    script.dataset.trasyManeuverBubble='1';
+    document.head.append(script);
+  }
 
   function mergeViewControl(){
     const pitch=document.getElementById('routePitchToggle');
@@ -177,6 +188,7 @@
     softenNightMap();
   }
 
+  loadManeuverBubble();
   document.addEventListener('trasy:route-map-ready',event=>attach(event.detail?.map||window.__routeMap));
   document.addEventListener('trasy:map-theme-change',event=>{
     if(event.detail?.theme==='night')setTimeout(softenNightMap,0);
