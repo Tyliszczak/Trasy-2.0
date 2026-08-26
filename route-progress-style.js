@@ -1,4 +1,4 @@
-import { advanceRouteProgress, projectRoutePosition, splitRemainingRouteAtPosition } from './route-progress-core.js?v=3';
+import { advanceRouteProgress, projectRoutePosition, splitRemainingRouteAtPosition } from './route-progress-core.js?v=4';
 
 (()=>{
   const body=document.getElementById('scheduleBody');
@@ -177,6 +177,15 @@ import { advanceRouteProgress, projectRoutePosition, splitRemainingRouteAtPositi
     }
   }
 
+  function keepRouteBelowMapLabels(){
+    if(!map)return;
+    const beforeId=map.getStyle?.()?.layers?.find(layer=>layer.type==='symbol')?.id;
+    if(!beforeId)return;
+    for(const id of [FUTURE_OUTLINE,FUTURE_LINE,'route-outline','route-line']){
+      try{if(map.getLayer?.(id))map.moveLayer(id,beforeId)}catch{}
+    }
+  }
+
   function startEraseAnimation(nextPosition){
     const next=Number(nextPosition);
     if(!Number.isFinite(next)||next<=targetRoutePosition+1e-5)return;
@@ -226,6 +235,7 @@ import { advanceRouteProgress, projectRoutePosition, splitRemainingRouteAtPositi
       setTimeout(queueRender,80);
       return;
     }
+    keepRouteBelowMapLabels();
 
     const split=splitRemainingRouteAtPosition(fullCoords,displayRoutePosition,nextStopPoint());
     rawSetData(routeSource,routeGeoJson(split.active));

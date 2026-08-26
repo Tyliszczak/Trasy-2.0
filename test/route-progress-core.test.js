@@ -67,3 +67,18 @@ test('zielona linia może zaczynać się dokładnie pod znacznikiem zamiast od k
     [15.0050,52.0000]
   ]);
 });
+
+
+test('równoległa jezdnia używana dużo później nie może przeskoczyć postępu o kilometry',()=>{
+  const outbound=[];
+  for(let i=0;i<=120;i+=1)outbound.push([15.0000,52.0000+i*0.0001]);
+  const connector=[[15.0001,52.0120]];
+  const returning=[];
+  for(let i=120;i>=0;i-=1)returning.push([15.0001,52.0000+i*0.0001]);
+  const loop=[...outbound,...connector,...returning];
+  const previous=40;
+  const point=[15.00007,52.0045];
+  const progress=advanceRouteProgress(loop,point,previous,8);
+  assert.ok(progress.index<80,`nieoczekiwany skok do indeksu ${progress.index}`);
+  assert.ok(progress.index>=previous);
+});

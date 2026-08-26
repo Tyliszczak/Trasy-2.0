@@ -45,6 +45,8 @@
   const MIN_REROUTE_DISTANCE=85;
   const REROUTE_CONFIRM_FIXES=3;
   const REROUTE_COOLDOWN_MS=30000;
+  const ROUTE_PROGRESS_LOOKAHEAD_M=1200;
+  const ROUTE_PROGRESS_BACKTRACK_M=250;
 
 
   /* =========================================================
@@ -820,69 +822,57 @@
      POSTĘP NA TRASIE
      ========================================================= */
 
+  function routeWindow(start,backMeters=ROUTE_PROGRESS_BACKTRACK_M,forwardMeters=ROUTE_PROGRESS_LOOKAHEAD_M){
+    const safe=Math.max(0,Math.min(Math.trunc(Number(start)||0),Math.max(0,routeCoords.length-1)));
+    let from=safe,to=safe,walked=0;
+    while(from>0&&walked<backMeters){
+      walked+=hav(routeCoords[from],routeCoords[from-1]);
+      from-=1;
+    }
+    walked=0;
+    while(to<routeCoords.length-1&&walked<forwardMeters){
+      walked+=hav(routeCoords[to],routeCoords[to+1]);
+      to+=1;
+    }
+    return{from,to};
+  }
+
   function nearestRoutePoint(ll,start=0){
     if(!routeCoords.length){
-      return{
-        index:0,
-        distance:Infinity
-      };
+      return{index:0,distance:Infinity};
     }
 
-    let best=Math.max(
-      0,
-      Math.min(start,routeCoords.length-1)
-    );
+    const safe=Math.max(0,Math.min(Math.trunc(Number(start)||0),routeCoords.length-1));
+    const window=routeWindow(safe);
+    let best=safe,bestD=Infinity;
 
-    let bestD=Infinity;
-
-    const from=Math.max(0,best-80);
-
-    for(
-      let i=from;
-      i<routeCoords.length;
-      i++
-    ){
+    for(let i=window.from;i<=window.to;i+=1){
       const d=hav(ll,routeCoords[i]);
-
-      if(d<bestD){
-        bestD=d;
-        best=i;
-      }
-
-      if(i>best+500&&bestD<25){
-        break;
-      }
+      if(d<bestD){bestD=d;best=i}
     }
 
-    return{
-      index:best,
-      distance:bestD
-    };
+    return{index:best,distance:bestD};
   }
 
   function mapStepsToProgress(){
+    let cursor=0;
     stepProgress=steps.map(s=>{
       const loc=s.maneuver?.location;
-      if(!loc)return 0;
+      if(!loc)return cursor;
 
       const ll=[loc[1],loc[0]];
+      let best=cursor,bestD=Infinity;
 
-      let best=0,bestD=Infinity;
-
-      for(
-        let i=0;
-        i<routeCoords.length;
-        i++
-      ){
+      // Kroki OSRM sa uporzadkowane. Szukamy pierwszego pasujacego miejsca
+      // po poprzednim kroku, zamiast ponownie skanowac cala trase od zera.
+      for(let i=Math.max(0,cursor-3);i<routeCoords.length;i+=1){
         const d=hav(ll,routeCoords[i]);
-
-        if(d<bestD){
-          bestD=d;
-          best=i;
-        }
+        if(d<bestD){bestD=d;best=i}
+        if(bestD<3&&i>=best+8)break;
       }
 
-      return best;
+      cursor=Math.max(cursor,best);
+      return cursor;
     });
   }
 
@@ -1124,6 +1114,8 @@
           data:geo
         });
 
+        const routeBeforeId=map.getStyle?.()?.layers?.find(layer=>layer.type==='symbol')?.id;
+
         map.addLayer({
           id:'route-outline',
           type:'line',
@@ -1137,7 +1129,7 @@
             'line-width':11,
             'line-opacity':.7
           }
-        });
+        },routeBeforeId);
 
         map.addLayer({
           id:'route-line',
@@ -1152,7 +1144,7 @@
             'line-width':7,
             'line-opacity':.95
           }
-        });
+        },routeBeforeId);
       }
 
       refreshStopMarkers(

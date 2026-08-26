@@ -22,11 +22,40 @@ export function nearestRoutePointIndex(coords,point,start=0,backtrack=40){
   return {index:best,distance:bestDistance};
 }
 
+function progressSearchWindow(coords,start,backMeters=250,forwardMeters=1200){
+  const list=Array.isArray(coords)?coords:[];
+  const safe=Math.max(0,Math.min(Math.trunc(Number(start)||0),Math.max(0,list.length-1)));
+  let from=safe,to=safe,walked=0;
+  while(from>0&&walked<backMeters){
+    walked+=haversineMeters(list[from],list[from-1]);
+    from-=1;
+  }
+  walked=0;
+  while(to<list.length-1&&walked<forwardMeters){
+    walked+=haversineMeters(list[to],list[to+1]);
+    to+=1;
+  }
+  return{from,to};
+}
+
+function nearestProgressPointIndex(coords,point,start=0){
+  const list=Array.isArray(coords)?coords:[];
+  if(!list.length)return{index:0,distance:Infinity};
+  const safe=Math.max(0,Math.min(Math.trunc(Number(start)||0),list.length-1));
+  const {from,to}=progressSearchWindow(list,safe);
+  let best=safe,bestDistance=Infinity;
+  for(let i=from;i<=to;i+=1){
+    const distance=haversineMeters(list[i],point);
+    if(distance<bestDistance){bestDistance=distance;best=i}
+  }
+  return{index:best,distance:bestDistance};
+}
+
 export function advanceRouteProgress(coords,point,previousIndex=0,accuracy=0){
   const list=Array.isArray(coords)?coords:[];
   if(list.length<2)return {index:0,distance:Infinity,advanced:false};
   const previous=Math.max(0,Math.min(Math.trunc(Number(previousIndex)||0),list.length-1));
-  const snap=nearestRoutePointIndex(list,point,previous,55);
+  const snap=nearestProgressPointIndex(list,point,previous);
   const tolerance=Math.max(70,Math.max(0,Number(accuracy)||0)*2.2);
   if(!Number.isFinite(snap.distance)||snap.distance>tolerance){
     return {index:previous,distance:snap.distance,advanced:false};

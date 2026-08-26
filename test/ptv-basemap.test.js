@@ -44,7 +44,7 @@ test('proxy Cloudflare przekazuje klucz PTV wyłącznie z sekretu i nie jest otw
 
 test('PWA cacheuje logikę mapy, ale nie przechwytuje kafelków PTV',async()=>{
   const [theme,worker]=await Promise.all([read('map-day-night.js'),read('sw.js')]);
-  assert.match(theme,/import ['"]\.\/ptv-basemap\.js\?v=2['"]/);
+  assert.match(theme,/import ['"]\.\/ptv-basemap\.js\?v=3['"]/);
   assert.match(worker,/\.\/ptv-basemap\.js/);
   assert.match(worker,/url\.pathname\.startsWith\(['"]\/ptv-map\/['"]\)\)return/);
 });

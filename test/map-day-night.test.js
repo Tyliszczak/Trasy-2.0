@@ -35,7 +35,7 @@ test('zmiana motywu odtwarza trasę i zachowuje e-TOLL nad linią trasy',async()
 
 test('PWA ładuje i cacheuje moduły automatycznego dnia i nocy',async()=>{
   const [html,worker]=await Promise.all([readSource('index.html'),readSource('sw.js')]);
-  assert.match(html,/map-day-night\.js\?v=2/);
+  assert.match(html,/map-day-night\.js\?v=3/);
   assert.match(worker,/\.\/map-theme-core\.js/);
   assert.match(worker,/\.\/map-day-night\.js/);
   const pageVersion=html.match(/data-version="([^"]+)"/)?.[1];

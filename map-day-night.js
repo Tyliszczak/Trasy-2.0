@@ -1,4 +1,4 @@
-import './ptv-basemap.js?v=2';
+import './ptv-basemap.js?v=3';
 import { isNightAt } from './map-theme-core.js?v=1';
 
 (()=>{
@@ -78,7 +78,7 @@ import { isNightAt } from './map-theme-core.js?v=1';
       }else{
         map.addSource('route',{type:'geojson',data});
       }
-      const beforeId=map.getLayer?.('etoll-lubuskie-line')?'etoll-lubuskie-line':undefined;
+      const beforeId=map.getStyle?.()?.layers?.find(layer=>layer.type==='symbol')?.id||(map.getLayer?.('etoll-lubuskie-line')?'etoll-lubuskie-line':undefined);
       addRouteLayer('route-outline',{
         'line-color':'#202020',
         'line-width':11,

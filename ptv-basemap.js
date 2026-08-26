@@ -30,6 +30,7 @@ import { isNightAt } from './map-theme-core.js?v=1';
   let generation=0;
   let errorTimes=[];
   let routeReady=false;
+  let errorCheckPending=false;
 
   function clone(value){
     if(value===undefined||value===null)return value;
@@ -95,9 +96,21 @@ import { isNightAt } from './map-theme-core.js?v=1';
     return next;
   }
 
+  function currentHealthTile(){
+    const center=map?.getCenter?.();
+    const lat=Number(center?.lat),lon=Number(center?.lng);
+    if(!Number.isFinite(lat)||!Number.isFinite(lon))return HEALTH_TILE;
+    const z=Math.max(0,Math.min(17,Math.floor(Number(map?.getZoom?.())||0)));
+    const n=2**z;
+    const x=Math.max(0,Math.min(n-1,Math.floor((lon+180)/360*n)));
+    const rad=Math.max(-85.0511,Math.min(85.0511,lat))*Math.PI/180;
+    const y=Math.max(0,Math.min(n-1,Math.floor((1-Math.asinh(Math.tan(rad))/Math.PI)/2*n)));
+    return `${PROXY_PREFIX}/maps/v1/vector-tiles/${z}/${x}/${y}`;
+  }
+
   async function probePtv(){
     if(Date.now()<disabledUntil)throw Error('PTV map temporarily disabled');
-    const response=await fetchWithTimeout(HEALTH_TILE,{cache:'no-store',credentials:'same-origin'});
+    const response=await fetchWithTimeout(currentHealthTile(),{cache:'no-store',credentials:'same-origin'});
     if(!response.ok)throw Error(`PTV map proxy ${response.status}`);
   }
 
@@ -138,7 +151,7 @@ import { isNightAt } from './map-theme-core.js?v=1';
     try{
       if(map.getSource?.('route'))map.getSource('route').setData(data);
       else map.addSource('route',{type:'geojson',data});
-      const beforeId=map.getLayer?.('etoll-lubuskie-line')?'etoll-lubuskie-line':undefined;
+      const beforeId=map.getStyle?.()?.layers?.find(layer=>layer.type==='symbol')?.id||(map.getLayer?.('etoll-lubuskie-line')?'etoll-lubuskie-line':undefined);
       addRouteLayer('route-outline',{'line-color':'#202020','line-width':11,'line-opacity':.7},beforeId);
       addRouteLayer('route-line',{'line-color':'#ccff33','line-width':7,'line-opacity':.95},beforeId);
     }catch(error){
@@ -221,6 +234,22 @@ import { isNightAt } from './map-theme-core.js?v=1';
     }
   }
 
+  async function verifyPtvBeforeFallback(){
+    if(errorCheckPending||provider!=='ptv')return;
+    errorCheckPending=true;
+    try{
+      await probePtv();
+      errorTimes=[];
+    }catch(error){
+      console.warn('PTV nie odpowiada dla aktualnego obszaru — awaryjnie OSM:',error);
+      disabledUntil=Date.now()+PTV_RETRY_MS;
+      ptvStylePromise=null;
+      applyFallback('ptv-health-failed');
+    }finally{
+      errorCheckPending=false;
+    }
+  }
+
   function onMapError(event){
     if(provider==='osm'||provider==='initial')return;
     const message=String(event?.error?.message||event?.message||'').toLowerCase();
@@ -233,10 +262,10 @@ import { isNightAt } from './map-theme-core.js?v=1';
     if(errorTimes.length<ERROR_LIMIT)return;
     errorTimes=[];
     if(provider==='ptv'){
-      disabledUntil=now+PTV_RETRY_MS;
-      ptvStylePromise=null;
+      verifyPtvBeforeFallback();
+      return;
     }
-    applyFallback(provider==='ptv'?'ptv-tile-errors':'night-style-errors');
+    applyFallback('night-style-errors');
   }
 
   function activateAfterRoute(){

@@ -142,12 +142,12 @@ function updateLiveEta(position){
   if(!routeModel?.points?.length)return;
 
   const accuracy=Math.max(0,Number(position?.coords?.accuracy)||0);
-  const searchStart=Math.max(0,lastSnapIndex-120);
-  const searchEnd=Math.min(routeModel.points.length-1,lastSnapIndex+1200);
-  let snap=nearestRouteIndex(routeModel.points,here,{start:searchStart,end:searchEnd});
-  if(snap.distance>Math.max(MAX_ROUTE_SNAP_M,accuracy*2)){
-    snap=nearestRouteIndex(routeModel.points,here);
-  }
+  const hereDistance=routeModel.cumulative[lastSnapIndex]||0;
+  let searchStart=lastSnapIndex;
+  while(searchStart>0&&hereDistance-routeModel.cumulative[searchStart-1]<250)searchStart-=1;
+  let searchEnd=lastSnapIndex;
+  while(searchEnd<routeModel.points.length-1&&routeModel.cumulative[searchEnd+1]-hereDistance<1200)searchEnd+=1;
+  const snap=nearestRouteIndex(routeModel.points,here,{start:searchStart,end:searchEnd});
   if(snap.distance>Math.max(MAX_ROUTE_SNAP_M,accuracy*2))return;
   if(snap.index>=lastSnapIndex-20)lastSnapIndex=Math.max(lastSnapIndex,snap.index);
 
