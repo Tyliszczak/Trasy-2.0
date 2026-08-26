@@ -23,6 +23,15 @@
     };
   }
 
+  function initialTheme(options){
+    const center=Array.isArray(options?.center)?options.center:null;
+    const lng=Number(center?.[0]),lat=Number(center?.[1]);
+    if(Number.isFinite(lat)&&Number.isFinite(lng)&&typeof window.__trasyResolveMapTheme==='function'){
+      return window.__trasyResolveMapTheme(lat,lng)==='night'?'night':'day';
+    }
+    return document.documentElement.dataset.mapTheme==='night'?'night':'day';
+  }
+
   window.maplibregl.Map=new Proxy(Original,{
     construct(Target,args,newTarget){
       const originalOptions=args?.[0]||{};
@@ -31,7 +40,7 @@
       let theme='';
 
       if(options.container==='routeMapCanvas'){
-        theme=document.documentElement.dataset.mapTheme==='night'?'night':'day';
+        theme=initialTheme(options);
         provider=theme==='night'?'openfreemap-dark':'ptv';
         options.style=theme==='night'?DARK_STYLE:PTV_STYLE;
         wrapTransformRequest(options);
