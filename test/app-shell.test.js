@@ -98,17 +98,15 @@ test('wybór najbliższego przyszłego kursu ma jedno źródło w time-core',asy
   assert.doesNotMatch(returnRoute,/Math\.abs\(a\.m-current\)/);
 });
 
-test('status punktualności ma zielony tekst w mapie i harmonogramie, a kolor niesie kropka',async()=>{
-  const [html,header,eta]=await Promise.all([
-    readSource('index.html'),readSource('next-stop-header.js'),readSource('eta-status.js')
+test('status punktualności ma zielony tekst, a kolor niesie kropka',async()=>{
+  const [html,header,eta,css]=await Promise.all([
+    readSource('index.html'),readSource('next-stop-header.js'),readSource('eta-status.js'),readSource('navigation.css')
   ]);
   assert.doesNotMatch(html,/punctuality-text-color-fix\.js/);
-  assert.match(header,/nextStopStatus\.early,[\s\S]*color:#39ff69/);
-  assert.match(eta,/etaPunctuality\{[^}]*color:#39ff69!important/);
-  assert.match(eta,/\.etaPunctuality\.early:before\{background:#ffd60a\}/);
-  assert.match(eta,/\.etaPunctuality\.late:before\{background:#ff3b30\}/);
-  assert.match(eta,/\.etaPunctuality\.onTime:before\{background:#34c759\}/);
-  assert.match(eta,/\.etaPunctuality\.early,[\s\S]*\.etaPunctuality\.onTime,[\s\S]*\.etaPunctuality\.late\{color:#39ff69!important\}/);
+  assert.match(header,/statusEl\.textContent=status\.text/);
+  assert.match(eta,/info\.textContent=punctuality\.text/);
+  assert.match(css,/nextStopStatus\.early:before\{background:#ffd60a!important\}/);
+  assert.match(css,/etaPunctuality\.late:before\{background:#ff3b30\}/);
 });
 
 test('kamera ma jeden jawny kontroler i wraca do prowadzenia po 15 sekundach',async()=>{
@@ -141,14 +139,12 @@ test('kamera ustawia pierwszy kierunek od razu i szybciej reaguje na jazdę',asy
   assert.match(controls,/delta\*\.78/);
 });
 
-test('informacje o prędkości używają jednego zdarzenia limitu drogi',async()=>{
-  const [speed,limit,profile]=await Promise.all([readSource('speed-display.js'),readSource('road-speed-limit.js'),readSource('vehicle-speed-profile-core.js')]);
+test('SpeedMax ma jedno aktywne źródło PTV Map Matching',async()=>{
+  const [speed,limit]=await Promise.all([readSource('speed-display.js'),readSource('road-speed-limit.js')]);
   assert.match(speed,/trasy:road-speed-limit/);
-  assert.match(speed,/Brak danych o ograniczeniu prędkości/);
   assert.match(limit,/trasy:road-speed-limit/);
-  assert.match(limit,/source:'openstreetmap'/);
-  assert.match(profile,/BRAK DANYCH POJAZDU/);
-  assert.match(profile,/BRAK DANYCH DROGI/);
+  assert.match(limit,/source:hasLimit\?'ptv-map-matching':''/);
+  assert.doesNotMatch(limit,/Overpass|openstreetmap|effectiveVehicleSpeedLimit/);
 });
 
 test('uwagi nawigacyjne nie zapisują nagrań głosowych',async()=>{

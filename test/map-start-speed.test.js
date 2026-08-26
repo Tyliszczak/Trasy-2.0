@@ -11,9 +11,9 @@ test('nawigacja używa świeżej pozycji GPS-hub bez czekania na kolejny fix',()
 });
 
 test('styl PTV jest rozgrzewany przed otwarciem mapy',()=>{
-  const hook=read('maplibre-route-hook.js');
+  const runtime=read('map-runtime.js');
   const html=read('index.html');
-  assert.match(hook,/__trasyPtvStyleWarmup=fetch\(PTV_STYLE/);
-  assert.match(hook,/cache:'force-cache'/);
+  assert.match(runtime,/__trasyPtvStyleWarmup=fetch\(PTV_STYLE/);
+  assert.match(runtime,/cache:'force-cache'/);
   assert.ok(html.includes('rel="preconnect" href="https://vectormaps-resources.myptv.com"'));
 });

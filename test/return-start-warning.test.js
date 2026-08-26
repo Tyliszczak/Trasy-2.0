@@ -1,16 +1,13 @@
-import assert from'node:assert/strict';
-import{readFile}from'node:fs/promises';
-import test from'node:test';
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const source=fs.readFileSync(new URL('../return-route.js',import.meta.url),'utf8');
+const css=fs.readFileSync(new URL('../navigation.css',import.meta.url),'utf8');
 
-const source=await readFile(new URL('../return-start-guard.js',import.meta.url),'utf8');
-
-test('wczesny wyjazd na powrocie pokazuje zamykany alert przez 20 sekund',()=>{
-  assert.match(source,/const WARNING_MS=20000/);
+test('wczesny wyjazd z punktu START jest częścią return-route',()=>{
+  assert.match(source,/RETURN_WARNING_MS=20000/);
   assert.match(source,/ODJECHAŁEŚ PRZED CZASEM/);
-  assert.match(source,/Planowany start:/);
-  assert.match(source,/returnEarlyDeparturePulse/);
-  assert.match(source,/returnEarlyDepartureWarning/);
-  assert.match(source,/<button type="button">OK<\/button>/);
-  assert.match(source,/querySelector\('button'\)\.onclick=hideWarning/);
-  assert.match(source,/warningTimer=setTimeout\(hideWarning,WARNING_MS\)/);
+  assert.match(source,/confirmed-departure/);
+  assert.match(source,/return-origin-change/);
+  assert.match(css,/#returnEarlyDepartureWarning/);
 });

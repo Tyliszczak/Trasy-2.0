@@ -32,14 +32,15 @@ import{canAutoAdvanceBySchedule,shouldApplySchedulePriority}from'./stop-target-p
   let earlyWarningTimer=null;
   let missedStopWarningTimer=null;
 
-  const style=document.createElement('style');
-  style.textContent='#scheduleBody tr.isActiveStop:not(.gpsNextStop){background:transparent!important;box-shadow:none!important}#scheduleBody tr.isActiveStop:not(.gpsNextStop) td:first-child{color:#fff!important;font-weight:inherit!important}#scheduleBody tr.gpsNextStop{background:rgba(255,255,255,.035)!important;box-shadow:inset 5px 0 0 var(--gps-status-color,#ccff33),inset 0 1.5px 0 var(--gps-status-color,#ccff33),inset -1.5px 0 0 var(--gps-status-color,#ccff33),inset 0 -1.5px 0 var(--gps-status-color,#ccff33),0 4px 10px #0006!important}#scheduleBody tr.gpsNextStop td:first-child,#scheduleBody tr.gpsNextStop td:first-child>*:not(.etaPunctuality):not(.stopGuardNotice){font-weight:900!important;color:#fff!important}#scheduleBody tr td:first-child,#scheduleBody tr td:first-child>*:not(.etaPunctuality):not(.stopGuardNotice){color:#fff!important}#scheduleBody .stopGuardNotice{display:block;margin-top:5px;padding:6px 8px;border-radius:7px;font-size:12px;line-height:1.15;font-weight:1000;white-space:normal}#scheduleBody .stopGuardNotice.hold{background:#ffd60a;color:#111}#scheduleBody .stopGuardNotice.ready{background:#34c759;color:#071407}#earlyDepartureWarning{position:fixed;z-index:99999;left:50%;top:18px;transform:translateX(-50%);width:min(92vw,520px);padding:16px 18px;border:3px solid #fff;border-radius:12px;background:#e11d2e;color:#fff;box-shadow:0 8px 28px #000c;text-align:center;font-size:1.12rem;font-weight:1000;line-height:1.2;letter-spacing:.02em;pointer-events:none}#earlyDepartureWarning small{display:block;margin-top:5px;font-size:.78rem;font-weight:800;opacity:.95}#missedStopWarning{position:fixed;z-index:100000;left:50%;top:86px;transform:translateX(-50%);width:min(90vw,520px);display:flex;align-items:center;gap:10px;padding:11px 12px 11px 15px;border:2px solid #ffb020;border-radius:12px;background:#241b08f2;color:#fff;box-shadow:0 5px 18px #000b,0 0 0 0 #ffb02066;font-weight:1000;line-height:1.18;animation:missedStopPulse 1.8s ease-in-out infinite}#missedStopWarning[hidden]{display:none!important}#missedStopWarning .missedStopText{flex:1;min-width:0}#missedStopWarning .missedStopText strong{display:block;color:#ffca55;font-size:.82rem;letter-spacing:.03em}#missedStopWarning .missedStopText span{display:block;margin-top:2px;font-size:1rem;overflow-wrap:anywhere}#missedStopWarning button{flex:0 0 34px;width:34px;height:34px;min-width:34px;padding:0;margin:0;border:1px solid #fff8;border-radius:17px;background:#0008;color:#fff;font-size:22px;font-weight:900;line-height:30px}@keyframes missedStopPulse{0%,100%{box-shadow:0 5px 18px #000b,0 0 0 0 #ffb02055}50%{box-shadow:0 5px 18px #000b,0 0 0 7px #ffb02018}}';
-  document.head.append(style);
 
   const coord=value=>geo.parseCoordinate(value);
 
   function rows(){
     return[...body.querySelectorAll('tr')].filter(row=>coord(row.dataset.coordinate));
+  }
+
+  function minimumTargetIndex(){
+    return body.dataset.direction==='return'&&body.dataset.emptyRun!=='1'?1:0;
   }
 
   function stops(){
@@ -216,7 +217,8 @@ import{canAutoAdvanceBySchedule,shouldApplySchedulePriority}from'./stop-target-p
       speedMps:Number(motion.speedMps||0),
       heading,
       headingReliable:Boolean(motion.headingReliable),
-      emptyRun:body.dataset.emptyRun==='1'
+      emptyRun:body.dataset.emptyRun==='1',
+      minimumIndex:minimumTargetIndex()
     });
     currentIndex=result.index;
 
@@ -328,7 +330,8 @@ import{canAutoAdvanceBySchedule,shouldApplySchedulePriority}from'./stop-target-p
 
   function setManualIndex(index,source){
     const routeRows=rows();
-    if(!Number.isInteger(index)||index<0||index>=routeRows.length)return;
+    const minimum=minimumTargetIndex();
+    if(!Number.isInteger(index)||index<minimum||index>=routeRows.length)return;
     currentIndex=index;
     reachedBeforeTime=false;
     engine.setIndex(index);

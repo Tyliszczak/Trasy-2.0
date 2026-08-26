@@ -36,6 +36,7 @@ if('serviceWorker'in navigator)window.addEventListener('load',async()=>{
   const updateButton=$('#updateAppButton');
   const currentVersion=String($('#globalTestVersion')?.dataset.version||'');
   let updateRequested=false;
+  const CHECK_INTERVAL_MS=10*60*1000;
 
   function workerVersion(worker){
     return new Promise(resolve=>{
@@ -64,6 +65,13 @@ if('serviceWorker'in navigator)window.addEventListener('load',async()=>{
     };
 
     await handleWaiting();
+    const checkForUpdate=async()=>{
+      if(!navigator.onLine)return false;
+      try{await reg.update();await handleWaiting();return true}catch(error){console.warn('Sprawdzenie aktualizacji PWA:',error);return false}
+    };
+    window.__trasyCheckForUpdate=checkForUpdate;
+    document.getElementById('showSchedule')?.addEventListener('click',()=>{checkForUpdate()});
+    setInterval(checkForUpdate,CHECK_INTERVAL_MS);
     reg.addEventListener('updatefound',()=>{
       const worker=reg.installing;
       worker?.addEventListener('statechange',()=>{
@@ -79,7 +87,7 @@ if('serviceWorker'in navigator)window.addEventListener('load',async()=>{
     navigator.serviceWorker.addEventListener('controllerchange',()=>{
       if(updateRequested)location.reload();
     });
-    if(navigator.onLine)reg.update().catch(error=>console.warn('Sprawdzenie aktualizacji PWA:',error));
+    if(navigator.onLine)checkForUpdate();
   }catch(error){
     console.warn('Uruchomienie PWA:',error);
   }

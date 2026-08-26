@@ -28,30 +28,6 @@
   guardEl.hidden=true;
   header.append(labelEl,mainEl,planEl,statusEl,guardEl);
 
-  const style=document.createElement('style');
-  style.textContent=`
-    #routeNextStop{font-size:13px!important;font-weight:800!important;line-height:1.2!important;max-width:62%;}
-    #routeNextStop .nextStopLabel{display:block;color:#aaa;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}
-    #routeNextStop .nextStopMain{display:block;color:#fff;font-size:13px!important;line-height:1.15!important;font-weight:900!important;white-space:normal}
-    #routeNextStop .nextStopPlan{display:block;min-height:14px;margin-top:1px;color:#ddd;font-size:12px;line-height:14px;font-weight:900;white-space:nowrap}
-    #routeNextStop .nextStopPlan:empty{visibility:hidden}
-    #routeNextStop .nextStopStatus{display:block;margin-top:2px;font-size:13px;font-weight:1000}
-    #routeNextStop .nextStopStatus[hidden],#routeNextStop .nextStopGuard[hidden]{display:none!important}
-    #routeNextStop .nextStopStatus.early,
-    #routeNextStop .nextStopStatus.onTime,
-    #routeNextStop .nextStopStatus.late{color:#39ff69}
-    #routeNextStop .nextStopGuard{display:block;margin-top:5px;padding:7px 10px;border-radius:7px;font-size:14px;line-height:1.15;font-weight:1000;text-align:center;white-space:normal}
-    #routeNextStop .nextStopGuard.approach{background:#ffd60a;color:#111}
-    #routeNextStop .nextStopGuard.hold{background:#ff3b30;color:#fff}
-    #routeNextStop .nextStopGuard.ready{background:#34c759;color:#071407}
-    #routeNextStop .nextStopGuard.flash3{animation:trasyHoldFlash .36s ease-in-out 3}
-    @keyframes trasyHoldFlash{0%,100%{background:#ff3b30;opacity:1;transform:scale(1)}50%{background:#730000;opacity:.3;transform:scale(.98)}}
-    #scheduleBody .stopGuardNotice.hold{background:#ff3b30!important;color:#fff!important}
-    #scheduleBody .stopGuardNotice.ready{background:#34c759!important;color:#071407!important}
-    .activeStopEtaBubble{display:none!important}
-    #routeNavRoot .maplibregl-popup{display:none!important}
-  `;
-  document.head.appendChild(style);
 
   const STOPPED_MAX_KMH=4;
   const STOPPED_CONFIRM_MS=700;
@@ -99,6 +75,20 @@
     planEl.textContent=data?.plan||'';
   }
 
+  function renderReturnStart(){
+    const active=body.dataset.direction==='return'&&body.dataset.emptyRun!=='1'&&body.dataset.returnOriginActive==='1';
+    if(!active)return false;
+    const row=rows()[0];
+    const data=dataFromRow(row);
+    labelEl.textContent='START TRASY POWROTNEJ';
+    mainEl.textContent=data?.name||'Punkt startowy';
+    const start=String(body.dataset.returnStart||'').trim();
+    planEl.textContent=start?`Start ${start}`:'';
+    statusEl.hidden=true;statusEl.className='nextStopStatus';statusEl.textContent='';
+    guardEl.hidden=true;guardEl.textContent='';guardEl.classList.remove('approach','hold','ready','flash3');
+    return true;
+  }
+
   function stopKey(row=activeRow(),detail=lastGuardDetail){
     const data=dataFromRow(row);
     return[
@@ -124,6 +114,8 @@
   }
 
   function render(){
+    if(renderReturnStart())return;
+    labelEl.textContent='Następny przystanek';
     const data=dataFromRow(activeRow());
     if(!data){setStopText(null);statusEl.hidden=true;guardEl.hidden=true;return}
 
@@ -270,6 +262,7 @@
   function resetAlerts(){activeHoldKey='';activeApproachKey='';alertedApproachKey='';alertedHoldKey='';alertedReadyKey='';stoppedSince=0}
   body.addEventListener('route-direction-change',()=>{resetAlerts();render()});
   body.addEventListener('route-mode-change',()=>{resetAlerts();render()});
+  body.addEventListener('return-origin-change',()=>{resetAlerts();render()});
   body.addEventListener('schedule-rendered',()=>{resetAlerts();render()});
 
   render();

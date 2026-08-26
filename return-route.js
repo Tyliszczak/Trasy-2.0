@@ -4,12 +4,22 @@
   const routeNameEl=document.getElementById('scheduleRouteName');
   const forwardTimeSelect=document.getElementById('scheduleTimeSelect');
   const time=globalThis.__trasyTime;
-  if(!body||!controls||!routeNameEl||!forwardTimeSelect||!time)return;
+  const geo=globalThis.__trasyGeo;
+  if(!body||!controls||!routeNameEl||!forwardTimeSelect||!time||!geo)return;
 
   let rawData=null,parkingRawData=null,direction='forward',loading=null,parkingLoading=null,applying=false,forwardCourseTime='',emptyRun=false;
   let forceReturnOriginOnce=false,suppressObserverUntil=0,selectedParking=null,parkingChoicePending=false;
   let parkingTransitionPending=false,completedReturnArrival='';
   const parkingData=import('./parking-data.js');
+
+  const RETURN_START_RADIUS_M=350;
+  const RETURN_START_OUTSIDE_M=450;
+  const RETURN_DEPARTURE_DELTA_M=25;
+  const RETURN_DEPARTURE_FIXES=2;
+  const RETURN_NEXT_HEADING_MAX=85;
+  const RETURN_WARNING_MS=20000;
+  let returnStartArmed=false,returnMinStartDistance=Infinity,returnDepartureFixes=0;
+  let returnLastPosition=null,returnDerivedHeading=null,returnWarningTimer=0;
 
   const switchGroup=document.createElement('div');
   switchGroup.className='routeModeSwitches';
@@ -28,9 +38,73 @@
   returnStartLabel.hidden=true;
   switchGroup.before(returnStartLabel);
 
-  const style=document.createElement('style');
-  style.textContent='.routeModeSwitches{display:flex;flex-direction:column;align-items:flex-end;gap:10px}.returnRouteSwitchLabel,.emptyRouteSwitchLabel{display:inline-flex;align-items:center;gap:5px;font-weight:900;white-space:nowrap;font-size:.78rem;margin:0;flex:0 0 auto}.returnSwitch{position:relative;display:inline-block;width:28px;height:16px;flex:0 0 28px}.returnSwitch input{opacity:0;width:0;height:0}.returnSlider{position:absolute;inset:0;border-radius:999px;background:#555;cursor:pointer;transition:.2s}.returnSlider:before{content:"";position:absolute;width:12px;height:12px;left:2px;top:2px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 1px 3px #0008}.returnSwitch input:checked+.returnSlider{background:#22c55e}.returnSwitch input:checked+.returnSlider:before{transform:translateX(12px)}#returnStartLabel{font-weight:900;color:#ccff33;white-space:nowrap}#parkingChoiceDialog[hidden]{display:none!important}#parkingChoiceDialog{position:fixed;inset:0;z-index:71000;display:flex;align-items:center;justify-content:center;padding:16px;background:#000c}.parkingChoiceCard{width:min(100%,480px);padding:18px;border:2px solid #ccff33;border-radius:14px;background:#222;box-shadow:0 12px 40px #000}.parkingChoiceCard h2{margin:0 0 14px}.parkingChoiceList{display:grid;gap:9px}.parkingChoiceButton{margin:0;padding:12px;background:#ccff33;color:#111}.parkingChoiceCancel{margin-top:12px;background:#555;color:#fff}@media(max-width:520px){.returnRouteSwitchLabel,.emptyRouteSwitchLabel{font-size:.7rem}}';
-  document.head.append(style);
+
+  function hideReturnWarning(){
+    clearTimeout(returnWarningTimer);returnWarningTimer=0;
+    const el=document.getElementById('returnEarlyDepartureWarning');
+    if(el)el.hidden=true;
+  }
+  function resetReturnOriginTracking(){
+    returnStartArmed=false;returnMinStartDistance=Infinity;returnDepartureFixes=0;
+    returnLastPosition=null;returnDerivedHeading=null;hideReturnWarning();
+  }
+  function returnPlanDate(){
+    const match=String(body.dataset.returnStart||'').trim().match(/^(\d{1,2}):(\d{2})$/);
+    if(!match)return null;
+    const date=new Date();date.setHours(Number(match[1]),Number(match[2]),0,0);return date;
+  }
+  function showReturnWarning(){
+    let el=document.getElementById('returnEarlyDepartureWarning');
+    if(!el){
+      el=document.createElement('div');el.id='returnEarlyDepartureWarning';
+      el.setAttribute('role','status');el.setAttribute('aria-live','polite');document.body.append(el);
+    }
+    const plan=String(body.dataset.returnStart||'').trim();
+    el.innerHTML=`<div>ODJECHAŁEŚ PRZED CZASEM</div><small>Planowany start: ${plan}</small><button type="button">OK</button>`;
+    el.querySelector('button').onclick=hideReturnWarning;el.hidden=false;
+    clearTimeout(returnWarningTimer);returnWarningTimer=setTimeout(hideReturnWarning,RETURN_WARNING_MS);
+  }
+  function clearReturnOrigin(reason){
+    if(body.dataset.returnOriginActive!=='1')return;
+    body.dataset.returnOriginActive='';
+    body.dispatchEvent(new CustomEvent('return-origin-change',{bubbles:true,detail:{active:false,reason}}));
+  }
+  function onReturnPosition(position){
+    if(direction!=='return'||emptyRun||body.dataset.returnOriginActive!=='1')return;
+    const routeRows=[...body.querySelectorAll('tr:not([data-parking-row])')].filter(row=>geo.parseCoordinate(row.dataset.coordinate));
+    if(routeRows.length<2)return;
+    const accuracy=Number(position?.coords?.accuracy)||999;
+    if(accuracy>120)return;
+    const start=geo.parseCoordinate(routeRows[0].dataset.coordinate),next=geo.parseCoordinate(routeRows[1].dataset.coordinate);
+    const here=[Number(position.coords.latitude),Number(position.coords.longitude)];
+    if(!start||!next||!Number.isFinite(here[0])||!Number.isFinite(here[1]))return;
+
+    const startDistance=geo.distanceMeters(here,start);
+    if(!returnStartArmed){
+      if(startDistance<=RETURN_START_RADIUS_M){returnStartArmed=true;returnMinStartDistance=startDistance}
+      else if(startDistance>=RETURN_START_OUTSIDE_M){clearReturnOrigin('outside-start');return}
+    }
+    if(!returnStartArmed)return;
+    returnMinStartDistance=Math.min(returnMinStartDistance,startDistance);
+
+    let heading=Number(position.coords.heading);
+    if(!Number.isFinite(heading)||heading<0){
+      if(returnLastPosition&&geo.distanceMeters(returnLastPosition,here)>=6)heading=geo.bearingDegrees(returnLastPosition,here);
+      else heading=returnDerivedHeading;
+    }
+    if(Number.isFinite(heading))returnDerivedHeading=heading;
+    if(!returnLastPosition||geo.distanceMeters(returnLastPosition,here)>=2)returnLastPosition=here;
+
+    const towardNext=Number.isFinite(returnDerivedHeading)&&geo.angleDifference(returnDerivedHeading,geo.bearingDegrees(here,next))<=RETURN_NEXT_HEADING_MAX;
+    const movedAway=startDistance>=returnMinStartDistance+RETURN_DEPARTURE_DELTA_M;
+    if(towardNext&&movedAway)returnDepartureFixes+=1;else returnDepartureFixes=0;
+    if(returnDepartureFixes<RETURN_DEPARTURE_FIXES)return;
+
+    const plan=returnPlanDate();
+    const early=Boolean(plan&&Date.now()<plan.getTime());
+    clearReturnOrigin('confirmed-departure');
+    if(early)showReturnWarning();
+  }
 
   function add15(t){return time.addMinutesToTime(t,15)}
   function resolveOutboundCourse(){
@@ -149,8 +223,13 @@
       body.dataset.outboundCourse=direction==='return'?forwardCourseTime:'';
       body.dataset.selectedParking=direction==='return'&&emptyRun&&selectedParking?selectedParking.name:'';
       if(emptyRun){const target=displayRows.length-1;body.dataset.returnOriginActive='';body.dataset.gpsNextStop=String(target);displayRows.forEach((row,index)=>{const active=index===target;row.hidden=!active;row.classList.toggle('gpsNextStop',active);row.classList.toggle('isActiveStop',active)})}
-      else if(direction==='return'&&forceReturnOriginOnce){body.dataset.returnOriginActive='1';body.dataset.gpsNextStop='0';displayRows.forEach((row,index)=>{const active=index===0;row.classList.toggle('gpsNextStop',active);row.classList.toggle('isActiveStop',active)});forceReturnOriginOnce=false}
-      else if(direction!=='return'){body.dataset.returnOriginActive='';delete body.dataset.gpsNextStop}
+      else if(direction==='return'&&forceReturnOriginOnce){
+        body.dataset.returnOriginActive='1';delete body.dataset.gpsNextStop;delete body.dataset.gpsNextStopKey;
+        displayRows.forEach(row=>row.classList.remove('gpsNextStop','isActiveStop'));
+        resetReturnOriginTracking();forceReturnOriginOnce=false;
+        body.dispatchEvent(new CustomEvent('return-origin-change',{bubbles:true,detail:{active:true,reason:'return-start'}}));
+      }
+      else if(direction!=='return'){body.dataset.returnOriginActive='';delete body.dataset.gpsNextStop;delete body.dataset.gpsNextStopKey;resetReturnOriginTracking()}
       body.dispatchEvent(new CustomEvent('route-direction-change',{bubbles:true,detail:{direction,returnStart:start,outboundCourse:forwardCourseTime,returnOriginActive:body.dataset.returnOriginActive==='1',emptyRun,parking:selectedParking}}));
     }finally{applying=false}
   }
@@ -175,9 +254,9 @@
     body.dispatchEvent(new CustomEvent('route-mode-change',{bubbles:true,detail:{direction,emptyRun,parking:selectedParking}}));
   });
   forwardTimeSelect.addEventListener('change',()=>{if(direction==='forward')forwardCourseTime=forwardTimeSelect.value});
-  body.addEventListener('gps-next-stop-change',event=>{if(Number(event.detail?.index)>0)body.dataset.returnOriginActive=''});
   body.addEventListener('gps-stop-arrival',event=>{startParkingLegAfterReturn(event.detail).catch(error=>console.error('Powrót do Bazy/Parkingu:',error))});
   document.addEventListener('trasy:route-data-updated',event=>{rawData=event.detail?.data??event.detail??null});
+  window.__trasyGps?.subscribe?.(onReturnPosition,()=>{});
   new MutationObserver(mutations=>{if(applying||Date.now()<suppressObserverUntil)return;if(mutations.some(mutation=>mutation.type==='childList'))setTimeout(enrichRows,60)}).observe(body,{childList:true});
   setTimeout(enrichRows,200);
 })();

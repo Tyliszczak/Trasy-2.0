@@ -125,3 +125,13 @@ html[data-map-theme="night"] #routeMapCanvas .maplibregl-popup-tip{border-top-co
 html[data-map-theme="night"] #routeMapCanvas .maplibregl-popup-close-button{color:#f1f3f4!important;background:transparent!important}
 html[data-map-theme="night"] #routeMapCanvas .maplibregl-ctrl-attrib,html[data-map-theme="night"] #routeMapCanvas .maplibregl-ctrl-attrib.maplibregl-compact-show{background:rgba(31,35,39,.9)!important;color:#d8dde2!important}
 html[data-map-theme="night"] #routeMapCanvas .maplibregl-ctrl-attrib a{color:#d8dde2!important}
+
+
+/* Statyczny chrom nawigacji — pozycja pionowa jest tylko korygowana przez JS. */
+.routeNavChromeTop{height:0!important;min-height:0!important;padding:0!important;border:0!important;background:transparent!important;overflow:visible!important;position:relative!important;z-index:50040!important}
+.routeNavChromeTop>strong{display:none!important}
+#routeMapClose{position:fixed;top:112px;left:10px;z-index:50100;width:38px!important;min-width:38px!important;height:38px!important;min-height:38px!important;padding:0!important;border:1px solid #fff8!important;border-radius:19px!important;background:#111d!important;color:#fff!important;font-size:32px!important;line-height:32px!important;box-shadow:0 2px 9px #000a!important;display:flex!important;align-items:center!important;justify-content:center!important}
+#routeMapCenter{position:fixed;right:12px;top:112px;z-index:50100;width:42px!important;min-width:42px!important;height:42px!important;min-height:42px!important;padding:0!important;border:1px solid #fff8!important;border-radius:21px!important;background:#111d!important;color:#fff!important;box-shadow:0 2px 9px #000a!important;display:flex!important;align-items:center!important;justify-content:center!important}
+#routeVoiceToggle{position:fixed;top:162px;right:14px;z-index:50100;width:38px!important;min-width:38px!important;height:38px!important;min-height:38px!important;padding:0!important;border:1px solid #fff8!important;border-radius:19px!important;background:#111d!important;color:#fff!important;font-size:19px!important;box-shadow:0 2px 9px #000a!important}
+.routeNavInfoShell{padding:7px 12px!important;min-height:0!important}
+.routeNavInfoRow{margin-top:0!important;justify-content:flex-start!important;align-items:center!important}

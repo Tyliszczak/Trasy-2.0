@@ -14,39 +14,16 @@
 
   root.dataset.compactNavUi='21';
 
-  const style=document.createElement('style');
-  style.textContent=`
-    .maplibregl-ctrl-compass{display:none!important}
-    .route-view-control{box-shadow:0 0 0 2px rgba(0,0,0,.1)}
-    #routePitchToggle{box-sizing:border-box;width:34px;height:34px;padding:2px 1px 1px;border:0;background:#fff;color:#333;display:flex;flex-direction:column;align-items:center;justify-content:center;font:800 10px/10px Arial,sans-serif;cursor:pointer}
-    #routePitchToggle svg{display:block}
-    #routePitchToggle:hover{background:#f2f2f2}
-    #routeNorthIndicator{position:fixed;right:14px;top:212px;z-index:50100;width:42px;height:42px;border:1px solid #fff8;border-radius:21px;background:#111d;color:#fff;box-shadow:0 2px 9px #000a;pointer-events:none;display:flex;flex-direction:column;align-items:center;justify-content:center;font:1000 12px/1 Arial,sans-serif}
-    #routeNorthIndicator[hidden]{display:none!important}
-    #routeNorthIndicator .northArrow{display:block;margin-top:-1px;color:#ccff33;font-size:23px;line-height:18px;transform-origin:50% 52%}
-  `;
-  document.head.appendChild(style);
 
   const top=close.parentElement;
   const title=top?.querySelector('strong');
-  if(title)title.style.display='none';
-  if(top){
-    top.style.height='0';
-    top.style.minHeight='0';
-    top.style.padding='0';
-    top.style.border='0';
-    top.style.background='transparent';
-    top.style.overflow='visible';
-    top.style.position='relative';
-    top.style.zIndex='50040';
-  }
+  top?.classList.add('routeNavChromeTop');
+  title?.classList.add('routeNavTitleHidden');
 
   close.textContent='‹';
   close.setAttribute('aria-label','Wróć');
   close.title='Wróć';
-  close.style.cssText='position:fixed;top:112px;left:10px;z-index:50100;width:38px;height:38px;padding:0;border:1px solid #fff8;border-radius:19px;background:#111d;color:#fff;font-size:32px;line-height:32px;box-shadow:0 2px 9px #000a;display:flex;align-items:center;justify-content:center';
 
-  center.style.cssText='position:fixed;right:12px;top:112px;z-index:50100;width:42px;height:42px;padding:0;border:1px solid #fff8;border-radius:21px;background:#111d;color:#fff;box-shadow:0 2px 9px #000a;display:flex;align-items:center;justify-content:center';
 
   let voice=document.getElementById('routeVoiceToggle');
   if(!voice){
@@ -55,7 +32,6 @@
     voice.type='button';
     root.appendChild(voice);
   }
-  voice.style.cssText='position:fixed;top:162px;right:14px;z-index:50100;width:38px;height:38px;padding:0;border:1px solid #fff8;border-radius:19px;background:#111d;color:#fff;font-size:19px;box-shadow:0 2px 9px #000a';
   const northIndicator=document.createElement('div');
   northIndicator.id='routeNorthIndicator';
   northIndicator.hidden=true;
@@ -99,6 +75,20 @@
   const navIcon='<svg viewBox="0 0 32 32" width="29" height="29"><path d="M27.4 4.7 17.8 27c-.7 1.7-3.1 1.5-3.5-.3l-1.9-8.8-8.8-1.9c-1.8-.4-2-2.8-.3-3.5L25.6 3c1.2-.5 2.3.6 1.8 1.7Z" fill="#fff"/><path d="m13.2 17.1 7.8-7.8" stroke="#111" stroke-width="2.4"/></svg>';
   const flatGrid='<svg viewBox="0 0 28 22" width="25" height="20"><rect x="3" y="2" width="22" height="17" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10.3 2v17M17.7 2v17M3 7.7h22M3 13.3h22" stroke="currentColor"/></svg>';
   const tiltedGrid='<svg viewBox="0 0 28 22" width="25" height="20"><path d="M7 2h14l4 17H3L7 2Z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="m11.7 2-2 17M16.3 2l2 17M5.7 7.7h16.6M4.3 13.3h19.4" stroke="currentColor"/></svg>';
+
+  function mergeViewControl(){
+    const pitch=document.getElementById('routePitchToggle');
+    const canvas=document.getElementById('routeMapCanvas');
+    if(!pitch||!canvas)return false;
+    const zoomGroup=[...canvas.querySelectorAll('.maplibregl-ctrl-bottom-right .maplibregl-ctrl-group')]
+      .find(group=>group.querySelector('.maplibregl-ctrl-zoom-in')&&group.querySelector('.maplibregl-ctrl-zoom-out'));
+    if(!zoomGroup)return false;
+    const zoomIn=zoomGroup.querySelector('.maplibregl-ctrl-zoom-in');
+    const oldParent=pitch.parentElement;
+    if(pitch.parentElement!==zoomGroup||pitch.nextElementSibling!==zoomIn)zoomGroup.insertBefore(pitch,zoomIn);
+    if(oldParent?.classList?.contains('route-view-control')&&!oldParent.children.length)oldParent.remove();
+    return true;
+  }
   center.innerHTML=navIcon;
   center.title='Wróć do nawigacji';
 
@@ -153,6 +143,7 @@
         }
       };
       this.map.addControl(control,'bottom-right');
+      if(!mergeViewControl())requestAnimationFrame(()=>mergeViewControl());
     }
 
     installGestureListeners(){
@@ -233,11 +224,14 @@
     }
 
     moveToTarget(target,duration){
+      const profile=window.__routeCameraProfile||{};
+      const zoom=Number.isFinite(Number(profile.zoom))?Number(profile.zoom):GUIDANCE_ZOOM;
+      const pitch=Number.isFinite(Number(profile.pitch))?Number(profile.pitch):GUIDANCE_PITCH;
       this.map.easeTo({
         center:target.center,
-        zoom:GUIDANCE_ZOOM,
+        zoom,
         bearing:this.smoothBearing(target),
-        pitch:GUIDANCE_PITCH,
+        pitch,
         offset:target.offset,
         duration,
         easing:t=>1-Math.pow(1-t,3),

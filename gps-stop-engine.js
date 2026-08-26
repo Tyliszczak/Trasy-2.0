@@ -70,9 +70,10 @@ export function createStopProgressEngine(overrides={}){
     return{index,phase,arrived:phase==='arrived'};
   }
 
-  function selectInitial(stops,position,{emptyRun=false,speedMps=0,heading=null,headingReliable=false}={}){
+  function selectInitial(stops,position,{emptyRun=false,speedMps=0,heading=null,headingReliable=false,minimumIndex=0}={}){
     if(!stops.length)return null;
     if(emptyRun)return stops.length-1;
+    const firstIndex=Math.max(0,Math.min(stops.length-1,Math.trunc(Number(minimumIndex)||0)));
 
     const moving=Number.isFinite(speedMps)&&speedMps>=config.minimumMovingSpeedMps;
     if(moving){
@@ -84,19 +85,19 @@ export function createStopProgressEngine(overrides={}){
       // Wybieramy pierwszy przystanek w kolejności trasy, który znajduje się
       // przed autem. Dzięki temu punkt pozostawiony za plecami nie wraca jako
       // aktywny cel, nawet jeśli kolejny jest jeszcze daleko (>600 m).
-      for(let i=0;i<stops.length;i+=1){
+      for(let i=firstIndex;i<stops.length;i+=1){
         const targetBearing=bearingDegrees(position,stops[i].coord);
         if(angleDifference(heading,targetBearing)<=config.initialMaximumHeadingDegrees)return i;
       }
     }
 
     const distances=stops.map(stop=>distanceMeters(position,stop.coord));
-    let nearest=0;
-    for(let i=1;i<distances.length;i+=1){
+    let nearest=firstIndex;
+    for(let i=firstIndex+1;i<distances.length;i+=1){
       if(distances[i]<distances[nearest])nearest=i;
     }
-    if(nearest>0&&distances[nearest]<=config.initialNearbyMeters&&distances[0]-distances[nearest]>=config.initialAdvantageMeters)return nearest;
-    return 0;
+    if(nearest>firstIndex&&distances[nearest]<=config.initialNearbyMeters&&distances[firstIndex]-distances[nearest]>=config.initialAdvantageMeters)return nearest;
+    return firstIndex;
   }
 
   function findReacquireCandidate(stops,position,speedMps,heading,headingReliable,currentDistance){
@@ -115,8 +116,9 @@ export function createStopProgressEngine(overrides={}){
     return null;
   }
 
-  function update({stops,position,accuracy,speedMps=0,heading=null,headingReliable=false,emptyRun=false}){
+  function update({stops,position,accuracy,speedMps=0,heading=null,headingReliable=false,emptyRun=false,minimumIndex=0}){
     if(!Array.isArray(stops)||!stops.length||!position)return{...snapshot(),changed:false,reason:'no-stops'};
+    const firstIndex=Math.max(0,Math.min(stops.length-1,Math.trunc(Number(minimumIndex)||0)));
     if(emptyRun){
       const nextIndex=stops.length-1;
       const changed=index!==nextIndex;
@@ -124,8 +126,8 @@ export function createStopProgressEngine(overrides={}){
       return{...snapshot(),changed,reason:changed?'empty-run-target':'tracking'};
     }
     if(!Number.isFinite(accuracy)||accuracy>config.maxAccuracy)return{...snapshot(),changed:false,reason:'poor-accuracy'};
-    if(index===null||index<0||index>=stops.length){
-      const selected=selectInitial(stops,position,{emptyRun:false,speedMps,heading,headingReliable});
+    if(index===null||index<firstIndex||index>=stops.length){
+      const selected=selectInitial(stops,position,{emptyRun:false,speedMps,heading,headingReliable,minimumIndex:firstIndex});
       if(selected===null)return{...snapshot(),changed:false,reason:'awaiting-heading'};
       index=selected;
       phase='approaching';
