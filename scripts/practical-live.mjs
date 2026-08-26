@@ -19,10 +19,11 @@ async function step(name,fn){
     const detail=await fn();
     timings[name]=Date.now()-started;
     logResult(name,'ok',detail||`${timings[name]} ms`);
+    return true;
   }catch(error){
     timings[name]=Date.now()-started;
     logResult(name,'fail',String(error?.stack||error));
-    throw error;
+    return false;
   }
 }
 
@@ -32,6 +33,12 @@ async function fetchText(url,init={}){
   const response=await fetch(url,{redirect:'follow',...init});
   assert.ok(response.ok,`${url} -> HTTP ${response.status}`);
   return {response,text:await response.text()};
+}
+
+async function responseFailureDetail(response){
+  try{return JSON.stringify(await response.clone().json())}catch{}
+  try{return (await response.clone().text()).slice(0,300)}catch{}
+  return '';
 }
 
 function tileAt(lat,lng,z){
@@ -79,7 +86,7 @@ await step('PWA: każdy plik APP_SHELL istnieje na produkcji',async()=>{
 
 await step('Dane tras: /trasy-data zwraca wszystkie wymagane arkusze',async()=>{
   const response=await fetch(`${appUrl('trasy-data')}?e2e=${Date.now()}`,{cache:'no-store'});
-  assert.ok(response.ok,`/trasy-data HTTP ${response.status}`);
+  assert.ok(response.ok,`/trasy-data HTTP ${response.status}: ${await responseFailureDetail(response)}`);
   const payload=await response.json();
   assert.notEqual(payload?.status,'error',payload?.message||'Backend zwrócił status error');
   const data=payload?.data??payload;
@@ -89,21 +96,29 @@ await step('Dane tras: /trasy-data zwraca wszystkie wymagane arkusze',async()=>{
   return '5/5 wymaganych arkuszy';
 });
 
-await step('PTV: kafelek wektorowy przechodzi przez proxy Cloudflare',async()=>{
+await step('PTV: kafelki wektorowe przechodzą przez produkcję i przypięte wdrożenie',async()=>{
   const tile=tileAt(51.943,15.508,13);
-  const response=await fetch(appUrl(`ptv-map/maps/v1/vector-tiles/${tile.z}/${tile.x}/${tile.y}`),{cache:'no-store'});
-  assert.ok(response.ok,`PTV tile HTTP ${response.status}`);
-  const bytes=(await response.arrayBuffer()).byteLength;
-  assert.ok(bytes>20,`PTV tile ma tylko ${bytes} B`);
-  return `${bytes} B`;
+  const details=[];
+  for(const base of [BASE,PINNED]){
+    const response=await fetch(appUrl(`ptv-map/maps/v1/vector-tiles/${tile.z}/${tile.x}/${tile.y}`,base),{cache:'no-store'});
+    if(!response.ok)throw new Error(`${base}: PTV tile HTTP ${response.status}: ${await responseFailureDetail(response)}`);
+    const bytes=(await response.arrayBuffer()).byteLength;
+    assert.ok(bytes>20,`${base}: PTV tile ma tylko ${bytes} B`);
+    details.push(`${new URL(base).hostname}:${bytes}B`);
+  }
+  return details.join(', ');
 });
 
-await step('PTV SpeedMax: Map Matching odpowiada na realnym punkcie drogi',async()=>{
-  const response=await fetch(appUrl('ptv-map/mapmatch/v1/positions/51.9429132/15.5077919?heading=90'),{cache:'no-store'});
-  assert.ok(response.ok,`PTV mapmatch HTTP ${response.status}`);
-  const data=await response.json();
-  assert.ok(data&&typeof data==='object','Brak JSON z PTV Map Matching');
-  return 'JSON OK';
+await step('PTV SpeedMax: Map Matching działa w produkcji i przypiętym wdrożeniu',async()=>{
+  const details=[];
+  for(const base of [BASE,PINNED]){
+    const response=await fetch(appUrl('ptv-map/mapmatch/v1/positions/51.9429132/15.5077919?heading=90',base),{cache:'no-store'});
+    if(!response.ok)throw new Error(`${base}: PTV mapmatch HTTP ${response.status}: ${await responseFailureDetail(response)}`);
+    const data=await response.json();
+    assert.ok(data&&typeof data==='object','Brak JSON z PTV Map Matching');
+    details.push(new URL(base).hostname);
+  }
+  return details.join(' + ');
 });
 
 await step('OSRM: zewnętrzny silnik wyznacza realną trasę',async()=>{
@@ -439,9 +454,12 @@ const report={
   pinned:PINNED,
   version:EXPECTED_VERSION,
   createdAt:new Date().toISOString(),
+  passed:results.filter(result=>result.status==='ok').length,
+  failed:results.filter(result=>result.status==='fail').length,
   results,
   timings
 };
 await writeFile('practical-results.json',JSON.stringify(report,null,2));
 console.log('\n=== PODSUMOWANIE PRAKTYCZNE ===');
 console.log(JSON.stringify(report,null,2));
+if(report.failed)process.exitCode=1;
