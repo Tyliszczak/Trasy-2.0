@@ -1,4 +1,5 @@
 name: Practical live tests
+# Stały audyt produkcji Trasy 2.0 po wdrożeniu.
 
 on:
   workflow_dispatch:
