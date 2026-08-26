@@ -2,7 +2,8 @@
   const maneuver=document.getElementById('routeManeuver');
   const distance=document.getElementById('routeManeuverDistance');
   const canvas=document.getElementById('routeMapCanvas');
-  if(!maneuver||!distance||!canvas)return;
+  const panel=document.getElementById('routeMapNav');
+  if(!maneuver||!distance||!canvas||!panel)return;
 
   const infoPanel=maneuver.parentElement;
   const infoRow=distance.parentElement;
@@ -89,7 +90,7 @@
 
   function positionBubble(){
     raf=0;
-    if(!attached||!bubble.isConnected)return;
+    if(!attached||!bubble.isConnected||panel.hidden)return;
     const vehicle=findVehicleElement();
     if(!vehicle){
       bubble.style.transform='translate3d(-9999px,-9999px,0)';
@@ -113,7 +114,8 @@
   }
 
   function schedulePosition(){
-    if(!raf)raf=requestAnimationFrame(positionBubble);
+    if(panel.hidden||raf)return;
+    raf=requestAnimationFrame(positionBubble);
   }
 
   function attach(){
@@ -130,6 +132,9 @@
     schedulePosition();
   }).observe(canvas,{childList:true,subtree:true});
   new MutationObserver(syncVisibility).observe(bubble,{childList:true,characterData:true,subtree:true});
+  new MutationObserver(()=>{
+    if(!panel.hidden)schedulePosition();
+  }).observe(panel,{attributes:true,attributeFilter:['hidden']});
 
   document.addEventListener('trasy:route-map-ready',attach);
   document.addEventListener('visibilitychange',()=>{
