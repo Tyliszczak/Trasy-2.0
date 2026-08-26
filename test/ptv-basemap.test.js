@@ -21,6 +21,17 @@ test('PTV jest główną mapą dzienną, a OpenFreeMap wyłącznie awaryjnym fal
   assert.doesNotMatch(source,/apiKey\s*[:=]\s*['"][^'"]+/i);
 });
 
+test('fallback czeka i wymaga kilku potwierdzonych awarii PTV',async()=>{
+  const source=await read('ptv-basemap.js');
+  assert.match(source,/FALLBACK_GRACE_MS=8000/);
+  assert.match(source,/FALLBACK_CONFIRM_ATTEMPTS=3/);
+  assert.match(source,/FALLBACK_CONFIRM_DELAY_MS=2000/);
+  assert.match(source,/async function confirmPtvUnavailable/);
+  assert.match(source,/scheduleFallback\('ptv-unavailable'\)/);
+  assert.match(source,/scheduleFallback\('ptv-health-failed'\)/);
+  assert.match(source,/if\(!unavailable\)[\s\S]*applyDay\(true\)/);
+});
+
 test('właściwa mapa jest wybierana przed utworzeniem MapLibre bez startowego OSM',async()=>{
   const [hook,theme]=await Promise.all([read('maplibre-route-hook.js'),read('map-day-night.js')]);
   assert.match(hook,/construct\(Target,args,newTarget\)/);
