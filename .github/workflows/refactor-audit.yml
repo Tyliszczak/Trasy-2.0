@@ -5,6 +5,7 @@ on:
     branches: [audit/refactor-2.0.163]
     paths:
       - 'scripts/refactor_finalize.py'
+      - 'scripts/refactor_tests_fix.py'
       - '.github/workflows/refactor-audit.yml'
 
 permissions:
@@ -22,7 +23,9 @@ jobs:
         with:
           node-version: 22
       - name: Zszyj moduły
-        run: python3 scripts/refactor_finalize.py
+        run: |
+          python3 scripts/refactor_finalize.py
+          python3 scripts/refactor_tests_fix.py
       - name: Testy przed zapisem
         run: npm test
       - name: Zapisz refaktor
