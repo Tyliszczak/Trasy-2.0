@@ -2,7 +2,9 @@
   const AUTO_RESUME_MS=15000;
   const GUIDANCE_PITCH=58;
   const GUIDANCE_ZOOM=17.2;
-  const CAMERA_DURATION_MS=360;
+  const CAMERA_MIN_DURATION_MS=550;
+  const CAMERA_MAX_DURATION_MS=1350;
+  const CAMERA_INTERVAL_FACTOR=1.12;
   const STATIONARY_RADIUS_M=3;
   const HEADING_MOVE_M=4;
 
@@ -12,7 +14,7 @@
   const maneuver=document.getElementById('routeManeuver');
   if(!root||!close||!center||!maneuver)return;
 
-  root.dataset.compactNavUi='21';
+  root.dataset.compactNavUi='22';
 
 
   const top=close.parentElement;
@@ -110,6 +112,7 @@
       this.transitionTimer=0;
       this.latestTarget=null;
       this.lastNavCenter=null;
+      this.lastFollowAt=0;
       this.stableBearing=Number.isFinite(map.getBearing?.())?map.getBearing():0;
       this.pitchButton=null;
       this.installControl();
@@ -181,6 +184,7 @@
       this.clearTimers();
       this.state='following';
       this.lastNavCenter=null;
+      this.lastFollowAt=0;
       window.__routeManualView=false;
       this.render();
     }
@@ -202,7 +206,18 @@
       if(this.state==='manual')return;
       this.state='following';
       window.__routeManualView=false;
-      this.moveToTarget(this.latestTarget,this.latestTarget.instant?0:CAMERA_DURATION_MS);
+
+      const now=performance.now();
+      const interval=this.lastFollowAt?now-this.lastFollowAt:900;
+      this.lastFollowAt=now;
+      const duration=this.latestTarget.instant
+        ?0
+        :Math.max(
+            CAMERA_MIN_DURATION_MS,
+            Math.min(CAMERA_MAX_DURATION_MS,interval*CAMERA_INTERVAL_FACTOR)
+          );
+
+      this.moveToTarget(this.latestTarget,duration,true);
     }
 
     smoothBearing(target){
@@ -223,7 +238,7 @@
       return this.stableBearing;
     }
 
-    moveToTarget(target,duration){
+    moveToTarget(target,duration,continuous=false){
       const profile=window.__routeCameraProfile||{};
       const zoom=Number.isFinite(Number(profile.zoom))?Number(profile.zoom):GUIDANCE_ZOOM;
       const pitch=Number.isFinite(Number(profile.pitch))?Number(profile.pitch):GUIDANCE_PITCH;
@@ -234,7 +249,7 @@
         pitch,
         offset:target.offset,
         duration,
-        easing:t=>1-Math.pow(1-t,3),
+        easing:continuous?(t=>t):(t=>1-Math.pow(1-t,3)),
         essential:true
       },{trasyCamera:true});
     }
@@ -242,6 +257,7 @@
     resume(){
       this.clearTimers();
       this.state='transition';
+      this.lastFollowAt=0;
       window.__routeManualView=false;
       const target=this.latestTarget||{
         center:this.map.getCenter().toArray(),
@@ -250,7 +266,7 @@
       };
       this.stableBearing=((Number(target.bearing)||0)+360)%360;
       this.lastNavCenter=target.center.slice();
-      this.moveToTarget(target,650);
+      this.moveToTarget(target,650,false);
       this.transitionTimer=setTimeout(()=>this.finishTransition(),800);
       this.render();
     }
