@@ -18,7 +18,7 @@
   style.textContent=`
     .maplibregl-ctrl-compass{display:none!important}
     .route-view-control{box-shadow:0 0 0 2px rgba(0,0,0,.1)}
-    #routePitchToggle{box-sizing:border-box;width:34px;height:48px;padding:2px 1px 1px;border:0;background:#fff;color:#333;display:flex;flex-direction:column;align-items:center;justify-content:center;font:700 9px/1 Arial,sans-serif;cursor:pointer}
+    #routePitchToggle{box-sizing:border-box;width:34px;height:34px;padding:2px 1px 1px;border:0;background:#fff;color:#333;display:flex;flex-direction:column;align-items:center;justify-content:center;font:800 10px/10px Arial,sans-serif;cursor:pointer}
     #routePitchToggle svg{display:block}
     #routePitchToggle:hover{background:#f2f2f2}
     #routeNorthIndicator{position:fixed;right:14px;top:212px;z-index:50100;width:42px;height:42px;border:1px solid #fff8;border-radius:21px;background:#111d;color:#fff;box-shadow:0 2px 9px #000a;pointer-events:none;display:flex;flex-direction:column;align-items:center;justify-content:center;font:1000 12px/1 Arial,sans-serif}
@@ -287,7 +287,7 @@
       this.renderNorthIndicator();
       if(!this.pitchButton)return;
       const pitched=Number(this.map.getPitch())>20;
-      this.pitchButton.innerHTML=(pitched?flatGrid:tiltedGrid)+`<span>${pitched?'2D':'3D'}</span>`;
+      this.pitchButton.innerHTML=`<span>${pitched?'2D':'3D'}</span>`+(pitched?flatGrid:tiltedGrid);
       this.pitchButton.title=pitched?'Widok 2D z góry':'Widok 3D pochylony';
     }
 
