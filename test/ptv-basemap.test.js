@@ -22,9 +22,12 @@ test('PTV jest główną mapą dzienną, a OSM wyłącznie awaryjnym fallbackiem
 test('właściwa mapa jest wybierana przed utworzeniem MapLibre bez startowego OSM',async()=>{
   const [hook,theme]=await Promise.all([read('maplibre-route-hook.js'),read('map-day-night.js')]);
   assert.match(hook,/construct\(Target,args,newTarget\)/);
-  assert.match(hook,/theme=document\.documentElement\.dataset\.mapTheme==='night'\?'night':'day'/);
+  assert.match(hook,/function initialTheme\(options\)/);
+  assert.match(hook,/__trasyResolveMapTheme/);
+  assert.match(hook,/theme=initialTheme\(options\)/);
   assert.match(hook,/provider=theme==='night'\?'openfreemap-dark':'ptv'/);
-  assert.match(theme,/document\.documentElement\.dataset\.mapTheme=isNightAt/);
+  assert.match(theme,/window\.__trasyResolveMapTheme=/);
+  assert.match(theme,/isNightAt\(new Date\(\),latitude,longitude\)/);
   assert.match(theme,/const markedTheme=map\.getContainer/);
 });
 
