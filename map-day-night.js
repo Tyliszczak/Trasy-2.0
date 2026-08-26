@@ -186,10 +186,16 @@ import { isNightAt } from './map-theme-core.js?v=1';
     }
   }
 
+  window.__trasyResolveMapTheme=(lat,lon)=>{
+    const latitude=Number(lat),longitude=Number(lon);
+    if(!Number.isFinite(latitude)||!Number.isFinite(longitude))return document.documentElement.dataset.mapTheme==='night'?'night':'day';
+    return isNightAt(new Date(),latitude,longitude)?'night':'day';
+  };
+
   const initialPoint=pointFromPosition(gps?.current?.());
   if(initialPoint){
     lastPoint=initialPoint;
-    document.documentElement.dataset.mapTheme=isNightAt(new Date(),initialPoint.lat,initialPoint.lon)?'night':'day';
+    document.documentElement.dataset.mapTheme=window.__trasyResolveMapTheme(initialPoint.lat,initialPoint.lon);
   }else if(!document.documentElement.dataset.mapTheme){
     document.documentElement.dataset.mapTheme='day';
   }
