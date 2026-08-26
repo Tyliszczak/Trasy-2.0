@@ -120,9 +120,9 @@
   function meta(){try{return JSON.parse(localStorage.getItem(META_KEY)||'null')}catch{return null}}
   function saveMeta(value){try{localStorage.setItem(META_KEY,JSON.stringify(value))}catch{}}
 
-  async function storageSafe(){
+  async function storageSafe({persist=false}={}){
     try{
-      await navigator.storage?.persist?.();
+      if(persist)await navigator.storage?.persist?.();
       const estimate=await navigator.storage?.estimate?.();
       if(estimate?.quota&&estimate?.usage/estimate.quota>.82)return false;
     }catch{}
@@ -154,11 +154,12 @@
   }
 
   async function cacheUrls(cache,urls){
-    let cursor=0,cached=0;
+    let cursor=0,cached=0,spaceOk=true;
     async function worker(){
-      while(cursor<urls.length){
+      while(cursor<urls.length&&spaceOk){
         const index=cursor++;
-        if(!(await storageSafe()))return;
+        if(index%50===0)spaceOk=await storageSafe();
+        if(!spaceOk)return;
         try{await cacheResponse(cache,urls[index]);cached++}catch{}
         lastState={status:'caching',cached,total:urls.length};
         if(index%20===0)await sleep(25);
@@ -180,6 +181,7 @@
         lastState={status:'ready',cached:Number(previous?.tiles||0),total:Number(previous?.tiles||0)};
         return lastState;
       }
+      if(!(await storageSafe({persist:true}))){lastState={status:'storage-full',cached:0,total:0};return lastState}
 
       lastState={status:'preparing',cached:0,total:0};
       const cache=await caches.open(CACHE_NAME);
