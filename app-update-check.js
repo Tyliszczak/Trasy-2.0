@@ -1,4 +1,27 @@
 (()=>{
+  const technicalStyle=document.createElement('style');
+  technicalStyle.id='technicalBarLayoutFix';
+  technicalStyle.textContent=`
+    #globalTestVersion{
+      top:4.5px!important;
+      right:7.5px!important;
+      padding:2.5px 6.5px!important;
+      border-radius:5.5px!important;
+      font-size:15px!important;
+      line-height:1!important;
+      opacity:.89!important;
+    }
+    html body .header{
+      min-height:27px!important;
+      height:27px!important;
+      padding:3px 8px!important;
+    }
+    html body .headerActions{padding-right:118px!important}
+    html body .container{margin-top:33px!important}
+    #routeNavRoot{inset:27px 0 0 0!important}
+  `;
+  document.head.appendChild(technicalStyle);
+
   const CHECK_INTERVAL_MS=10*60*1000;
   const button=document.getElementById('showSchedule');
   const notice=document.getElementById('updateNotice');
