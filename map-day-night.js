@@ -1,7 +1,8 @@
-import './ptv-basemap.js?v=1';
+import './ptv-basemap.js?v=2';
 import { isNightAt } from './map-theme-core.js?v=1';
 
 (()=>{
+  const DAY_STYLE='https://vectormaps-resources.myptv.com/styles/latest/standard.json';
   const DARK_STYLE='https://tiles.openfreemap.org/styles/dark';
   const CHECK_MS=60000;
   const gps=window.__trasyGps;
@@ -108,7 +109,7 @@ import { isNightAt } from './map-theme-core.js?v=1';
       return;
     }
     const route=snapshotRoute();
-    const target=theme==='night'?DARK_STYLE:clone(dayStyle);
+    const target=theme==='night'?DARK_STYLE:(clone(dayStyle)||DAY_STYLE);
     if(!target)return;
 
     switching=true;
@@ -123,10 +124,7 @@ import { isNightAt } from './map-theme-core.js?v=1';
       settled=true;
       finish();
       console.warn('Zmiana motywu mapy trwała zbyt długo.');
-      if(theme==='night'&&dayStyle){
-        try{map.setStyle(clone(dayStyle),{diff:false})}catch{}
-        setThemeMarker('day');
-      }
+      window.__trasyBasemapProvider?.applyFallback?.('theme-style-timeout');
     },12000);
 
     map.once('style.load',()=>{
@@ -135,6 +133,12 @@ import { isNightAt } from './map-theme-core.js?v=1';
       clearTimeout(timeout);
       restoreRoute(route);
       setThemeMarker(theme);
+      if(theme==='day'){
+        dayStyle=clone(map.getStyle?.())||dayStyle;
+        const container=map.getContainer?.();
+        if(container)container.dataset.mapProvider='ptv';
+        document.documentElement.dataset.mapProvider='ptv';
+      }
       finish();
     });
 
@@ -145,6 +149,7 @@ import { isNightAt } from './map-theme-core.js?v=1';
       clearTimeout(timeout);
       finish();
       console.warn('Zmiana motywu mapy:',error);
+      window.__trasyBasemapProvider?.applyFallback?.('theme-style-error');
     }
   }
 
@@ -158,11 +163,13 @@ import { isNightAt } from './map-theme-core.js?v=1';
   function install(nextMap){
     if(!nextMap||nextMap===map)return;
     map=nextMap;
-    dayStyle=clone(map.getStyle?.());
     routeReady=hasRoute();
-    currentTheme='day';
-    lastPoint=pointFromMap();
-    setThemeMarker('day');
+    lastPoint=pointFromPosition(gps?.current?.())||pointFromMap();
+
+    const markedTheme=map.getContainer?.()?.dataset?.mapTheme||document.documentElement.dataset.mapTheme;
+    currentTheme=markedTheme==='night'?'night':'day';
+    if(currentTheme==='day')dayStyle=clone(map.getStyle?.());
+    setThemeMarker(currentTheme);
     evaluate(lastPoint);
 
     clearInterval(timer);
@@ -177,6 +184,14 @@ import { isNightAt } from './map-theme-core.js?v=1';
         }
       },()=>{});
     }
+  }
+
+  const initialPoint=pointFromPosition(gps?.current?.());
+  if(initialPoint){
+    lastPoint=initialPoint;
+    document.documentElement.dataset.mapTheme=isNightAt(new Date(),initialPoint.lat,initialPoint.lon)?'night':'day';
+  }else if(!document.documentElement.dataset.mapTheme){
+    document.documentElement.dataset.mapTheme='day';
   }
 
   document.addEventListener('trasy:route-progress-rendered',()=>{
