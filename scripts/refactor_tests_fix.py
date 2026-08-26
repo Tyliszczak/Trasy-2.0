@@ -7,6 +7,11 @@ shell=read('test/app-shell.test.js')
 shell=shell.replace("assert.match(limit,/source: hasLimit \\? 'ptv-map-matching' : ''/);","assert.match(limit,/source:hasLimit\\?'ptv-map-matching':''/);")
 write('test/app-shell.test.js',shell)
 
+# Aktywny SpeedMax jest wyłącznie PTV; usuń również historyczny komentarz o dawnym OSM.
+limit=read('road-speed-limit.js')
+limit=limit.replace("\n  // Brak fallbacków typu source:'openstreetmap': od tej wersji źródłem SpeedMax jest wyłącznie PTV Map Matching.\n",'\n')
+write('road-speed-limit.js',limit)
+
 write('test/navigation-parallel-road.test.js',r'''import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
