@@ -1,4 +1,4 @@
-import './ptv-basemap.js?v=3';
+import './ptv-basemap.js?v=4';
 import { isNightAt } from './map-theme-core.js?v=1';
 
 (()=>{
@@ -186,19 +186,20 @@ import { isNightAt } from './map-theme-core.js?v=1';
     }
   }
 
-  window.__trasyResolveMapTheme=(lat,lon)=>{
-    const latitude=Number(lat),longitude=Number(lon);
-    if(!Number.isFinite(latitude)||!Number.isFinite(longitude))return document.documentElement.dataset.mapTheme==='night'?'night':'day';
-    return isNightAt(new Date(),latitude,longitude)?'night':'day';
+  function initialTheme(){
+    const point=pointFromPosition(gps?.current?.());
+    if(point)return isNightAt(new Date(),point.lat,point.lon)?'night':'day';
+    return document.documentElement.dataset.mapTheme==='night'?'night':'day';
+  }
+
+  window.__trasyResolveMapTheme=({latitude,longitude}={})=>{
+    if(Number.isFinite(Number(latitude))&&Number.isFinite(Number(longitude))){
+      return isNightAt(new Date(),Number(latitude),Number(longitude))?'night':'day';
+    }
+    return initialTheme();
   };
 
-  const initialPoint=pointFromPosition(gps?.current?.());
-  if(initialPoint){
-    lastPoint=initialPoint;
-    document.documentElement.dataset.mapTheme=window.__trasyResolveMapTheme(initialPoint.lat,initialPoint.lon);
-  }else if(!document.documentElement.dataset.mapTheme){
-    document.documentElement.dataset.mapTheme='day';
-  }
+  document.documentElement.dataset.mapTheme=initialTheme();
 
   document.addEventListener('trasy:route-progress-rendered',()=>{
     if(routeReady)return;
