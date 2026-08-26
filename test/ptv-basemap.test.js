@@ -4,27 +4,28 @@ import test from 'node:test';
 
 const read=name=>readFile(new URL(`../${name}`,import.meta.url),'utf8');
 
-test('PTV jest główną mapą dzienną przez bezpieczny proxy, a OpenFreeMap pozostaje fallbackiem',async()=>{
-  const source=await read('ptv-basemap.js');
+test('PTV jest główną mapą dzienną, a OSM wyłącznie awaryjnym fallbackiem',async()=>{
+  const [source,hook]=await Promise.all([read('ptv-basemap.js'),read('maplibre-route-hook.js')]);
   assert.match(source,/vectormaps-resources\.myptv\.com\/styles\/latest\/standard\.json/);
   assert.match(source,/const PROXY_PREFIX='\/ptv-map'/);
-  assert.match(source,/tiles\.openfreemap\.org\/styles\/liberty/);
-  assert.match(source,/trasy:basemap-provider-change/);
-  assert.match(source,/provider:'ptv'|,'ptv','secure-proxy'/);
+  assert.match(source,/tile\.openstreetmap\.org\/\{z\}\/\{x\}\/\{y\}\.png/);
+  assert.match(source,/applyFallback/);
+  assert.match(source,/provider==='osm'/);
+  assert.doesNotMatch(source,/styles\/liberty/);
+  assert.match(hook,/options\.style=theme==='night'\?DARK_STYLE:PTV_STYLE/);
+  assert.match(hook,/container==='routeMapCanvas'/);
+  assert.match(hook,/PTV_API_ORIGIN/);
+  assert.doesNotMatch(hook,/tile\.openstreetmap\.org/);
   assert.doesNotMatch(source,/apiKey\s*[:=]\s*['"][^'"]+/i);
 });
 
-test('zmiana bazowej mapy czeka aż trasa nawigacji zostanie narysowana',async()=>{
-  const [ptv,theme]=await Promise.all([read('ptv-basemap.js'),read('map-day-night.js')]);
-  assert.match(ptv,/let routeReady=false/);
-  assert.match(ptv,/trasy:route-progress-rendered/);
-  assert.match(ptv,/if\(!map\|\|switching\|\|!ensureRouteReady\(\)\)return/);
-  assert.doesNotMatch(ptv,/setTimeout\(\(\)=>applyDay\(true\),0\);\s*\n\s*}\s*\n\s*document\.addEventListener\('trasy:map-theme-change'/);
-  assert.match(theme,/let routeReady=false/);
-  assert.match(theme,/trasy:route-progress-rendered/);
-  assert.match(theme,/theme===currentTheme\|\|!ensureRouteReady\(\)/);
-  assert.match(ptv,/trasy:map-style-switch-start/);
-  assert.match(theme,/trasy:map-style-switch-start/);
+test('właściwa mapa jest wybierana przed utworzeniem MapLibre bez startowego OSM',async()=>{
+  const [hook,theme]=await Promise.all([read('maplibre-route-hook.js'),read('map-day-night.js')]);
+  assert.match(hook,/construct\(Target,args,newTarget\)/);
+  assert.match(hook,/theme=document\.documentElement\.dataset\.mapTheme==='night'\?'night':'day'/);
+  assert.match(hook,/provider=theme==='night'\?'openfreemap-dark':'ptv'/);
+  assert.match(theme,/document\.documentElement\.dataset\.mapTheme=isNightAt/);
+  assert.match(theme,/const markedTheme=map\.getContainer/);
 });
 
 test('proxy Cloudflare przekazuje klucz PTV wyłącznie z sekretu i nie jest otwartym proxy',async()=>{
@@ -40,7 +41,7 @@ test('proxy Cloudflare przekazuje klucz PTV wyłącznie z sekretu i nie jest otw
 
 test('PWA cacheuje logikę mapy, ale nie przechwytuje kafelków PTV',async()=>{
   const [theme,worker]=await Promise.all([read('map-day-night.js'),read('sw.js')]);
-  assert.match(theme,/import ['"]\.\/ptv-basemap\.js\?v=1['"]/);
+  assert.match(theme,/import ['"]\.\/ptv-basemap\.js\?v=2['"]/);
   assert.match(worker,/\.\/ptv-basemap\.js/);
   assert.match(worker,/url\.pathname\.startsWith\(['"]\/ptv-map\/['"]\)\)return/);
 });
