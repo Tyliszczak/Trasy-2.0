@@ -1,0 +1,38 @@
+name: Practical live tests
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/practical-live.mjs'
+      - '.github/workflows/practical-live.yml'
+
+jobs:
+  practical:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      TARGET_URL: https://trasy-2-0.pages.dev
+      PINNED_URL: https://89a21315.trasy-2-0.pages.dev
+      EXPECTED_VERSION: 2.0.163
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Run practical production tests
+        run: node scripts/practical-live.mjs
+      - name: Upload practical report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: practical-live-results
+          path: practical-results.json
+          if-no-files-found: ignore
