@@ -1,9 +1,8 @@
 (()=>{
   const maneuver=document.getElementById('routeManeuver');
   const distance=document.getElementById('routeManeuverDistance');
-  const canvas=document.getElementById('routeMapCanvas');
   const panel=document.getElementById('routeMapNav');
-  if(!maneuver||!distance||!canvas||!panel)return;
+  if(!maneuver||!distance||!panel)return;
 
   const infoPanel=maneuver.parentElement;
   const infoRow=distance.parentElement;
@@ -13,10 +12,10 @@
   bubble.setAttribute('role','status');
   bubble.setAttribute('aria-live','polite');
   bubble.style.cssText=`
-    position:absolute;
-    left:0;
-    top:0;
-    z-index:18;
+    position:fixed;
+    left:50%;
+    top:68dvh;
+    z-index:40050;
     width:min(72vw,310px);
     max-width:310px;
     padding:8px 11px 7px;
@@ -28,8 +27,7 @@
     text-align:center;
     pointer-events:none;
     user-select:none;
-    will-change:transform;
-    transform:translate3d(-9999px,-9999px,0);
+    transform:translateX(-50%);
   `;
 
   maneuver.style.cssText=`
@@ -52,9 +50,9 @@
   `;
 
   bubble.append(maneuver,distance);
+  document.body.appendChild(bubble);
 
-  // Po przeniesieniu manewru górna belka zawiera tylko informację
-  // o następnym przystanku i nie zmienia wysokości wraz z instrukcjami.
+  // Górna belka zawiera wyłącznie informację o następnym przystanku.
   if(infoPanel){
     infoPanel.style.padding='7px 12px';
     infoPanel.style.minHeight='0';
@@ -65,83 +63,19 @@
     infoRow.style.alignItems='center';
   }
 
-  if(getComputedStyle(canvas).position==='static')canvas.style.position='relative';
-
-  let raf=0;
-  let attached=false;
-  let vehicleEl=null;
-
   function hasMessage(){
     return Boolean(String(maneuver.textContent||'').trim()||String(distance.textContent||'').trim());
   }
 
   function syncVisibility(){
-    bubble.style.visibility=hasMessage()?'visible':'hidden';
+    bubble.style.visibility=!panel.hidden&&hasMessage()?'visible':'hidden';
   }
 
-  function findVehicleElement(){
-    if(vehicleEl?.isConnected)return vehicleEl;
-    vehicleEl=[...canvas.querySelectorAll('.maplibregl-marker')].find(el=>{
-      const clip=String(el.style.clipPath||el.style.webkitClipPath||'');
-      return clip.includes('polygon')&&el.style.width==='36px'&&el.style.height==='36px';
-    })||null;
-    return vehicleEl;
-  }
-
-  function positionBubble(){
-    raf=0;
-    if(!attached||!bubble.isConnected||panel.hidden)return;
-    const vehicle=findVehicleElement();
-    if(!vehicle){
-      bubble.style.transform='translate3d(-9999px,-9999px,0)';
-      schedulePosition();
-      return;
-    }
-
-    const vehicleRect=vehicle.getBoundingClientRect();
-    const canvasRect=canvas.getBoundingClientRect();
-    if(!vehicleRect.width||!vehicleRect.height||!canvasRect.width||!canvasRect.height){
-      schedulePosition();
-      return;
-    }
-
-    // Dymek jest pozycjonowany względem faktycznie narysowanej strzałki,
-    // a nie jako drugi marker GPS. Stały odstęp 8 px eliminuje pływanie góra-dół.
-    const x=Math.round(vehicleRect.left+vehicleRect.width/2-canvasRect.left);
-    const y=Math.round(vehicleRect.bottom-canvasRect.top+8);
-    bubble.style.transform=`translate3d(${x}px,${y}px,0) translateX(-50%)`;
-    schedulePosition();
-  }
-
-  function schedulePosition(){
-    if(panel.hidden||raf)return;
-    raf=requestAnimationFrame(positionBubble);
-  }
-
-  function attach(){
-    if(!bubble.isConnected)canvas.appendChild(bubble);
-    attached=true;
-    vehicleEl=null;
-    syncVisibility();
-    schedulePosition();
-  }
-
-  new MutationObserver(()=>{
-    vehicleEl=null;
-    syncVisibility();
-    schedulePosition();
-  }).observe(canvas,{childList:true,subtree:true});
+  // Dymek jest elementem okna, nie mapy. Nie śledzi GPS, markera, zoomu,
+  // obrotu ani pitchu; jego pozycja ekranowa jest zawsze taka sama.
   new MutationObserver(syncVisibility).observe(bubble,{childList:true,characterData:true,subtree:true});
-  new MutationObserver(()=>{
-    if(!panel.hidden)schedulePosition();
-  }).observe(panel,{attributes:true,attributeFilter:['hidden']});
-
-  document.addEventListener('trasy:route-map-ready',attach);
-  document.addEventListener('visibilitychange',()=>{
-    if(document.visibilityState==='visible')schedulePosition();
-  });
-  window.addEventListener('resize',schedulePosition);
+  new MutationObserver(syncVisibility).observe(panel,{attributes:true,attributeFilter:['hidden']});
+  document.addEventListener('visibilitychange',syncVisibility);
 
   syncVisibility();
-  if(window.__routeMap)attach();
 })();
