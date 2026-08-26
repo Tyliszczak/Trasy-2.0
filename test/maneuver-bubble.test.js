@@ -13,7 +13,7 @@ test('manewr i odległość są przenoszone z górnej belki do stałego dymka ok
   assert.match(bubble,/bubble\.append\(maneuver,distance\)/);
   assert.match(bubble,/position:fixed/);
   assert.match(bubble,/left:50%/);
-  assert.match(bubble,/top:68dvh/);
+  assert.match(bubble,/top:73dvh/);
   assert.match(bubble,/document\.body\.appendChild\(bubble\)/);
 });
 
