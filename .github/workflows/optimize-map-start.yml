@@ -1,0 +1,143 @@
+name: Optimize map start
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/optimize-map-start.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch map startup
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          nav=Path('nav-map.js')
+          text=nav.read_text()
+          old="""  function posOnce(){
+    return new Promise(
+      (resolve,reject)=>
+        navigator.geolocation.getCurrentPosition(
+          resolve,
+          reject,
+          {
+            enableHighAccuracy:true,
+            timeout:12000,
+            maximumAge:3000
+          }
+        )
+    );
+  }
+"""
+          new="""  function cachedPosition(maxAgeMs=15000){
+    const position=window.__trasyGps?.current?.();
+    const age=Date.now()-Number(position?.timestamp||0);
+    return position&&age>=0&&age<=maxAgeMs?position:null;
+  }
+
+  function posOnce(){
+    const cached=cachedPosition();
+    if(cached){
+      window.__trasyGps?.refresh?.({restartWatch:false}).catch(()=>{});
+      return Promise.resolve(cached);
+    }
+
+    if(window.__trasyGps?.refresh){
+      return window.__trasyGps.refresh({restartWatch:false});
+    }
+
+    return new Promise(
+      (resolve,reject)=>
+        navigator.geolocation.getCurrentPosition(
+          resolve,
+          reject,
+          {
+            enableHighAccuracy:true,
+            timeout:12000,
+            maximumAge:3000
+          }
+        )
+    );
+  }
+"""
+          if old not in text:
+              raise SystemExit('posOnce block not found')
+          nav.write_text(text.replace(old,new,1))
+
+          hook=Path('maplibre-route-hook.js')
+          text=hook.read_text()
+          needle="""  const PTV_API_ORIGIN='https://api.myptv.com';
+  const PROXY_PREFIX='/ptv-map';
+"""
+          replacement="""  const PTV_API_ORIGIN='https://api.myptv.com';
+  const PROXY_PREFIX='/ptv-map';
+
+  // Rozgrzej sam styl PTV jeszcze na ekranie harmonogramu. MapLibre użyje
+  // odpowiedzi z cache, zamiast zaczynać pobieranie dopiero po otwarciu mapy.
+  window.__trasyPtvStyleWarmup=fetch(PTV_STYLE,{
+    cache:'force-cache',
+    mode:'cors'
+  }).catch(()=>null);
+"""
+          if needle not in text:
+              raise SystemExit('hook insertion point not found')
+          hook.write_text(text.replace(needle,replacement,1))
+
+          index=Path('index.html')
+          text=index.read_text()
+          if 'data-version="2.0.160"' not in text:
+              raise SystemExit('unexpected index version')
+          text=text.replace('data-version="2.0.160"','data-version="2.0.161"',1)
+          text=text.replace('>TEST 2.0.160<','>TEST 2.0.161<',1)
+          text=text.replace('maplibre-route-hook.js?v=3','maplibre-route-hook.js?v=4',1)
+          if 'rel="preconnect" href="https://vectormaps-resources.myptv.com"' not in text:
+              text=text.replace('<title>Trasy 2.0</title>','<link rel="preconnect" href="https://vectormaps-resources.myptv.com" crossorigin><title>Trasy 2.0</title>',1)
+          index.write_text(text)
+
+          sw=Path('sw.js')
+          text=sw.read_text()
+          text=text.replace("const APP_VERSION='2.0.160';","const APP_VERSION='2.0.161';",1)
+          text=text.replace("const CACHE_NAME='trasy-2.0-v194';","const CACHE_NAME='trasy-2.0-v195';",1)
+          sw.write_text(text)
+
+          test=Path('test/map-start-speed.test.js')
+          test.write_text("""import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const read=path=>fs.readFileSync(new URL('../'+path,import.meta.url),'utf8');
+
+test('nawigacja używa świeżej pozycji GPS-hub bez czekania na kolejny fix',()=>{
+  const nav=read('nav-map.js');
+  assert.match(nav,/function cachedPosition\(maxAgeMs=15000\)/);
+  assert.match(nav,/window\.__trasyGps\?\.current\?\.\(\)/);
+  assert.match(nav,/return Promise\.resolve\(cached\)/);
+  assert.match(nav,/refresh\?\.\(\{restartWatch:false\}\)\.catch/);
+});
+
+test('styl PTV jest rozgrzewany przed otwarciem mapy',()=>{
+  const hook=read('maplibre-route-hook.js');
+  const html=read('index.html');
+  assert.match(hook,/__trasyPtvStyleWarmup=fetch\(PTV_STYLE/);
+  assert.match(hook,/cache:'force-cache'/);
+  assert.match(html,/rel="preconnect" href="https:\/\/vectormaps-resources\.myptv\.com"/);
+});
+""")
+
+          Path('.github/workflows/optimize-map-start.yml').unlink()
+          PY
+      - name: Commit optimized startup
+        shell: bash
+        run: |
+          git config user.name "Tyliszczak"
+          git config user.email "kswiderski.de@gmail.com"
+          git add -A
+          git commit -m "Przyspiesz wyświetlenie mapy PTV"
+          git push
