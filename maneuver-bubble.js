@@ -14,7 +14,7 @@
   bubble.style.cssText=`
     position:fixed;
     left:50%;
-    top:68dvh;
+    top:73dvh;
     z-index:40050;
     width:min(72vw,310px);
     max-width:310px;
