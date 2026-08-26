@@ -3,9 +3,29 @@
 
   const DAY_MS=24*60*60*1000;
   const DAY_SECONDS=24*60*60;
+  const SHEET_TIME_ZONE='Europe/Warsaw';
+  const sheetClockFormatter=new Intl.DateTimeFormat('en-GB',{
+    timeZone:SHEET_TIME_ZONE,
+    hour:'2-digit',
+    minute:'2-digit',
+    hourCycle:'h23'
+  });
+
+  function clockFromZonedIso(text){
+    if(!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})$/i.test(text))return'';
+    const date=new Date(text);
+    if(Number.isNaN(date.getTime()))return'';
+    const parts=sheetClockFormatter.formatToParts(date);
+    const hours=parts.find(part=>part.type==='hour')?.value;
+    const minutes=parts.find(part=>part.type==='minute')?.value;
+    if(!hours||!minutes)return'';
+    return`${hours}:${minutes}`;
+  }
 
   function normalizeClockTime(value){
     const text=String(value??'').trim();
+    const zonedIso=clockFromZonedIso(text);
+    if(zonedIso)return zonedIso;
     const iso=text.match(/T(\d{2}):(\d{2})(?::\d{2})?/);
     const match=iso||text.match(/(?:^|\D)(\d{1,2}):(\d{2})(?:\D|$)/);
     if(!match)return'';
