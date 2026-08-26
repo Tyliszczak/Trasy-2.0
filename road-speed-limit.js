@@ -4,10 +4,11 @@ import { nearestRoadLimit } from './road-speed-limit-core.js?v=2';
   const gps=window.__trasyGps;
   if(!gps?.subscribe)return;
 
-  const PTV_ENDPOINT='/speedmax';
+  const PTV_PROXY='/ptv-map/mapmatch/v1/positions';
   const ENDPOINTS=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'];
   const QUERY_RADIUS_M=120;
   const MATCH_DISTANCE_M=70;
+  const PTV_MATCH_DISTANCE_M=70;
   const MIN_QUERY_MS=12000;
   const MIN_MOVE_M=45;
   const MAX_GPS_ACCURACY_M=90;
@@ -110,20 +111,35 @@ import { nearestRoadLimit } from './road-speed-limit-core.js?v=2';
     const controller=new AbortController();
     const timeout=setTimeout(()=>controller.abort(),BACKEND_TIMEOUT_MS);
     try{
-      const url=new URL(PTV_ENDPOINT,location.origin);
-      url.searchParams.set('lat',String(point.lat));
-      url.searchParams.set('lon',String(point.lon));
+      const url=new URL(`${PTV_PROXY}/${point.lat}/${point.lon}`,location.origin);
       if(Number.isFinite(heading))url.searchParams.set('heading',String(heading));
       const response=await fetch(url.href,{
         method:'GET',
         cache:'no-store',
         credentials:'same-origin',
+        headers:{Accept:'application/json'},
         signal:controller.signal
       });
       if(!response.ok)return null;
-      const data=await response.json();
-      const limit=Number(data?.maxspeed);
-      return{data,limit:Number.isFinite(limit)&&limit>0?limit:null};
+      const raw=await response.json();
+      const attributes=raw?.segmentAttributes||{};
+      const limit=Number(attributes.speedLimit);
+      const distance=Number(raw?.matchDistance);
+      if(Number.isFinite(distance)&&distance>PTV_MATCH_DISTANCE_M)return null;
+      if(!Number.isFinite(limit)||limit<=0)return null;
+      const roadCategory=Number(attributes.roadCategory);
+      return{
+        limit,
+        data:{
+          provider:'ptv',
+          maxspeed:limit,
+          roadClass:Number.isFinite(roadCategory)?`ptv-${roadCategory}`:'',
+          highSpeedRoad:Number.isFinite(roadCategory)&&roadCategory>=1&&roadCategory<=3,
+          builtUpArea:attributes.builtUpArea===true,
+          matchDistance:Number.isFinite(distance)?distance:null,
+          angleDifference:Number.isFinite(Number(raw?.angleDifference))?Number(raw.angleDifference):null
+        }
+      };
     }finally{
       clearTimeout(timeout);
     }
@@ -202,16 +218,16 @@ import { nearestRoadLimit } from './road-speed-limit-core.js?v=2';
       cachedAt=Date.now();
       const result=match(point,heading);
       previousWayId=result?.osmWayId??previousWayId;
-      if(result){
+      if(result?.maxspeed){
         publish({...result,source:'openstreetmap'},{source:'openstreetmap'});
         return true;
       }
       if(!local)publish({},{staleReason:'no-limit',source:'openstreetmap'});
-      return !!local;
+      return !!local?.maxspeed;
     }catch(error){
       if(!local&&Date.now()>=validUntil)publish({},{staleReason:'error',source:'openstreetmap'});
       console.warn('Limit prędkości OSM:',error);
-      return !!local;
+      return !!local?.maxspeed;
     }
   }
 
