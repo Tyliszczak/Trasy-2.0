@@ -261,7 +261,7 @@ await step('Nawigacja: mapa startuje, trasa OSRM się rysuje i nie ma surowego O
     await openFallbackSchedule(page);
     await page.waitForFunction(()=>Boolean(document.getElementById('routeMapNav')),{timeout:10000});
     const started=Date.now();
-    await page.evaluate(()=>{const link=document.querySelector('#scheduleBody .routeLink');link?.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true,view:window}))});
+    await page.locator('#scheduleBody .routeLink').first().click();
     await page.locator('#routeMapNav').waitFor({state:'visible'});
     await page.locator('#routeMapCanvas canvas').first().waitFor({state:'visible',timeout:30000});
     timings.mapCanvasVisibleMs=Date.now()-started;
