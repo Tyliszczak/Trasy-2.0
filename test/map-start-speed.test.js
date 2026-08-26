@@ -15,5 +15,5 @@ test('styl PTV jest rozgrzewany przed otwarciem mapy',()=>{
   const html=read('index.html');
   assert.match(hook,/__trasyPtvStyleWarmup=fetch\(PTV_STYLE/);
   assert.match(hook,/cache:'force-cache'/);
-  assert.match(html,/rel="preconnect" href="https:\\/\\/vectormaps-resources\.myptv\.com"/);
+  assert.ok(html.includes('rel="preconnect" href="https://vectormaps-resources.myptv.com"'));
 });
