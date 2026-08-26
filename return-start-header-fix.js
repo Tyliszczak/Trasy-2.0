@@ -18,9 +18,10 @@
   function apply(){
     const label=header.querySelector('.nextStopLabel');
     const main=header.querySelector('.nextStopMain');
+    const plan=header.querySelector('.nextStopPlan');
     const status=header.querySelector('.nextStopStatus');
     const guard=header.querySelector('.nextStopGuard');
-    if(!label||!main)return;
+    if(!label||!main||!plan)return;
 
     const index=Number(body.dataset.gpsNextStop);
     const isReturnStart=body.dataset.direction==='return'&&index===0&&body.dataset.emptyRun!=='1';
@@ -39,7 +40,8 @@
 
     label.textContent='START TRASY POWROTNEJ';
     label.dataset.returnStart='1';
-    main.textContent=`${name}${start?` · Start ${start}`:''}`;
+    main.textContent=name;
+    plan.textContent=start?`Start ${start}`:'';
 
     if(status){
       status.hidden=true;
