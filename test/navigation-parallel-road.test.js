@@ -21,9 +21,10 @@ test('zielona trasa pozostaje pod symbolami i numerami dróg',()=>{
   assert.match(ptv,/layer=>layer\.type==='symbol'/);
 });
 
-test('PTV nie przełącza się na OSM po samych pojedynczych błędach kafelków',()=>{
+test('PTV nie przełącza się na fallback po samych pojedynczych błędach kafelków',()=>{
   const ptv=read('ptv-basemap.js');
   assert.match(ptv,/currentHealthTile/);
   assert.match(ptv,/verifyPtvBeforeFallback/);
-  assert.match(ptv,/applyFallback\('ptv-health-failed'\)/);
+  assert.match(ptv,/scheduleFallback\('ptv-health-failed'\)/);
+  assert.match(ptv,/FALLBACK_CONFIRM_ATTEMPTS=3/);
 });
