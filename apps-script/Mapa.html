@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <title>Ustaw lokalizację</title>
+  <link href="https://unpkg.com/maplibre-gl@5.12.0/dist/maplibre-gl.css" rel="stylesheet">
+  <style>
+    html,body{margin:0;height:100%;font-family:Arial,sans-serif;background:#171717;color:#fff}
+    body{display:flex;flex-direction:column;overflow:hidden}
+    .top{padding:12px 14px;background:#202020;box-shadow:0 2px 9px #0009;z-index:5}
+    .title{font-size:18px;font-weight:900;color:#ccff33;line-height:1.2}
+    .meta{margin-top:4px;font-size:13px;color:#ddd;line-height:1.3}
+    .coords{margin-top:7px;font:700 14px/1.2 monospace;color:#fff}
+    .actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+    button{min-height:46px;border:1px solid #666;border-radius:9px;padding:8px 10px;font:900 15px Arial,sans-serif;cursor:pointer}
+    #save{grid-column:1/-1;background:#ccff33;color:#111;border-color:#ccff33}
+    #myLocation{background:#333;color:#fff}
+    #center{background:#333;color:#fff}
+    #msg{min-height:18px;margin-top:8px;font-size:13px;color:#ccff33}
+    #map{flex:1;min-height:360px}
+    .marker{width:32px;height:32px;border-radius:50% 50% 50% 0;background:#ccff33;border:3px solid #111;box-shadow:0 3px 10px #000a;transform:rotate(-45deg);cursor:grab}
+    .marker:after{content:'';position:absolute;width:8px;height:8px;border-radius:50%;background:#111;left:9px;top:9px}
+    .maplibregl-ctrl-attrib{font-size:9px}
+  </style>
+</head>
+<body>
+  <section class="top">
+    <div class="title" id="title"></div>
+    <div class="meta" id="meta"></div>
+    <div class="coords" id="coords"></div>
+    <div class="actions">
+      <button id="myLocation" type="button">MOJA LOKALIZACJA</button>
+      <button id="center" type="button">POKAŻ PUNKT</button>
+      <button id="save" type="button">ZAPISZ W ARKUSZU</button>
+    </div>
+    <div id="msg" role="status" aria-live="polite"></div>
+  </section>
+  <div id="map" aria-label="Mapa wyboru lokalizacji"></div>
+
+  <script src="https://unpkg.com/maplibre-gl@5.12.0/dist/maplibre-gl.js"></script>
+  <script>
+    const SID=<?= JSON.stringify(sid) ?>;
+    const ROW=<?= JSON.stringify(row) ?>;
+    const COL=<?= JSON.stringify(col) ?>;
+    const STOP=<?= JSON.stringify(przystanek) ?>;
+    const INITIAL=<?= JSON.stringify(wspolrzedne) ?>;
+
+    const FALLBACK=[15.5062,51.9356];
+    const match=String(INITIAL||'').match(/(-?\d+(?:\.\d+)?)\s*[,; ]\s*(-?\d+(?:\.\d+)?)/);
+    let lng=match?Number(match[2]):FALLBACK[0];
+    let lat=match?Number(match[1]):FALLBACK[1];
+
+    const title=document.getElementById('title');
+    const meta=document.getElementById('meta');
+    const coords=document.getElementById('coords');
+    const msg=document.getElementById('msg');
+
+    title.textContent=STOP||'Ustaw lokalizację';
+    meta.textContent=(COL==='D'?'POWRÓT':'PRZÓD')+' • wiersz '+ROW;
+
+    const map=new maplibregl.Map({
+      container:'map',
+      style:'https://tiles.openfreemap.org/styles/liberty',
+      center:[lng,lat],
+      zoom:match?18:14,
+      attributionControl:true
+    });
+    map.addControl(new maplibregl.NavigationControl({showCompass:true,showZoom:true}),'top-right');
+
+    const markerElement=document.createElement('div');
+    markerElement.className='marker';
+    const marker=new maplibregl.Marker({element:markerElement,draggable:true,anchor:'bottom'})
+      .setLngLat([lng,lat])
+      .addTo(map);
+
+    function update(nextLat,nextLng,{center=false}={}){
+      lat=Number(nextLat);lng=Number(nextLng);
+      marker.setLngLat([lng,lat]);
+      coords.textContent=lat.toFixed(6)+', '+lng.toFixed(6);
+      if(center)map.easeTo({center:[lng,lat],zoom:Math.max(map.getZoom(),18),duration:350});
+    }
+
+    update(lat,lng);
+    marker.on('dragend',()=>{const p=marker.getLngLat();update(p.lat,p.lng)});
+    map.on('click',event=>update(event.lngLat.lat,event.lngLat.lng));
+
+    document.getElementById('center').onclick=()=>update(lat,lng,{center:true});
+    document.getElementById('myLocation').onclick=()=>{
+      if(!navigator.geolocation){msg.textContent='Ta przeglądarka nie udostępnia lokalizacji.';return}
+      msg.textContent='Pobieranie lokalizacji…';
+      navigator.geolocation.getCurrentPosition(position=>{
+        update(position.coords.latitude,position.coords.longitude,{center:true});
+        msg.textContent='Ustawiono bieżącą lokalizację.';
+      },error=>{
+        msg.textContent=error?.message||'Nie udało się pobrać lokalizacji.';
+      },{enableHighAccuracy:true,timeout:12000,maximumAge:0});
+    };
+
+    document.getElementById('save').onclick=()=>{
+      const button=document.getElementById('save');
+      button.disabled=true;
+      msg.textContent='Zapisywanie…';
+      google.script.run
+        .withSuccessHandler(result=>{
+          button.disabled=false;
+          const saved=result?.coordinates||lat.toFixed(6)+', '+lng.toFixed(6);
+          msg.textContent='Zapisano: '+saved;
+        })
+        .withFailureHandler(error=>{
+          button.disabled=false;
+          msg.textContent=error?.message||'Nie udało się zapisać lokalizacji.';
+        })
+        .zapiszLokalizacje(SID,ROW,COL,lat,lng);
+    };
+  </script>
+</body>
+</html>
