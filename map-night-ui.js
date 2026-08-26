@@ -81,7 +81,7 @@
   function loadManeuverBubble(){
     if(document.querySelector('script[data-trasy-maneuver-bubble]'))return;
     const script=document.createElement('script');
-    script.src='./maneuver-bubble.js?v=1';
+    script.src='./maneuver-bubble.js?v=2';
     script.dataset.trasyManeuverBubble='1';
     document.head.append(script);
   }
