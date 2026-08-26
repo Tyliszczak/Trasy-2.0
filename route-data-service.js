@@ -1,8 +1,8 @@
 (()=>{
   if(window.__trasyRouteDataService)return;
 
-  const SOURCE_URL='https://script.google.com/macros/s/AKfycbyQcnU6xvvrUZNVUJRhQ293L47hZwlvsc6i3n9s9hiYqhLUAoKSqGbPohe_lSB0apfUcw/exec';
-  const STORAGE_KEY='trasy2.sheetRawRouteData.v1';
+  const SOURCE_URL='/trasy-data';
+  const STORAGE_KEY='trasy2.sheetRawRouteData.v2';
   const REQUIRED_SHEETS=['SAS Sulechów','APT - Krężoły','SAS Świebodzin','TopPoint','POJAZDY'];
   let cached=null,inflight=null;
 
@@ -24,11 +24,13 @@
     const controller=new AbortController();
     const timer=setTimeout(()=>controller.abort(),12000);
     try{
-      const url=new URL(SOURCE_URL);
+      const url=new URL(SOURCE_URL,location.origin);
       url.searchParams.set('_',String(Date.now()));
-      const response=await fetch(url.href,{method:'GET',cache:'no-store',redirect:'follow',credentials:'omit',signal:controller.signal});
+      const response=await fetch(url.href,{method:'GET',cache:'no-store',credentials:'same-origin',signal:controller.signal});
       if(!response.ok)throw new Error(`Arkusz Trasy 2.0 odpowiedział kodem ${response.status}.`);
-      return validatePayload(await response.json());
+      const payload=await response.json();
+      if(payload?.status==='error')throw new Error(payload.message||'Nie udało się pobrać arkusza Trasy 2.0.');
+      return validatePayload(payload);
     }finally{clearTimeout(timer)}
   }
 
