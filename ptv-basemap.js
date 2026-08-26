@@ -8,6 +8,9 @@ import { isNightAt } from './map-theme-core.js?v=1';
   const HEALTH_TILE=`${PROXY_PREFIX}/maps/v1/vector-tiles/0/0/0`;
   const REQUEST_TIMEOUT_MS=6500;
   const PTV_RETRY_MS=15000;
+  const FALLBACK_GRACE_MS=8000;
+  const FALLBACK_CONFIRM_ATTEMPTS=3;
+  const FALLBACK_CONFIRM_DELAY_MS=2000;
   const ERROR_WINDOW_MS=12000;
   const ERROR_LIMIT=3;
 
@@ -21,6 +24,8 @@ import { isNightAt } from './map-theme-core.js?v=1';
   let routeReady=false;
   let errorCheckPending=false;
   let retryTimer=0;
+  let fallbackTimer=0;
+  let fallbackGeneration=0;
   let lastPtvError='';
 
   function clone(value){
@@ -28,6 +33,8 @@ import { isNightAt } from './map-theme-core.js?v=1';
     try{return structuredClone(value)}catch{}
     try{return JSON.parse(JSON.stringify(value))}catch{return null}
   }
+
+  function sleep(ms){return new Promise(resolve=>setTimeout(resolve,ms))}
 
   function pointFromPosition(position){
     const lat=Number(position?.coords?.latitude),lon=Number(position?.coords?.longitude);
@@ -177,6 +184,14 @@ import { isNightAt } from './map-theme-core.js?v=1';
     }
   }
 
+  function clearFallback(){
+    fallbackGeneration+=1;
+    if(fallbackTimer){
+      clearTimeout(fallbackTimer);
+      fallbackTimer=0;
+    }
+  }
+
   function schedulePtvRetry(){
     clearRetry();
     if(!routeReady||isNightNow()||provider==='ptv')return;
@@ -186,6 +201,42 @@ import { isNightAt } from './map-theme-core.js?v=1';
       disabledUntil=0;
       applyDay(true);
     },delay);
+  }
+
+  async function confirmPtvUnavailable(){
+    let lastError=null;
+    for(let attempt=0;attempt<FALLBACK_CONFIRM_ATTEMPTS;attempt+=1){
+      disabledUntil=0;
+      try{
+        await probePtv();
+        return false;
+      }catch(error){
+        lastError=error;
+        if(attempt<FALLBACK_CONFIRM_ATTEMPTS-1)await sleep(FALLBACK_CONFIRM_DELAY_MS);
+      }
+    }
+    if(lastError)console.warn('PTV: potwierdzona niedostępność po kilku próbach:',lastError);
+    return true;
+  }
+
+  function scheduleFallback(reason){
+    if(!map||isNightNow()||provider==='openfreemap-liberty'||fallbackTimer)return;
+    const localGeneration=++fallbackGeneration;
+    fallbackTimer=setTimeout(async()=>{
+      fallbackTimer=0;
+      if(localGeneration!==fallbackGeneration||!map||isNightNow()||provider==='openfreemap-liberty')return;
+      const unavailable=await confirmPtvUnavailable();
+      if(localGeneration!==fallbackGeneration)return;
+      if(!unavailable){
+        disabledUntil=0;
+        ptvStylePromise=null;
+        errorTimes=[];
+        applyDay(true);
+        return;
+      }
+      disabledUntil=Date.now()+PTV_RETRY_MS;
+      applyFallback(reason);
+    },FALLBACK_GRACE_MS);
   }
 
   function setStyle(target,nextProvider,reason=''){
@@ -205,9 +256,8 @@ import { isNightAt } from './map-theme-core.js?v=1';
       finish();
       if(nextProvider==='ptv'){
         lastPtvError='PTV_STYLE_TIMEOUT';
-        disabledUntil=Date.now()+PTV_RETRY_MS;
         ptvStylePromise=null;
-        applyFallback('ptv-style-timeout');
+        scheduleFallback('ptv-style-timeout');
       }
     },12000);
 
@@ -220,6 +270,7 @@ import { isNightAt } from './map-theme-core.js?v=1';
         lastPtvError='';
         disabledUntil=0;
         clearRetry();
+        clearFallback();
       }
       markProvider(nextProvider,reason);
       finish();
@@ -234,16 +285,16 @@ import { isNightAt } from './map-theme-core.js?v=1';
       finish();
       if(nextProvider==='ptv'){
         lastPtvError=String(error?.message||error||'PTV_STYLE_ERROR');
-        disabledUntil=Date.now()+PTV_RETRY_MS;
         ptvStylePromise=null;
         console.warn('PTV map:',error);
-        applyFallback('ptv-style-error');
+        scheduleFallback('ptv-style-error');
       }
     }
   }
 
   function applyFallback(reason){
     if(!map)return;
+    clearFallback();
     if(provider==='openfreemap-liberty'){
       markProvider(provider,reason);
       schedulePtvRetry();
@@ -259,11 +310,11 @@ import { isNightAt } from './map-theme-core.js?v=1';
     try{
       const style=await loadPtvStyle();
       if(!map||isNightNow()||!ensureRouteReady())return;
+      clearFallback();
       setStyle(style,'ptv','secure-proxy');
     }catch(error){
-      console.warn('PTV niedostępne — awaryjnie OpenFreeMap:',error);
-      disabledUntil=Math.max(disabledUntil,Date.now()+PTV_RETRY_MS);
-      applyFallback('ptv-unavailable');
+      console.warn('PTV chwilowo niedostępne — czekam przed mapą awaryjną:',error);
+      scheduleFallback('ptv-unavailable');
     }
   }
 
@@ -273,11 +324,10 @@ import { isNightAt } from './map-theme-core.js?v=1';
     try{
       await probePtv();
       errorTimes=[];
+      clearFallback();
     }catch(error){
-      console.warn('PTV nie odpowiada dla aktualnego obszaru — awaryjnie OpenFreeMap:',error);
-      disabledUntil=Date.now()+PTV_RETRY_MS;
-      ptvStylePromise=null;
-      applyFallback('ptv-health-failed');
+      console.warn('PTV: błąd bieżącego obszaru — potwierdzam przed fallbackiem:',error);
+      scheduleFallback('ptv-health-failed');
     }finally{
       errorCheckPending=false;
     }
@@ -323,6 +373,7 @@ import { isNightAt } from './map-theme-core.js?v=1';
   document.addEventListener('trasy:map-theme-change',event=>{
     if(event.detail?.theme==='night'){
       clearRetry();
+      clearFallback();
       markProvider('openfreemap-dark','night-theme');
       return;
     }
@@ -332,6 +383,7 @@ import { isNightAt } from './map-theme-core.js?v=1';
   window.addEventListener('online',()=>{
     if(routeReady&&provider!=='ptv'&&!isNightNow()){
       disabledUntil=0;
+      clearFallback();
       applyDay(true);
     }
   });
