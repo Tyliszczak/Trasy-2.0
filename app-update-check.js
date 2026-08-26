@@ -19,6 +19,36 @@
     html body .headerActions{padding-right:118px!important}
     html body .container{margin-top:33px!important}
     #routeNavRoot{inset:27px 0 0 0!important}
+
+    /* Harmonogram: pasek techniczny i właściwa górna belka nie mogą na siebie nachodzić. */
+    body:has(#scheduleView:not([hidden])) .container{
+      margin-top:0!important;
+      padding-top:33px!important;
+      margin-bottom:0!important;
+      height:100dvh!important;
+      max-height:100dvh!important;
+      overflow:hidden!important;
+    }
+    body:has(#scheduleView:not([hidden])) #scheduleView{
+      height:calc(100dvh - 33px)!important;
+      max-height:calc(100dvh - 33px)!important;
+      overflow:hidden!important;
+    }
+    body:has(#scheduleView:not([hidden])) #scheduleView .scheduleHeading{
+      position:relative!important;
+      top:auto!important;
+      flex:0 0 auto!important;
+      margin:0 -8px 6px!important;
+      padding-top:9px!important;
+      z-index:30!important;
+    }
+    body:has(#scheduleView:not([hidden])) #scheduleView .tableWrap{
+      flex:1 1 auto!important;
+      min-height:0!important;
+      overflow-y:auto!important;
+      overflow-x:hidden!important;
+      overscroll-behavior:contain!important;
+    }
   `;
   document.head.appendChild(technicalStyle);
 
