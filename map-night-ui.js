@@ -4,19 +4,19 @@
 
   const style=document.createElement('style');
   style.textContent=`
-    /* + / - / 2D-3D jako jedna, nieco większa pionowa belka. */
+    /* Jedna pionowa belka: 2D/3D, +, -. Przyciski lekko podłużne pionowo. */
     #routeMapCanvas .maplibregl-ctrl-group:has(.maplibregl-ctrl-zoom-in) button,
     #routePitchToggle{
       width:34px!important;
       min-width:34px!important;
-      height:34px!important;
-      min-height:34px!important;
+      height:40px!important;
+      min-height:40px!important;
       margin:0!important;
       border-radius:0!important;
       box-shadow:none!important;
     }
     #routePitchToggle{
-      padding:1px 0 2px!important;
+      padding:2px 0 3px!important;
       border:0!important;
       background:#fff!important;
       color:#333!important;
@@ -27,8 +27,8 @@
       gap:1px!important;
       font:900 10px/10px Arial,sans-serif!important;
     }
-    #routePitchToggle span{display:block!important;height:10px!important;line-height:10px!important;order:0!important}
-    #routePitchToggle svg{width:19px!important;height:14px!important;margin:0!important;display:block!important;order:1!important}
+    #routePitchToggle svg{width:20px!important;height:15px!important;margin:0!important;display:block!important;order:0!important}
+    #routePitchToggle span{display:block!important;height:10px!important;line-height:10px!important;order:1!important}
     #routePitchToggle:hover{background:#f2f2f2!important}
     .route-view-control:empty,.route-view-control-anchor{display:none!important}
 
@@ -82,9 +82,11 @@
     const groups=[...(canvas||document).querySelectorAll('.maplibregl-ctrl-bottom-right .maplibregl-ctrl-group')];
     const zoomGroup=groups.find(group=>group.querySelector('.maplibregl-ctrl-zoom-in')&&group.querySelector('.maplibregl-ctrl-zoom-out'));
     if(!zoomGroup)return false;
-    if(pitch.parentElement!==zoomGroup){
-      const oldParent=pitch.parentElement;
-      zoomGroup.appendChild(pitch);
+
+    const zoomIn=zoomGroup.querySelector('.maplibregl-ctrl-zoom-in');
+    const oldParent=pitch.parentElement;
+    if(pitch.parentElement!==zoomGroup||pitch.nextElementSibling!==zoomIn){
+      zoomGroup.insertBefore(pitch,zoomIn);
       if(oldParent?.classList?.contains('route-view-control')&&!oldParent.children.length)oldParent.remove();
     }
     return true;
