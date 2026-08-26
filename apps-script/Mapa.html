@@ -41,11 +41,11 @@
 
   <script src="https://unpkg.com/maplibre-gl@5.12.0/dist/maplibre-gl.js"></script>
   <script>
-    const SID=<?= JSON.stringify(sid) ?>;
-    const ROW=<?= JSON.stringify(row) ?>;
-    const COL=<?= JSON.stringify(col) ?>;
-    const STOP=<?= JSON.stringify(przystanek) ?>;
-    const INITIAL=<?= JSON.stringify(wspolrzedne) ?>;
+    const SID=<?!= JSON.stringify(sid) ?>;
+    const ROW=<?!= JSON.stringify(row) ?>;
+    const COL=<?!= JSON.stringify(col) ?>;
+    const STOP=<?!= JSON.stringify(przystanek) ?>;
+    const INITIAL=<?!= JSON.stringify(wspolrzedne) ?>;
 
     const FALLBACK=[15.5062,51.9356];
     const match=String(INITIAL||'').match(/(-?\d+(?:\.\d+)?)\s*[,; ]\s*(-?\d+(?:\.\d+)?)/);
