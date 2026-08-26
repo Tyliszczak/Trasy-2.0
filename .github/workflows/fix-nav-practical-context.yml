@@ -1,0 +1,31 @@
+name: Fix nav practical context
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/fix-nav-practical-context.yml']
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('scripts/practical-live.mjs')
+          s=p.read_text()
+          marker="await step('Nawigacja: mapa startuje, trasa OSRM się rysuje i nie ma surowego OSM',async()=>{\n  const {context,page}=await fallbackPage();"
+          repl="await step('Nawigacja: mapa startuje, trasa OSRM się rysuje i nie ma surowego OSM',async()=>{\n  const {context,page}=await fallbackPage({serviceWorkers:'block'});"
+          if marker not in s: raise SystemExit('marker not found')
+          p.write_text(s.replace(marker,repl,1))
+          Path('.github/workflows/fix-nav-practical-context.yml').unlink()
+          PY
+      - name: Commit
+        run: |
+          git config user.name Tyliszczak
+          git config user.email kswiderski.de@gmail.com
+          git add -A
+          git commit -m "Oddziel praktyczny test nawigacji od SW"
+          git push
