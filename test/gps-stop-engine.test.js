@@ -80,6 +80,19 @@ test('podczas jazdy bez wiarygodnego kierunku silnik nie wraca odruchowo do pier
   assert.equal(result.reason,'awaiting-heading');
 });
 
+test('tracker odzyskuje właściwy cel gdy aktywny przystanek został daleko za autem',()=>{
+  const engine=createStopProgressEngine();
+  engine.setIndex(0);
+  const position=metersNorth(700);
+  const heading=bearingDegrees(position,stops[2].coord);
+  const first=engine.update({stops,position,accuracy:10,speedMps:10,heading,headingReliable:true});
+  assert.equal(first.index,0);
+  assert.equal(first.reason,'approaching');
+  const recovered=engine.update({stops,position:metersNorth(720),accuracy:10,speedMps:10,heading,headingReliable:true});
+  assert.equal(recovered.index,2);
+  assert.equal(recovered.reason,'reacquired-target');
+});
+
 test('przyjazd wymaga potwierdzonego postoju w promieniu przystanku',()=>{
   const engine=createStopProgressEngine();
   fix(engine,0);
