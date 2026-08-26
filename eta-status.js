@@ -31,12 +31,10 @@ import'./geo-core.js';
     #scheduleBody .etaPunctuality.late{color:#39ff69!important}
     #scheduleBody .etaPunctuality.arrived:before{background:#34c759}
     #scheduleBody .etaPunctuality.neutral{display:none!important}
-    #scheduleBody .etaPunctuality.returnArrival{display:block!important;margin-top:0!important;font-size:16px!important;color:#fff!important;text-shadow:none!important}
+    #scheduleBody .etaPunctuality.returnArrival{display:block!important;margin-top:4px!important;font-size:14px!important;color:#fff!important;text-shadow:none!important}
     #scheduleBody .etaPunctuality.returnArrival:before{display:none!important}
-    #routeNextStop .nextStopMain{font-size:21px!important;line-height:1.08!important;font-weight:1000!important}
-    #routeNextStop .nextStopStatus{margin-top:5px!important}
   `;
-  document.head.append(style);
+  document.head.appendChild(style);
 
   const coord=value=>geo.parseCoordinate(value);
   function activeRow(){return body.querySelector('tr.gpsNextStop')}
@@ -49,7 +47,16 @@ import'./geo-core.js';
   function liveEta(){if(etaSeconds===null||!etaMeasuredAt)return null;return Math.max(0,etaSeconds-(Date.now()-etaMeasuredAt)/1000)}
   function arrivalClock(seconds){if(!Number.isFinite(seconds))return'';const d=new Date(Date.now()+seconds*1000);return`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`}
 
-  function ensureInfo(row){if(!row)return null;if(infoEl&&infoRow===row&&infoEl.isConnected)return infoEl;if(infoEl?.isConnected)infoEl.remove();infoEl=document.createElement('div');infoEl.className='etaPunctuality';row.querySelector('td:nth-child(2)')?.appendChild(infoEl);infoRow=row;return infoEl}
+  function ensureInfo(row){
+    if(!row)return null;
+    if(infoEl&&infoRow===row&&infoEl.isConnected)return infoEl;
+    if(infoEl?.isConnected)infoEl.remove();
+    infoEl=document.createElement('div');
+    infoEl.className='etaPunctuality';
+    row.querySelector('td:nth-child(2)')?.appendChild(infoEl);
+    infoRow=row;
+    return infoEl;
+  }
   function clearInfo(){if(infoEl?.isConnected)infoEl.remove();infoEl=null;infoRow=null}
   function resetEta(){lastTarget=null;etaSeconds=null;etaMeasuredAt=0;clearInfo()}
 
@@ -80,8 +87,6 @@ import'./geo-core.js';
     if(guardIsShowing()){clearInfo();return}
     const info=ensureInfo(row);if(!info)return;
     if(body.dataset.direction==='return'){
-      const cell=row.querySelector('td:nth-child(2)');
-      if(cell)cell.replaceChildren(info);
       if(isFinalArrived(row)){clearInfo();return}
       const etaSecondsLive=liveEta();
       if(etaSecondsLive===null){info.textContent='';info.className='etaPunctuality neutral';return}
