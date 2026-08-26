@@ -279,7 +279,14 @@ function installRuntime(nextMap,initialProvider,initialTheme){
   map=nextMap;
   setMarkers(initialProvider,initialTheme,'initial-style');
   map.on('error',onMapError);
-  map.on('style.load',()=>{if(theme==='night')setTimeout(softenNightMap,0)});
+  map.on('style.load',()=>{
+    if(provider==='ptv'){
+      clearStartupTimer();
+      lastPtvError='';
+      errorTimes=[];
+    }
+    if(theme==='night')setTimeout(softenNightMap,0);
+  });
   if(initialProvider==='ptv')startPtvStartupGuard();
 
   if(!gpsSubscribed&&window.__trasyGps?.subscribe){
