@@ -1,5 +1,5 @@
 name: Practical live tests
-# Stały audyt produkcji Trasy 2.0 po wdrożeniu; nawigacja testowana osobno od instalacji SW.
+# Stały audyt produkcji Trasy 2.0 po wdrożeniu; finalny przebieg używa prawdziwego kliknięcia użytkownika.
 
 on:
   workflow_dispatch:
