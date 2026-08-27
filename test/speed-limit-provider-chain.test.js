@@ -6,23 +6,33 @@ const read=path=>fs.readFileSync(new URL('../'+path,import.meta.url),'utf8');
 const limitSource=read('road-speed-limit.js');
 const display=read('speed-display.js');
 const ptvProxy=read('functions/ptv-map/[[path]].js');
+const osmProxy=read('functions/osm-vmax/[[path]].js');
 const serviceWorker=read('sw.js');
 
-test('SpeedMax ma jedno źródło: PTV Map Matching',()=>{
+test('SpeedMax używa OSM najpierw i PTV wyłącznie jako fallback',()=>{
+  assert.match(limitSource,/OSM_PROXY='\/osm-vmax'/);
+  assert.match(limitSource,/nearestRoadLimit/);
+  assert.match(limitSource,/source:'openstreetmap'/);
   assert.match(limitSource,/PTV_PROXY='\/ptv-map\/mapmatch\/v1\/positions'/);
   assert.match(limitSource,/normalizePtvSpeedLimit/);
-  assert.doesNotMatch(limitSource,/Overpass|requestElements|driverRoadSpeedLimit/);
+  assert.match(limitSource,/ptvFallback/);
+  assert.doesNotMatch(limitSource,/overpass-api\.de|overpass\.kumi/);
   assert.match(ptvProxy,/MAPMATCH_PATH/);
   assert.match(ptvProxy,/SEGMENT_ATTRIBUTES/);
   assert.match(ptvProxy,/PTV_API_KEY/);
   assert.doesNotMatch(limitSource,/PTV_API_KEY/);
   assert.match(serviceWorker,/url\.pathname\.startsWith\('\/ptv-map\/'\)/);
+  assert.match(serviceWorker,/url\.pathname\.startsWith\('\/osm-vmax\/'\)/);
+  assert.match(osmProxy,/OVERPASS_ENDPOINTS/);
+  assert.match(osmProxy,/caches\?\.default/);
+  assert.match(osmProxy,/sanitizeElements/);
 });
 
-test('SpeedMax działa także podczas postoju i odświeża się okresowo',()=>{
-  assert.match(limitSource,/STATIONARY_QUERY_INTERVAL_MS=30000/);
-  assert.match(limitSource,/MIN_QUERY_INTERVAL_MS=10000/);
-  assert.match(limitSource,/elapsed>=STATIONARY_QUERY_INTERVAL_MS/);
+test('OSM jest buforowane, a płatny fallback PTV ma rzadszy interwał',()=>{
+  assert.match(limitSource,/OSM_CACHE_TTL_MS=90000/);
+  assert.match(limitSource,/OSM_MIN_QUERY_INTERVAL_MS=15000/);
+  assert.match(limitSource,/PTV_MIN_QUERY_INTERVAL_MS=30000/);
+  assert.match(limitSource,/OSM_STATIONARY_QUERY_INTERVAL_MS=60000/);
   assert.doesNotMatch(limitSource,/if\([^\n]*speed[^\n]*return/);
 });
 
@@ -38,3 +48,4 @@ test('brak limitu ukrywa znak, ale prędkościomierz zostaje',()=>{
   assert.match(display,/routeCurrentSpeed/);
   assert.doesNotMatch(display,/effectiveVehicleSpeedLimit|vehicle-speed-profile-core/);
 });
+
