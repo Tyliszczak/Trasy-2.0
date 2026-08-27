@@ -141,12 +141,14 @@ test('kamera ustawia pierwszy kierunek od razu i płynnie reaguje na jazdę',asy
   assert.match(controls,/delta\*\.78/);
 });
 
-test('SpeedMax ma jedno aktywne źródło PTV Map Matching',async()=>{
+test('SpeedMax używa OSM przez proxy i zachowuje PTV jako fallback',async()=>{
   const [speed,limit]=await Promise.all([readSource('speed-display.js'),readSource('road-speed-limit.js')]);
   assert.match(speed,/trasy:road-speed-limit/);
   assert.match(limit,/trasy:road-speed-limit/);
-  assert.match(limit,/source:hasLimit\?'ptv-map-matching':''/);
-  assert.doesNotMatch(limit,/Overpass|openstreetmap|effectiveVehicleSpeedLimit/);
+  assert.match(limit,/OSM_PROXY='\/osm-vmax'/);
+  assert.match(limit,/source:'openstreetmap'/);
+  assert.match(limit,/source:'ptv-map-matching'/);
+  assert.doesNotMatch(limit,/overpass-api\.de|overpass\.kumi|effectiveVehicleSpeedLimit/);
 });
 
 test('uwagi nawigacyjne nie zapisują nagrań głosowych',async()=>{
@@ -253,3 +255,4 @@ test('link mapy zachowuje współrzędne',()=>{
   const coordinates='51.123, 15.456';
   assert.equal(new URL(mapUrl(coordinates)).searchParams.get('query'),coordinates);
 });
+
