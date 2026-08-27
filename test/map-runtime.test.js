@@ -3,13 +3,17 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 const read=path=>fs.readFileSync(new URL('../'+path,import.meta.url),'utf8');
 
-test('PTV jest główną mapą, OpenFreeMap nocą i jako fallback',()=>{
+test('PTV pozostaje mapą sieciową, a gotowy pakiet OpenFreeMap daje szybki start offline',()=>{
   const source=read('map-runtime.js');
   assert.match(source,/vectormaps-resources\.myptv\.com\/styles\/latest\/standard\.json/);
   assert.match(source,/tiles\.openfreemap\.org\/styles\/liberty/);
   assert.match(source,/tiles\.openfreemap\.org\/styles\/dark/);
-  assert.match(source,/FALLBACK_GRACE_MS=8000/);
-  assert.match(source,/FALLBACK_CONFIRM_ATTEMPTS=3/);
+  assert.match(source,/function offlinePackageReady\(\)/);
+  assert.match(source,/if\(!navigator\.onLine\|\|offlinePackageReady\(\)\)return'openfreemap-liberty'/);
+  assert.match(source,/FALLBACK_GRACE_MS=1200/);
+  assert.match(source,/FALLBACK_CONFIRM_ATTEMPTS=1/);
+  assert.match(source,/REQUEST_TIMEOUT_MS=3000/);
+  assert.match(source,/STYLE_TIMEOUT_MS=5000/);
   assert.match(source,/PTV_RETRY_MS=15000/);
   assert.match(source,/PTV_PROXY='\/ptv-map'/);
 });
