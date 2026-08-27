@@ -1,11 +1,11 @@
 const OVERPASS_ENDPOINTS=[
-  'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
-  'https://overpass.private.coffee/api/interpreter'
+  'https://lz4.overpass-api.de/api/interpreter',
+  'https://z.overpass-api.de/api/interpreter'
 ];
 const PATH_PATTERN=/^(-?\d+(?:\.\d+)?)\/(-?\d+(?:\.\d+)?)$/;
 const QUERY_RADIUS_METERS=120;
-// Oba źródła muszą zmieścić się w 10-sekundowym limicie klienta.
-const REQUEST_TIMEOUT_MS=4000;
+// Oba źródła muszą zmieścić się w 15-sekundowym limicie klienta.
+const REQUEST_TIMEOUT_MS=6500;
 const MAX_RESPONSE_BYTES=2_000_000;
 const MAX_WAYS=100;
 const MAX_GEOMETRY_POINTS=6000;
