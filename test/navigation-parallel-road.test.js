@@ -20,10 +20,11 @@ test('zielona trasa pozostaje pod symbolami i numerami dróg',()=>{
   assert.match(renderer,/ACTIVE_LINE/);
 });
 
-test('PTV przełącza się na fallback dopiero po potwierdzonej awarii',()=>{
+test('PTV przełącza się na fallback po jednej krótkiej potwierdzonej awarii',()=>{
   const runtime=read('map-runtime.js');
-  assert.match(runtime,/FALLBACK_GRACE_MS=8000/);
-  assert.match(runtime,/FALLBACK_CONFIRM_ATTEMPTS=3/);
+  assert.match(runtime,/FALLBACK_GRACE_MS=1200/);
+  assert.match(runtime,/FALLBACK_CONFIRM_ATTEMPTS=1/);
+  assert.match(runtime,/REQUEST_TIMEOUT_MS=3000/);
   assert.match(runtime,/confirmPtvUnavailable/);
   assert.match(runtime,/scheduleFallback\('ptv-tile-errors'\)/);
   assert.match(runtime,/PTV_RETRY_MS=15000/);
