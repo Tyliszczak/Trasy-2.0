@@ -153,6 +153,7 @@ async function handleGet(context){
   }
 
   let lastError=null;
+  const upstreamErrors=[];
   for(const endpoint of OVERPASS_ENDPOINTS){
     try{
       const elements=await requestOverpass(endpoint,point);
@@ -169,11 +170,12 @@ async function handleGet(context){
       return cacheable;
     }catch(error){
       lastError=error;
+      upstreamErrors.push(String(error instanceof Error?error.message:error).slice(0,80));
     }
   }
 
   console.error(JSON.stringify({message:'OSM VMAX upstream failed',error:lastError instanceof Error?lastError.message:String(lastError)}));
-  return json({ok:false,code:'OSM_VMAX_UNAVAILABLE'},502);
+  return json({ok:false,code:'OSM_VMAX_UNAVAILABLE',upstreamErrors},502);
 }
 
 export async function onRequest(context){
