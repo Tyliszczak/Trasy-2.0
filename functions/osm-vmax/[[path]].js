@@ -1,5 +1,5 @@
 const OVERPASS_ENDPOINTS=[
-  'https://overpass-api.de/api/interpreter',
+  'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
   'https://overpass.private.coffee/api/interpreter'
 ];
 const PATH_PATTERN=/^(-?\d+(?:\.\d+)?)\/(-?\d+(?:\.\d+)?)$/;
