@@ -6,14 +6,14 @@ const PTV_PROXY='/ptv-map';
 const DAY_FALLBACK='https://tiles.openfreemap.org/styles/liberty';
 const NIGHT_STYLE='https://tiles.openfreemap.org/styles/dark';
 const CHECK_MS=60000;
-const REQUEST_TIMEOUT_MS=6500;
+const REQUEST_TIMEOUT_MS=3000;
 const PTV_RETRY_MS=15000;
-const FALLBACK_GRACE_MS=8000;
-const FALLBACK_CONFIRM_ATTEMPTS=3;
-const FALLBACK_CONFIRM_DELAY_MS=2000;
+const FALLBACK_GRACE_MS=1200;
+const FALLBACK_CONFIRM_ATTEMPTS=1;
+const FALLBACK_CONFIRM_DELAY_MS=0;
 const ERROR_WINDOW_MS=12000;
 const ERROR_LIMIT=3;
-const STYLE_TIMEOUT_MS=12000;
+const STYLE_TIMEOUT_MS=5000;
 
 let map=null;
 let provider='initial';
@@ -59,6 +59,20 @@ function themeAt(point){
 }
 
 function currentTheme(options=null){return themeAt(currentPoint(options))}
+
+function offlinePackageReady(){
+  try{
+    const state=window.__trasyOfflineMap?.state?.();
+    const meta=state?.meta;
+    return Number(meta?.cached||0)>0&&Number(meta?.completedAt||0)>0;
+  }catch{return false}
+}
+
+function initialProviderFor(themeName){
+  if(themeName==='night')return'openfreemap-dark';
+  if(!navigator.onLine||offlinePackageReady())return'openfreemap-liberty';
+  return'ptv';
+}
 
 function proxiedPtvUrl(value){
   if(typeof value!=='string')return value;
@@ -138,7 +152,7 @@ async function confirmPtvUnavailable(){
   let lastError=null;
   for(let attempt=0;attempt<FALLBACK_CONFIRM_ATTEMPTS;attempt+=1){
     try{await probePtv();return false}catch(error){lastError=error}
-    if(attempt<FALLBACK_CONFIRM_ATTEMPTS-1)await sleep(FALLBACK_CONFIRM_DELAY_MS);
+    if(attempt<FALLBACK_CONFIRM_ATTEMPTS-1&&FALLBACK_CONFIRM_DELAY_MS>0)await sleep(FALLBACK_CONFIRM_DELAY_MS);
   }
   if(lastError)console.warn('PTV: potwierdzona niedostępność:',lastError);
   return true;
@@ -299,7 +313,7 @@ function installRuntime(nextMap,initialProvider,initialTheme){
 function createMap(options){
   if(!window.maplibregl?.Map)throw Error('MapLibre nie jest dostępne.');
   const nextTheme=currentTheme(options);
-  const nextProvider=providerFor(nextTheme);
+  const nextProvider=initialProviderFor(nextTheme);
   const mapOptions={
     ...options,
     style:styleFor(nextTheme,nextProvider),
