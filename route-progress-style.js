@@ -11,7 +11,9 @@ import { advanceRouteProgress, projectRoutePosition, splitRemainingRouteAtPositi
   const FUTURE_SOURCE='route-future';
   const FUTURE_OUTLINE='route-future-outline';
   const FUTURE_LINE='route-future-line';
-  const ERASE_ANIMATION_MS=320;
+  const ERASE_MIN_MS=550;
+  const ERASE_MAX_MS=1400;
+  const ERASE_INTERVAL_FACTOR=1.15;
 
   let map=null;
   let fullCoords=[];
@@ -20,7 +22,9 @@ import { advanceRouteProgress, projectRoutePosition, splitRemainingRouteAtPositi
   let targetRoutePosition=0;
   let animationFromPosition=0;
   let animationStartedAt=0;
+  let eraseAnimationMs=900;
   let latestPosition=gps.current?.()||null;
+  let lastGpsAt=0;
   let renderQueued=false;
 
   function cloneCoords(coords){
@@ -112,6 +116,8 @@ import { advanceRouteProgress, projectRoutePosition, splitRemainingRouteAtPositi
     targetRoutePosition=0;
     animationFromPosition=0;
     animationStartedAt=0;
+    eraseAnimationMs=900;
+    lastGpsAt=0;
   }
 
   function capture(data){
@@ -133,6 +139,12 @@ import { advanceRouteProgress, projectRoutePosition, splitRemainingRouteAtPositi
     return true;
   }
 
+  function updateEraseDuration(now=performance.now()){
+    const interval=lastGpsAt?now-lastGpsAt:900;
+    lastGpsAt=now;
+    eraseAnimationMs=Math.max(ERASE_MIN_MS,Math.min(ERASE_MAX_MS,interval*ERASE_INTERVAL_FACTOR));
+  }
+
   function startEraseAnimation(nextPosition){
     const next=Number(nextPosition);
     if(!Number.isFinite(next)||next<=targetRoutePosition+1e-5)return;
@@ -144,9 +156,8 @@ import { advanceRouteProgress, projectRoutePosition, splitRemainingRouteAtPositi
   function advanceEraseAnimation(now=performance.now()){
     if(targetRoutePosition<=displayRoutePosition+1e-6){displayRoutePosition=targetRoutePosition;return false}
     if(!animationStartedAt){displayRoutePosition=targetRoutePosition;return false}
-    const linear=Math.max(0,Math.min(1,(now-animationStartedAt)/ERASE_ANIMATION_MS));
-    const eased=1-Math.pow(1-linear,3);
-    displayRoutePosition=animationFromPosition+(targetRoutePosition-animationFromPosition)*eased;
+    const linear=Math.max(0,Math.min(1,(now-animationStartedAt)/eraseAnimationMs));
+    displayRoutePosition=animationFromPosition+(targetRoutePosition-animationFromPosition)*linear;
     if(linear>=1){displayRoutePosition=targetRoutePosition;animationStartedAt=0;return false}
     return true;
   }
@@ -175,7 +186,7 @@ import { advanceRouteProgress, projectRoutePosition, splitRemainingRouteAtPositi
       progressIndex,
       displayRoutePosition,
       targetRoutePosition,
-      eraseAnimationMs:ERASE_ANIMATION_MS,
+      eraseAnimationMs,
       nextStopIndex:split.stopIndex,
       activePoints:split.active.length,
       futurePoints:split.future.length
@@ -210,7 +221,6 @@ import { advanceRouteProgress, projectRoutePosition, splitRemainingRouteAtPositi
     if(!nextMap||nextMap===map)return;
     map=nextMap;
     map.on('style.load',()=>{
-      // Po zmianie PTV / noc / fallback odtwarza warstwy jeden właściciel.
       ensureLayers();
       queueRender();
     });
@@ -222,6 +232,7 @@ import { advanceRouteProgress, projectRoutePosition, splitRemainingRouteAtPositi
     latestPosition=position;
     const panel=document.getElementById('routeMapNav');
     if(!panel||panel.hidden)return;
+    updateEraseDuration();
     queueRender();
   },()=>{});
 
