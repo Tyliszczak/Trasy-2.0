@@ -37,6 +37,7 @@
   let hiddenAt=0;
   let resumeInstant=false;
   let resumePromise=null;
+  let navigationStartPromise=null;
 
 
   const PITCH=58;
@@ -166,7 +167,7 @@
       <div style="
         background:#181818;
         border-top:1px solid #333
-      ">
+      " class="routeStatusBar">
 
         <div
           id="routeMapStatus"
@@ -191,6 +192,10 @@
           "
         ></div>
 
+        <div id="routeGpsActions" hidden>
+          <button id="routeGpsRetry" type="button">SPRÓBUJ PONOWNIE</button>
+        </div>
+
       </div>
     </div>
   `;
@@ -200,12 +205,50 @@
   const root=panel.querySelector('#routeNavRoot');
   const status=panel.querySelector('#routeMapStatus');
   const gpsStatus=panel.querySelector('#routeGpsStatus');
+  const gpsActions=panel.querySelector('#routeGpsActions');
+  const gpsRetry=panel.querySelector('#routeGpsRetry');
 
   const maneuverEl=
     panel.querySelector('#routeManeuver');
 
   const maneuverDistance=
     panel.querySelector('#routeManeuverDistance');
+
+  function setNavigationLoading(message='Pobieranie pozycji telefonu…'){
+    status.dataset.state='loading';
+    status.textContent=message;
+    gpsStatus.textContent='';
+    gpsActions.hidden=true;
+    gpsRetry.disabled=false;
+  }
+
+  function navigationErrorMessage(error){
+    const code=Number(error?.code);
+    const message=String(error?.message||'');
+    if(code===1)return'Brak dostępu do lokalizacji. Włącz lokalizację dla tej aplikacji.';
+    if(code===2)return'Nie można ustalić pozycji GPS. Sprawdź, czy lokalizacja jest włączona.';
+    if(code===3)return'Oczekiwanie na pozycję GPS trwało zbyt długo.';
+    if(message.includes('Runtime mapy'))return'Mapa nie jest jeszcze gotowa. Spróbuj ponownie.';
+    if(/HTTP|trasy|Renderer/i.test(message))return'Nie udało się pobrać przebiegu trasy.';
+    return'Nie udało się uruchomić nawigacji.';
+  }
+
+  function navigationErrorHint(error){
+    const code=Number(error?.code);
+    return code>=1&&code<=3
+      ?'Sprawdź ustawienia lokalizacji i spróbuj ponownie.'
+      :'Sprawdź połączenie z internetem i spróbuj ponownie.';
+  }
+
+  function showNavigationError(error){
+    status.dataset.state='error';
+    status.textContent=navigationErrorMessage(error);
+    gpsStatus.textContent=navigationErrorHint(error);
+    maneuverEl.textContent='Nawigacja niedostępna';
+    maneuverDistance.textContent='';
+    gpsActions.hidden=false;
+    gpsRetry.disabled=false;
+  }
 
 
 
@@ -1137,6 +1180,7 @@
       status.textContent=
         `Trasa ${fmtDistance(route.distance)} • `+
         `${Math.round(route.duration/60)} min`;
+      status.dataset.state='ready';
     }catch(error){
       if(error?.name==='AbortError'||requestId!==routeRequestGeneration)return;
       throw error;
@@ -1407,21 +1451,13 @@
       return;
     }
 
-    if(!navigator.geolocation){
-      alert('Telefon nie udostępnia lokalizacji.');
-      return;
-    }
-
     currentStops=stops;
 
     panel.hidden=false;
     window.__trasyWakeLock?.setNavigation(true);
     window.__routeCameraController?.startGuidance();
 
-    status.textContent=
-      'Pobieranie pozycji telefonu…';
-
-    gpsStatus.textContent='';
+    setNavigationLoading();
 
     maneuverEl.textContent=
       'Pobieranie trasy…';
@@ -1439,6 +1475,11 @@
     if(rerouteTimer){
       clearTimeout(rerouteTimer);
       rerouteTimer=0;
+    }
+
+    if(!navigator.geolocation){
+      showNavigationError({code:2,message:'Geolocation unavailable'});
+      return;
     }
 
     try{
@@ -1543,11 +1584,22 @@
         );
 
     }catch(e){
-      status.textContent=
-        `Nie udało się uruchomić nawigacji: `+
-        `${e.message||'błąd'}`;
+      showNavigationError(e);
     }
   }
+
+  function startMapNav(){
+    if(navigationStartPromise)return navigationStartPromise;
+    navigationStartPromise=openMapNav()
+      .catch(error=>showNavigationError(error))
+      .finally(()=>{navigationStartPromise=null;gpsRetry.disabled=false});
+    return navigationStartPromise;
+  }
+
+  gpsRetry.onclick=()=>{
+    gpsRetry.disabled=true;
+    startMapNav();
+  };
 
   function closeMapNav(){
     window.__routeCameraController?.startGuidance();
@@ -1644,7 +1696,7 @@
       e.preventDefault();
       e.stopImmediatePropagation();
 
-      openMapNav();
+      startMapNav();
     },
     true
   );

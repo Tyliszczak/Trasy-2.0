@@ -37,6 +37,8 @@ body:has(#scheduleView:not([hidden])) #scheduleView .tableWrap{flex:1 1 auto!imp
 .parkingChoiceList{display:grid;gap:9px}
 .parkingChoiceButton{margin:0;padding:12px;background:#ccff33;color:#111}
 .parkingChoiceCancel{margin-top:12px;background:#555;color:#fff}
+.routeModeNotice{position:fixed;left:50%;bottom:calc(74px + env(safe-area-inset-bottom));z-index:72000;width:min(calc(100% - 24px),520px);transform:translateX(-50%);padding:12px 42px 12px 14px;border:1px solid #ffd60a;border-radius:12px;background:#211f17;color:#fff;box-shadow:0 7px 24px #000c;font-size:.9rem;font-weight:800;line-height:1.35}
+.routeModeNotice[hidden]{display:none!important}.routeModeNotice button{position:absolute;top:5px;right:6px;width:34px!important;min-width:34px!important;min-height:34px!important;padding:0;border-radius:17px;background:#3d3929;color:#fff;font-size:21px}
 @media(max-width:520px){.returnRouteSwitchLabel,.emptyRouteSwitchLabel{font-size:.7rem}}
 
 /* Aktywny przystanek i status punktualności. */
@@ -133,5 +135,12 @@ html[data-map-theme="night"] #routeMapCanvas .maplibregl-ctrl-attrib a{color:#d8
 #routeMapClose{position:fixed;top:112px;left:10px;z-index:50100;width:38px!important;min-width:38px!important;height:38px!important;min-height:38px!important;padding:0!important;border:1px solid #fff8!important;border-radius:19px!important;background:#111d!important;color:#fff!important;font-size:32px!important;line-height:32px!important;box-shadow:0 2px 9px #000a!important;display:flex!important;align-items:center!important;justify-content:center!important}
 #routeMapCenter{position:fixed;right:12px;top:112px;z-index:50100;width:42px!important;min-width:42px!important;height:42px!important;min-height:42px!important;padding:0!important;border:1px solid #fff8!important;border-radius:21px!important;background:#111d!important;color:#fff!important;box-shadow:0 2px 9px #000a!important;display:flex!important;align-items:center!important;justify-content:center!important}
 #routeVoiceToggle{position:fixed;top:162px;right:14px;z-index:50100;width:38px!important;min-width:38px!important;height:38px!important;min-height:38px!important;padding:0!important;border:1px solid #fff8!important;border-radius:19px!important;background:#111d!important;color:#fff!important;font-size:19px!important;box-shadow:0 2px 9px #000a!important}
+.routeStatusBar{position:relative;z-index:50020;min-height:54px;padding-bottom:max(5px,env(safe-area-inset-bottom));background:#181818}
+#routeMapStatus{max-width:720px;margin:0 auto;overflow-wrap:anywhere;line-height:1.3}
+#routeMapStatus[data-state="error"]{padding:9px 68px 3px!important;color:#ffb4ab!important;font-size:14px!important}
+#routeGpsStatus{max-width:720px;margin:0 auto;line-height:1.3}
+#routeGpsActions{padding:4px 12px 8px;text-align:center}
+#routeGpsActions[hidden]{display:none!important}
+#routeGpsRetry{width:auto!important;min-width:170px!important;min-height:44px!important;padding:8px 16px!important;border:1px solid #ccff33!important;border-radius:22px!important;background:#ccff33!important;color:#111!important;font-size:13px!important}
 .routeNavInfoShell{padding:7px 12px!important;min-height:0!important}
 .routeNavInfoRow{margin-top:0!important;justify-content:flex-start!important;align-items:center!important}

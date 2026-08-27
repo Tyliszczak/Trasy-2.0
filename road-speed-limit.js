@@ -1,4 +1,5 @@
 import {normalizePtvSpeedLimit,nearestRoadLimit,distanceMeters,bearingDegrees} from './road-speed-limit-core.js?v=4';
+import {readVmaxCache,writeVmaxCache} from './offline-vmax-cache.js?v=1';
 
 (()=>{
   const gps=window.__trasyGps;
@@ -144,10 +145,24 @@ import {normalizePtvSpeedLimit,nearestRoadLimit,distanceMeters,bearingDegrees} f
     }
   }
 
-  async function requestOsm(point){
+  async function requestOsmNetwork(point){
     const url=new URL(`${OSM_PROXY}/${point.lat.toFixed(5)}/${point.lon.toFixed(5)}`,location.origin);
     const data=await fetchJson(url.href);
     return Array.isArray(data?.elements)?data.elements:[];
+  }
+
+  async function requestOsm(point){
+    const fresh=await readVmaxCache(point).catch(()=>null);
+    if(fresh)return{elements:fresh.elements,cache:'device'};
+    try{
+      const elements=await requestOsmNetwork(point);
+      writeVmaxCache(point,elements).catch(error=>console.warn('Pamięć VMAX:',error));
+      return{elements,cache:'network'};
+    }catch(error){
+      const stale=await readVmaxCache(point,{allowStale:true}).catch(()=>null);
+      if(stale)return{elements:stale.elements,cache:'device-stale'};
+      throw error;
+    }
   }
 
   async function requestPtv(point,heading){
@@ -217,8 +232,10 @@ import {normalizePtvSpeedLimit,nearestRoadLimit,distanceMeters,bearingDegrees} f
     const attempts=['osm'];
     try{
       try{
-        osmElements=await requestOsm(point);
+        const osm=await requestOsm(point);
+        osmElements=osm.elements;
         osmElementsAt=Date.now();
+        attempts.push(`osm-${osm.cache}`);
         const result=osmMatch(point,heading);
         if(result?.maxspeed){
           previousWayId=result.osmWayId;

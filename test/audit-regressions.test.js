@@ -53,7 +53,7 @@ test('core UI nie wstrzykuje już kolejnych arkuszy stylów w runtime',async()=>
     assert.doesNotMatch(await read(name),/createElement\(['"]style['"]\)/,name);
   }
   const html=await read('index.html');
-  assert.match(html,/navigation\.css\?v=1/);
+  assert.match(html,/navigation\.css\?v=\d+/);
 });
 
 test('stare wyznaczanie trasy jest anulowane po zmianie celu',async()=>{
