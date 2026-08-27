@@ -122,11 +122,13 @@ import{canAutoAdvanceBySchedule,shouldApplySchedulePriority}from'./stop-target-p
     const previous=Number(body.dataset.gpsNextStop);
     const changed=!Number.isInteger(previous)||previous!==index||body.dataset.gpsNextStopKey!==key;
 
-    body.querySelectorAll('tr').forEach(row=>{
-      const active=row===routeRows[index];
-      row.classList.toggle('gpsNextStop',active);
-      row.classList.toggle('isActiveStop',active);
-    });
+    if(changed){
+      body.querySelectorAll('tr').forEach(row=>{
+        const active=row===target;
+        row.classList.toggle('gpsNextStop',active);
+        row.classList.toggle('isActiveStop',active);
+      });
+    }
 
     body.dataset.gpsNextStop=String(index);
     body.dataset.gpsNextStopKey=key;
@@ -226,8 +228,13 @@ import{canAutoAdvanceBySchedule,shouldApplySchedulePriority}from'./stop-target-p
       direction:body.dataset.direction||'forward',
       emptyRun:body.dataset.emptyRun==='1'
     });
-    if(protectSchedule&&result.changed&&currentIndex>0&&(result.reason==='initial-target'||result.reason==='passed-stop')){
-      const fromIndex=result.reason==='passed-stop'&&Number.isInteger(result.skippedIndex)?result.skippedIndex:0;
+    const scheduleProtectedReason=result.reason==='initial-target'||result.reason==='passed-stop'||result.reason==='reacquired-target';
+    if(protectSchedule&&result.changed&&currentIndex>0&&scheduleProtectedReason){
+      const fromIndex=result.reason==='passed-stop'&&Number.isInteger(result.skippedIndex)
+        ?result.skippedIndex
+        :result.reason==='reacquired-target'&&Number.isInteger(result.fromIndex)
+          ?result.fromIndex
+          :minimumTargetIndex();
       if(!scheduleAllowsAutoAdvance(fromIndex,currentIndex)){
         currentIndex=fromIndex;
         engine.setIndex(currentIndex);
