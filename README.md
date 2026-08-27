@@ -23,9 +23,10 @@ Docelowy panel administratora korzysta z operacji `loadParkings` i `saveParkings
 - czasy z ruchem: Google Routes przez backend,
 - odświeżenie danych o ruchu podczas nawigacji: standardowo co 3 minuty,
 - pomiędzy odświeżeniami ETA jest lokalnie korygowane na podstawie postępu GPS po aktualnej trasie,
-- limit prędkości jest pobierany przez chroniony backend w kolejności: **PTV → HERE → TomTom → Mapbox → Google Roads → OSM/Overpass**; następne źródło jest pytane dopiero wtedy, gdy wcześniejsze jest nieskonfigurowane, zwróci błąd albo nie poda wiarygodnego limitu,
-- klucze PTV/HERE/TomTom/Mapbox/Google nie trafiają do PWA; znajdują się wyłącznie po stronie backendu,
-- OSM/Overpass jest ostatnim fallbackiem i nadal uwzględnia kierunek jazdy oraz ciągłość poprzedniego odcinka, aby ograniczyć pomyłki na skrzyżowaniach i drogach równoległych,
+- limit prędkości jest pobierany najpierw z **OpenStreetMap**, przez buforowaną funkcję Cloudflare; publiczny Overpass nie jest wywoływany bezpośrednio z telefonu,
+- PTV Map Matching jest pytane dopiero wtedy, gdy OSM nie poda wiarygodnego limitu; ogranicza to liczbę płatnych zapytań bez zmiany sposobu wyznaczania i prowadzenia po trasie,
+- klucz PTV nie trafia do PWA; znajduje się wyłącznie po stronie funkcji Cloudflare,
+- dopasowanie OSM uwzględnia odległość, kierunek jazdy, kierunkowe `maxspeed` oraz ciągłość poprzedniego odcinka, aby ograniczyć pomyłki na skrzyżowaniach i drogach równoległych,
 - gdy żadne źródło nie poda wiarygodnego limitu, znak ograniczenia prędkości jest całkowicie ukrywany; prędkościomierz pozostaje widoczny,
 - dla autobusu ogólny limit drogi jest dodatkowo ograniczany profilem pojazdu; tryb BUS 100 wymaga jawnego potwierdzenia dopuszczenia oraz braku miejsc stojących,
 - kamera po uruchomieniu przyjmuje kierunek pierwszego odcinka trasy i szybciej reaguje na wiarygodną zmianę kierunku GPS,
@@ -58,3 +59,4 @@ Repozytorium ma również workflow GitHub Actions uruchamiający `npm test` dla 
 ## Edytor lokalizacji
 
 `map-editor.html` jest osobnym narzędziem do ustawiania współrzędnych przystanków i zapisu ich do backendu. Nie jest częścią głównego ekranu kierowcy.
+
