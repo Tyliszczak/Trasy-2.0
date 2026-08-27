@@ -1,5 +1,6 @@
 import test from'node:test';
 import assert from'node:assert/strict';
+import fs from'node:fs';
 import{canAutoAdvanceBySchedule,shouldApplySchedulePriority}from'../stop-target-policy.js';
 
 const at=value=>new Date(`2026-08-25T${value}:00`);
@@ -54,4 +55,11 @@ test('ochrona harmonogramu działa tylko na kursie z godzinami, nigdy na powroci
   assert.equal(shouldApplySchedulePriority({direction:'return',emptyRun:false}),false);
   assert.equal(shouldApplySchedulePriority({direction:'return',emptyRun:true}),false);
   assert.equal(shouldApplySchedulePriority({direction:'forward',emptyRun:true}),false);
+});
+
+test('samonaprawa GPS nie może ominąć aktywnego przystanku przed czasem',()=>{
+  const source=fs.readFileSync(new URL('../gps-stop-tracker.js',import.meta.url),'utf8');
+  assert.match(source,/result\.reason==='reacquired-target'/);
+  assert.match(source,/scheduleAllowsAutoAdvance\(fromIndex,currentIndex\)/);
+  assert.match(source,/engine\.setIndex\(currentIndex\)/);
 });
