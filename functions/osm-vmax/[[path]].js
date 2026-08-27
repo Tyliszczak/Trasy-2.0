@@ -174,8 +174,12 @@ async function handleGet(context){
     }
   }
 
-  console.error(JSON.stringify({message:'OSM VMAX upstream failed',error:lastError instanceof Error?lastError.message:String(lastError)}));
-  return json({ok:false,code:'OSM_VMAX_UNAVAILABLE',upstreamErrors},502);
+  console.error(JSON.stringify({
+    message:'OSM VMAX upstream failed',
+    error:lastError instanceof Error?lastError.message:String(lastError),
+    upstreamErrors
+  }));
+  return json({ok:false,code:'OSM_VMAX_UNAVAILABLE'},502);
 }
 
 export async function onRequest(context){
