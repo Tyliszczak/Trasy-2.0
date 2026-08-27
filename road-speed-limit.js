@@ -1,30 +1,40 @@
-import { normalizePtvSpeedLimit,distanceMeters,bearingDegrees } from './road-speed-limit-core.js?v=3';
+import {normalizePtvSpeedLimit,nearestRoadLimit,distanceMeters,bearingDegrees} from './road-speed-limit-core.js?v=4';
 
 (()=>{
   const gps=window.__trasyGps;
   if(!gps?.subscribe)return;
 
+  const OSM_PROXY='/osm-vmax';
   const PTV_PROXY='/ptv-map/mapmatch/v1/positions';
   const MAX_GPS_ACCURACY_M=80;
-  const MAX_MATCH_DISTANCE_M=80;
-  const MIN_QUERY_INTERVAL_MS=10000;
-  const STATIONARY_QUERY_INTERVAL_MS=30000;
-  const MIN_MOVE_M=35;
+  const MAX_ROAD_DISTANCE_M=70;
+  const MAX_PTV_MATCH_DISTANCE_M=80;
+  const OSM_MIN_QUERY_INTERVAL_MS=15000;
+  const OSM_STATIONARY_QUERY_INTERVAL_MS=60000;
+  const OSM_MIN_MOVE_M=65;
+  const OSM_CACHE_TTL_MS=90000;
+  const PTV_MIN_QUERY_INTERVAL_MS=30000;
+  const PTV_MIN_MOVE_M=100;
   const HEADING_MIN_MOVE_M=8;
   const HEADING_MIN_SPEED_MPS=1.4;
   const HEADING_MAX_AGE_MS=45000;
   const REQUEST_TIMEOUT_MS=10000;
-  const LIMIT_TTL_MS=45000;
+  const LIMIT_TTL_MS=60000;
 
-
-  let lastQueryAt=0;
-  let lastQueryPoint=null;
+  let lastOsmQueryAt=0;
+  let lastOsmQueryPoint=null;
+  let lastPtvQueryAt=0;
+  let lastPtvQueryPoint=null;
   let lastGpsPoint=null;
   let lastHeading=null;
   let lastHeadingAt=0;
+  let previousWayId=null;
+  let osmElements=[];
+  let osmElementsAt=0;
   let inFlight=false;
   let validUntil=0;
   let staleTimer=0;
+  let lastSource='';
 
   function active(){
     const map=document.getElementById('routeMapNav');
@@ -32,33 +42,37 @@ import { normalizePtvSpeedLimit,distanceMeters,bearingDegrees } from './road-spe
     return map?.hidden===false||schedule?.hidden===false;
   }
 
-  function publish(limit,{staleReason=''}={}){
+  function publish(limit,{source='',staleReason='',attempts=[]}={}){
     clearTimeout(staleTimer);
     staleTimer=0;
 
     const value=Number(limit?.maxspeed);
     const hasLimit=Number.isFinite(value)&&value>0;
-    window.__routeRoadSpeedLimitKmh=hasLimit?value:null;
-    window.__routeRoadClass='';
-    window.__routeHighSpeedRoad=false;
+    const resolvedSource=hasLimit?String(source||limit?.source||lastSource):'';
+    if(hasLimit)lastSource=resolvedSource;
+    window.__routeRoadSpeedLimitKmh=hasLimit?Math.round(value):null;
+    window.__routeRoadClass=String(limit?.roadClass||'');
+    window.__routeHighSpeedRoad=!!limit?.highSpeedRoad;
     validUntil=hasLimit?Date.now()+LIMIT_TTL_MS:0;
     window.__routeRoadSpeedLimitValidUntil=validUntil;
     window.__routeRoadSpeedLimitState={
       hasLimit,
-      source:hasLimit?'ptv-map-matching':'',
+      source:resolvedSource,
       staleReason,
-      matchDistance:limit?.matchDistance??null,
-      angleDifference:limit?.angleDifference??null,
-      builtUpArea:limit?.builtUpArea===true,
+      osmWayId:limit?.osmWayId??null,
+      roadName:limit?.name||'',
+      matchDistance:limit?.matchDistance??limit?.distance??null,
+      attempts,
       updatedAt:Date.now()
     };
 
     document.dispatchEvent(new CustomEvent('trasy:road-speed-limit',{detail:{
       maxspeed:window.__routeRoadSpeedLimitKmh,
-      source:hasLimit?'ptv-map-matching':'',
-      matchDistance:limit?.matchDistance??null,
-      angleDifference:limit?.angleDifference??null,
-      builtUpArea:limit?.builtUpArea===true,
+      roadClass:window.__routeRoadClass,
+      highSpeedRoad:window.__routeHighSpeedRoad,
+      source:resolvedSource,
+      osmWayId:limit?.osmWayId??null,
+      roadName:limit?.name||'',
       validUntil,
       stale:!hasLimit&&!!staleReason,
       staleReason
@@ -66,7 +80,7 @@ import { normalizePtvSpeedLimit,distanceMeters,bearingDegrees } from './road-spe
 
     if(hasLimit){
       staleTimer=setTimeout(()=>{
-        if(validUntil&&Date.now()>=validUntil)publish(null,{staleReason:'ttl'});
+        if(validUntil&&Date.now()>=validUntil)publish(null,{staleReason:'ttl',attempts:['expired']});
       },LIMIT_TTL_MS+50);
     }
   }
@@ -74,7 +88,6 @@ import { normalizePtvSpeedLimit,distanceMeters,bearingDegrees } from './road-spe
   function updateHeading(position,point,now){
     const speed=Number(position?.coords?.speed);
     const nativeHeading=Number(position?.coords?.heading);
-
     if(Number.isFinite(nativeHeading)&&nativeHeading>=0&&(!Number.isFinite(speed)||speed>=HEADING_MIN_SPEED_MPS)){
       lastHeading=(nativeHeading+360)%360;
       lastHeadingAt=now;
@@ -88,7 +101,6 @@ import { normalizePtvSpeedLimit,distanceMeters,bearingDegrees } from './road-spe
         }
       }
     }
-
     if(!lastGpsPoint||distanceMeters(lastGpsPoint,point)>=3)lastGpsPoint=point;
   }
 
@@ -96,33 +108,69 @@ import { normalizePtvSpeedLimit,distanceMeters,bearingDegrees } from './road-spe
     return Number.isFinite(lastHeading)&&now-lastHeadingAt<=HEADING_MAX_AGE_MS?lastHeading:null;
   }
 
-  function shouldQuery(point,now){
-    if(inFlight)return false;
-    if(!lastQueryPoint)return true;
-    const elapsed=now-lastQueryAt;
-    if(elapsed<MIN_QUERY_INTERVAL_MS)return false;
-    const moved=distanceMeters(lastQueryPoint,point);
-    return moved>=MIN_MOVE_M||elapsed>=STATIONARY_QUERY_INTERVAL_MS;
+  function osmMatch(point,heading){
+    if(!osmElements.length||Date.now()-osmElementsAt>OSM_CACHE_TTL_MS)return null;
+    return nearestRoadLimit(osmElements,point,{maxDistance:MAX_ROAD_DISTANCE_M,heading,previousWayId});
   }
 
-  async function requestLimit(point,heading){
+  function shouldRefreshOsm(point,now){
+    if(!lastOsmQueryPoint)return true;
+    const elapsed=now-lastOsmQueryAt;
+    if(elapsed<OSM_MIN_QUERY_INTERVAL_MS)return false;
+    return distanceMeters(lastOsmQueryPoint,point)>=OSM_MIN_MOVE_M||elapsed>=OSM_STATIONARY_QUERY_INTERVAL_MS;
+  }
+
+  function shouldRequestPtv(point,now){
+    if(!lastPtvQueryPoint)return true;
+    if(now-lastPtvQueryAt<PTV_MIN_QUERY_INTERVAL_MS)return false;
+    return distanceMeters(lastPtvQueryPoint,point)>=PTV_MIN_MOVE_M||now-lastPtvQueryAt>=OSM_STATIONARY_QUERY_INTERVAL_MS;
+  }
+
+  async function fetchJson(url){
     const controller=new AbortController();
     const timeout=setTimeout(()=>controller.abort(),REQUEST_TIMEOUT_MS);
     try{
-      const url=new URL(`${PTV_PROXY}/${point.lat.toFixed(7)}/${point.lon.toFixed(7)}`,location.origin);
-      if(Number.isFinite(heading))url.searchParams.set('heading',String(Math.round(heading)));
-      const response=await fetch(url.href,{
+      const response=await fetch(url,{
         method:'GET',
         cache:'no-store',
         credentials:'same-origin',
         headers:{Accept:'application/json'},
         signal:controller.signal
       });
-      if(!response.ok)throw Error(`PTV HTTP ${response.status}`);
-      const data=await response.json();
-      return normalizePtvSpeedLimit(data,{maxMatchDistance:MAX_MATCH_DISTANCE_M});
+      if(!response.ok)throw Error(`HTTP ${response.status}`);
+      return response.json();
     }finally{
       clearTimeout(timeout);
+    }
+  }
+
+  async function requestOsm(point){
+    const url=new URL(`${OSM_PROXY}/${point.lat.toFixed(5)}/${point.lon.toFixed(5)}`,location.origin);
+    const data=await fetchJson(url.href);
+    return Array.isArray(data?.elements)?data.elements:[];
+  }
+
+  async function requestPtv(point,heading){
+    const url=new URL(`${PTV_PROXY}/${point.lat.toFixed(7)}/${point.lon.toFixed(7)}`,location.origin);
+    if(Number.isFinite(heading))url.searchParams.set('heading',String(Math.round(heading)));
+    const data=await fetchJson(url.href);
+    return normalizePtvSpeedLimit(data,{maxMatchDistance:MAX_PTV_MATCH_DISTANCE_M});
+  }
+
+  async function ptvFallback(point,heading,now,attempts){
+    if(!shouldRequestPtv(point,now))return false;
+    lastPtvQueryAt=now;
+    lastPtvQueryPoint=point;
+    attempts.push('ptv');
+    try{
+      const limit=await requestPtv(point,heading);
+      if(!limit)return false;
+      publish(limit,{source:'ptv-map-matching',attempts});
+      return true;
+    }catch(error){
+      attempts.push('ptv-error');
+      console.warn('SpeedMax PTV fallback:',error);
+      return false;
     }
   }
 
@@ -135,43 +183,84 @@ import { normalizePtvSpeedLimit,distanceMeters,bearingDegrees } from './road-spe
     const now=Date.now();
     const point={lat,lon};
     updateHeading(position,point,now);
+    const heading=usableHeading(now);
 
     if(accuracy>MAX_GPS_ACCURACY_M){
-      if(validUntil&&now>=validUntil)publish(null,{staleReason:'gps-accuracy'});
+      if(validUntil&&now>=validUntil)publish(null,{staleReason:'gps-accuracy',attempts:['gps-accuracy']});
       return;
     }
-    if(!shouldQuery(point,now))return;
+
+    const local=osmMatch(point,heading);
+    if(local?.maxspeed){
+      previousWayId=local.osmWayId;
+      publish(local,{source:'openstreetmap',attempts:['osm-cache']});
+    }
+
+    if(inFlight)return;
+    if(!shouldRefreshOsm(point,now)){
+      if(!local?.maxspeed&&!validUntil){
+        inFlight=true;
+        try{
+          const attempts=['osm-cache-no-limit'];
+          const found=await ptvFallback(point,heading,now,attempts);
+          if(!found&&!validUntil)publish(null,{staleReason:'no-limit',attempts});
+        }finally{
+          inFlight=false;
+        }
+      }
+      return;
+    }
 
     inFlight=true;
-    lastQueryAt=now;
-    lastQueryPoint=point;
+    lastOsmQueryAt=now;
+    lastOsmQueryPoint=point;
+    const attempts=['osm'];
     try{
-      const limit=await requestLimit(point,usableHeading(now));
-      if(limit)publish(limit);
-      else publish(null,{staleReason:'no-limit'});
-    }catch(error){
-      if(!validUntil||Date.now()>=validUntil)publish(null,{staleReason:'error'});
-      console.warn('SpeedMax PTV:',error);
+      try{
+        osmElements=await requestOsm(point);
+        osmElementsAt=Date.now();
+        const result=osmMatch(point,heading);
+        if(result?.maxspeed){
+          previousWayId=result.osmWayId;
+          publish(result,{source:'openstreetmap',attempts});
+          return;
+        }
+        attempts.push(result?.hasRoadMatch?'osm-road-without-limit':'osm-no-road-match');
+      }catch(error){
+        attempts.push('osm-error');
+        console.warn('SpeedMax OSM:',error);
+      }
+
+      const found=await ptvFallback(point,heading,now,attempts);
+      if(!found&&(!validUntil||Date.now()>=validUntil))publish(null,{staleReason:'no-limit',attempts});
     }finally{
       inFlight=false;
     }
   }
 
   function reset(){
-    lastQueryAt=0;
-    lastQueryPoint=null;
+    lastOsmQueryAt=0;
+    lastOsmQueryPoint=null;
+    lastPtvQueryAt=0;
+    lastPtvQueryPoint=null;
     lastGpsPoint=null;
     lastHeading=null;
     lastHeadingAt=0;
+    previousWayId=null;
+    osmElements=[];
+    osmElementsAt=0;
     validUntil=0;
-    publish(null,{staleReason:'route-change'});
+    lastSource='';
+    publish(null,{staleReason:'route-change',attempts:['reset']});
   }
 
   gps.subscribe(onPosition,()=>{});
   window.addEventListener('online',()=>{
-    lastQueryAt=0;
+    lastOsmQueryAt=0;
+    lastPtvQueryAt=0;
     const current=gps.current?.();
     if(current)onPosition(current);
   });
   document.addEventListener('route-direction-change',reset);
 })();
+
