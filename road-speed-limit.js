@@ -18,7 +18,7 @@ import {normalizePtvSpeedLimit,nearestRoadLimit,distanceMeters,bearingDegrees} f
   const HEADING_MIN_MOVE_M=8;
   const HEADING_MIN_SPEED_MPS=1.4;
   const HEADING_MAX_AGE_MS=45000;
-  const REQUEST_TIMEOUT_MS=10000;
+  const REQUEST_TIMEOUT_MS=15000;
   const LIMIT_TTL_MS=60000;
 
   let lastOsmQueryAt=0;
