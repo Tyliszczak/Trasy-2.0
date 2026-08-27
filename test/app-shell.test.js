@@ -129,13 +129,15 @@ test('przycisk 2D/3D pozostaje kontrolką MapLibre, a północ pokazuje się tyl
   assert.match(controls,/rotate\(\$\{-mapBearing\}deg\)/);
 });
 
-test('kamera ustawia pierwszy kierunek od razu i szybciej reaguje na jazdę',async()=>{
+test('kamera ustawia pierwszy kierunek od razu i płynnie reaguje na jazdę',async()=>{
   const [map,controls]=await Promise.all([readSource('nav-map.js'),readSource('navigation-ui-controls.js')]);
   assert.match(map,/headingFromRoute\(origin\)/);
   assert.match(map,/currentHeading\+d\*\.68/);
   assert.match(map,/const heading=headingFromPosition\(position,ll\)/);
   assert.doesNotMatch(map,/lastGpsPoint=ll;\s*\n\s*if\(positionMarker\)/);
-  assert.match(controls,/CAMERA_DURATION_MS=360/);
+  assert.match(controls,/CAMERA_MIN_DURATION_MS=550/);
+  assert.match(controls,/CAMERA_MAX_DURATION_MS=1350/);
+  assert.match(controls,/CAMERA_INTERVAL_FACTOR=1\.12/);
   assert.match(controls,/delta\*\.78/);
 });
 
