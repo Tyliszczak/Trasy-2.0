@@ -10,6 +10,7 @@
   let rawData=null,parkingRawData=null,direction='forward',loading=null,parkingLoading=null,applying=false,forwardCourseTime='',emptyRun=false;
   let forceReturnOriginOnce=false,suppressObserverUntil=0,selectedParking=null,parkingChoicePending=false;
   let parkingTransitionPending=false,completedReturnArrival='';
+  let modeNoticeTimer=0;
   const parkingData=import('./parking-data.js');
 
   const RETURN_START_RADIUS_M=350;
@@ -37,6 +38,24 @@
   returnStartLabel.id='returnStartLabel';
   returnStartLabel.hidden=true;
   switchGroup.before(returnStartLabel);
+
+  function showModeNotice(text){
+    let notice=document.getElementById('routeModeNotice');
+    if(!notice){
+      notice=document.createElement('div');
+      notice.id='routeModeNotice';
+      notice.className='routeModeNotice';
+      notice.setAttribute('role','status');
+      notice.setAttribute('aria-live','polite');
+      notice.innerHTML='<span></span><button type="button" aria-label="Zamknij">×</button>';
+      notice.querySelector('button').onclick=()=>{notice.hidden=true;clearTimeout(modeNoticeTimer)};
+      document.body.append(notice);
+    }
+    notice.querySelector('span').textContent=text;
+    notice.hidden=false;
+    clearTimeout(modeNoticeTimer);
+    modeNoticeTimer=setTimeout(()=>{notice.hidden=true},7000);
+  }
 
 
   function hideReturnWarning(){
@@ -140,10 +159,10 @@
     try{
       const {getParkingOptions}=await parkingData;
       const options=getParkingOptions(await loadParkings(),routeNameEl.textContent.trim());
-      if(!options.length){alert('Administrator nie wprowadził lokalizacji Bazy/Parkingu dla tej firmy lub trasy.');selectedParking=null;return false}
+      if(!options.length){showModeNotice('Brak Bazy/Parkingu dla tej firmy lub trasy. Poproś administratora o uzupełnienie lokalizacji.');selectedParking=null;return false}
       selectedParking=options.length===1?options[0]:await parkingDialog(options);
       return !!selectedParking;
-    }catch(error){console.error('Parkingi:',error);alert('Nie udało się pobrać parkingów.');selectedParking=null;return false}
+    }catch(error){console.error('Parkingi:',error);showModeNotice('Nie udało się pobrać parkingów. Sprawdź połączenie i spróbuj ponownie.');selectedParking=null;return false}
     finally{parkingChoicePending=false;returnSwitch.disabled=false;emptySwitch.disabled=false}
   }
 

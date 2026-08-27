@@ -142,13 +142,26 @@ test('kamera ustawia pierwszy kierunek od razu i płynnie reaguje na jazdę',asy
 });
 
 test('SpeedMax używa OSM przez proxy i zachowuje PTV jako fallback',async()=>{
-  const [speed,limit]=await Promise.all([readSource('speed-display.js'),readSource('road-speed-limit.js')]);
+  const [speed,limit,offline]=await Promise.all([readSource('speed-display.js'),readSource('road-speed-limit.js'),readSource('offline-vmax-cache.js')]);
   assert.match(speed,/trasy:road-speed-limit/);
   assert.match(limit,/trasy:road-speed-limit/);
   assert.match(limit,/OSM_PROXY='\/osm-vmax'/);
   assert.match(limit,/source:'openstreetmap'/);
   assert.match(limit,/source:'ptv-map-matching'/);
+  assert.match(limit,/readVmaxCache/);
+  assert.match(limit,/writeVmaxCache/);
+  assert.match(offline,/MAX_ENTRIES=250/);
   assert.doesNotMatch(limit,/overpass-api\.de|overpass\.kumi|effectiveVehicleSpeedLimit/);
+});
+
+test('brak GPS kończy ładowanie i pokazuje bezpieczne ponowienie',async()=>{
+  const [map,css]=await Promise.all([readSource('nav-map.js'),readSource('navigation.css')]);
+  assert.match(map,/id="routeGpsRetry"/);
+  assert.match(map,/function showNavigationError/);
+  assert.match(map,/Nawigacja niedostępna/);
+  assert.match(map,/Brak dostępu do lokalizacji/);
+  assert.match(map,/startMapNav\(\)/);
+  assert.match(css,/#routeMapStatus\[data-state="error"\]/);
 });
 
 test('uwagi nawigacyjne nie zapisują nagrań głosowych',async()=>{
@@ -237,6 +250,8 @@ test('koniec trasy powrotnej uruchamia osobny odcinek do Bazy lub Parkingu',asyn
   assert.match(returnRoute,/startParkingLegAfterReturn/);
   assert.match(returnRoute,/reason:'return-completed'/);
   assert.match(returnRoute,/options\.length===1\?options\[0\]:await parkingDialog/);
+  assert.match(returnRoute,/showModeNotice\('Brak Bazy\/Parkingu/);
+  assert.doesNotMatch(returnRoute,/alert\('Administrator nie wprowadził lokalizacji/);
 });
 
 test('administrator ma edytor Bazy i Parkingu oraz autoryzowany zapis backendu',async()=>{
@@ -255,4 +270,3 @@ test('link mapy zachowuje współrzędne',()=>{
   const coordinates='51.123, 15.456';
   assert.equal(new URL(mapUrl(coordinates)).searchParams.get('query'),coordinates);
 });
-
