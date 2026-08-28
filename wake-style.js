@@ -8,7 +8,13 @@
 
   const bulb=button.querySelector('.wakeBulb'),screenLabel=document.createElement('span'),topRow=document.createElement('span');
   screenLabel.className='wakeScreenLabel';screenLabel.textContent='EKRAN';topRow.className='wakeTopRow';if(bulb)topRow.append(bulb);label.textContent='OFF';topRow.append(label);button.replaceChildren(topRow,screenLabel);
-  let wakeLock=null,manualWanted=false,navigationWanted=false,retryTimer=null;
+  const preferenceKey='trasy2.keepScreenOn';
+  let wakeLock=null,manualWanted=null,navigationWanted=false,retryTimer=null;
+  let pending=null,revision=0,retryCount=0;
+  try{const saved=localStorage.getItem(preferenceKey);if(saved==='on'||saved==='off')manualWanted=saved==='on'}catch{}
+  const notice=document.createElement('div');
+  notice.id='wakeLockNotice';notice.hidden=true;notice.setAttribute('role','status');
+  notice.setAttribute('aria-live','polite');document.body.append(notice);
 
   const style=document.createElement('style');style.textContent=`
   #wakeLockButton.wakeLockButton{display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;gap:0!important;width:auto!important;min-width:62px!important;min-height:58px!important;padding:0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;color:inherit!important}
@@ -17,37 +23,83 @@
   #scheduleBody .stopMapButton{display:inline-flex;align-items:center;gap:9px;max-width:100%;min-height:38px;padding:5px 7px;border:0;background:transparent;color:#fff;font-weight:inherit;text-decoration:none;line-height:1.2}#scheduleBody .stopMapPin{flex:0 0 auto;width:23px;height:29px;display:block}#scheduleBody .stopMapButton:hover,#scheduleBody .stopMapButton:focus{outline:none}#scheduleBody tr.isActiveStop .stopMapButton{color:#ccff33}
   #scheduleBody td.routeCell{width:58px;text-align:center;white-space:nowrap}#scheduleBody .routeLink{display:inline-flex;align-items:center;justify-content:center;width:48px;height:44px;color:#20a84a;text-decoration:none}#scheduleBody .routeLink svg{width:38px;height:38px;display:block;overflow:visible}#scheduleBody .routeLink:hover,#scheduleBody .routeLink:focus{outline:none;filter:drop-shadow(0 0 5px rgba(32,168,74,.65))}
   @media(max-width:520px){#wakeLockButton.wakeLockButton{min-width:58px!important}#wakeLockButton .wakeBulb{font-size:1.75rem!important}#scheduleClock.scheduleClock{font-size:1.22rem!important}}
+  #wakeLockNotice{position:fixed;z-index:25000;bottom:calc(16px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);width:max-content;max-width:calc(100% - 24px);padding:12px 16px;border:1px solid #ffd900;border-radius:8px;background:#222;color:#fff;font-size:.9rem;line-height:1.4;pointer-events:none}
   `;document.head.append(style);
 
-  function setWakeState(active){button.classList.toggle('wakeActive',active);label.textContent=active?'ON':'OFF';button.setAttribute('aria-pressed',String(active))}
-  function wakeWanted(){return manualWanted||navigationWanted}
-  function clearRetry(){if(retryTimer){clearTimeout(retryTimer);retryTimer=null}}
-  function scheduleRetry(delay=1500){clearRetry();if(!wakeWanted()||document.visibilityState!=='visible')return;retryTimer=setTimeout(()=>{retryTimer=null;requestWakeLock()},delay)}
-  async function releaseWakeLock(){clearRetry();if(wakeLock){try{await wakeLock.release()}catch{}}wakeLock=null;setWakeState(false)}
-  async function requestWakeLock(){
-    if(!wakeWanted()||wakeLock||document.visibilityState!=='visible')return;
-    if(!('wakeLock'in navigator)){setWakeState(false);return}
-    try{
-      const sentinel=await navigator.wakeLock.request('screen');
-      wakeLock=sentinel;
-      setWakeState(true);
-      sentinel.addEventListener('release',()=>{
-        if(wakeLock===sentinel)wakeLock=null;
-        setWakeState(false);
-        if(wakeWanted()&&document.visibilityState==='visible')scheduleRetry();
-      },{once:true});
-    }catch{
-      wakeLock=null;
-      setWakeState(false);
-      if(wakeWanted()&&document.visibilityState==='visible')scheduleRetry(3000);
-    }
+  let noticeTimer=null;
+  function showNotice(message){
+    clearTimeout(noticeTimer);notice.textContent=message;notice.hidden=false;
+    noticeTimer=setTimeout(()=>{notice.hidden=true},10000);
   }
-  async function setNavigationWake(active){navigationWanted=!!active;if(wakeWanted())await requestWakeLock();else await releaseWakeLock()}
-  button.addEventListener('click',async e=>{e.preventDefault();e.stopImmediatePropagation();manualWanted=!manualWanted;if(wakeWanted())await requestWakeLock();else await releaseWakeLock()},true);
-  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&wakeWanted()&&!wakeLock)requestWakeLock();else if(document.visibilityState!=='visible')clearRetry()});
-  window.addEventListener('pageshow',()=>{if(wakeWanted()&&!wakeLock)requestWakeLock()});
-  window.addEventListener('focus',()=>{if(wakeWanted()&&!wakeLock)requestWakeLock()});
-  window.__trasyWakeLock={setNavigation:setNavigationWake,isActive:()=>!!wakeLock};setWakeState(false);
+  function setWakeState(active,state=active?'active':'off'){
+    button.classList.toggle('wakeActive',active);label.textContent=state==='pending'?'…':active?'ON':'OFF';
+    button.dataset.wakeState=state;button.setAttribute('aria-pressed',String(active));
+    button.setAttribute('aria-busy',String(state==='pending'));
+  }
+  // A driver's explicit choice takes priority over automatic navigation mode.
+  function wakeWanted(){return manualWanted??navigationWanted}
+  function isActive(){return !!wakeLock&&!wakeLock.released}
+  function clearRetry(){if(retryTimer){clearTimeout(retryTimer);retryTimer=null}}
+  function scheduleRetry(delay=1500){clearRetry();if(!wakeWanted()||document.visibilityState!=='visible'||retryCount>=3)return;retryCount++;retryTimer=setTimeout(()=>{retryTimer=null;requestWakeLock()},delay)}
+  async function releaseWakeLock(){
+    revision++;clearRetry();const previous=wakeLock;wakeLock=null;setWakeState(false);
+    if(previous){try{await previous.release()}catch{}}
+  }
+  function requestWakeLock(){
+    if(!wakeWanted()||isActive()||document.visibilityState!=='visible')return Promise.resolve();
+    if(pending)return pending;
+    clearRetry();wakeLock=null;
+    if(!navigator.wakeLock?.request){
+      setWakeState(false,'unsupported');
+      showNotice('Ta przeglądarka nie obsługuje blokady wygaszania. Otwórz aplikację w aktualnej przeglądarce Chrome lub Safari.');
+      return Promise.resolve();
+    }
+    const requestRevision=revision;
+    setWakeState(false,'pending');
+    pending=(async()=>{
+      try{
+        const sentinel=await navigator.wakeLock.request('screen');
+        // The user may turn this off or hide the app while permission is pending.
+        if(requestRevision!==revision||!wakeWanted()||document.visibilityState!=='visible'){
+          try{await sentinel.release()}catch{}return;
+        }
+        if(sentinel.released){setWakeState(false);scheduleRetry();return}
+        wakeLock=sentinel;retryCount=0;notice.hidden=true;setWakeState(true);
+        sentinel.addEventListener('release',()=>{
+          if(wakeLock!==sentinel)return;
+          wakeLock=null;setWakeState(false);
+          if(wakeWanted()&&document.visibilityState==='visible'){
+            showNotice('Telefon zwolnił blokadę wygaszania. Próbuję włączyć ją ponownie.');scheduleRetry();
+          }
+        },{once:true});
+      }catch{
+        if(requestRevision!==revision)return;
+        setWakeState(false,'error');
+        showNotice('Nie udało się zablokować wygaszania. Sprawdź oszczędzanie baterii i ustawienia przeglądarki.');
+        scheduleRetry(3000*2**retryCount);
+      }
+    })().finally(()=>{
+      pending=null;
+      if(requestRevision!==revision&&wakeWanted()&&document.visibilityState==='visible')scheduleRetry(0);
+    });
+    return pending;
+  }
+  async function setNavigationWake(active){
+    navigationWanted=!!active;
+    if(wakeWanted())await requestWakeLock();else await releaseWakeLock();
+  }
+  button.addEventListener('click',async e=>{
+    e.preventDefault();e.stopImmediatePropagation();manualWanted=!wakeWanted();retryCount=0;
+    try{localStorage.setItem(preferenceKey,manualWanted?'on':'off')}catch{}
+    notice.hidden=true;
+    if(wakeWanted())await requestWakeLock();else await releaseWakeLock();
+  },true);
+  function resumeWake(){retryCount=0;if(wakeWanted())requestWakeLock()}
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')resumeWake();else releaseWakeLock()});
+  window.addEventListener('pagehide',()=>releaseWakeLock());
+  window.addEventListener('pageshow',resumeWake);
+  window.addEventListener('focus',resumeWake);
+  window.__trasyWakeLock={setNavigation:setNavigationWake,isActive};setWakeState(false);resumeWake();
 
   function renderClock(){if(!scheduleClock)return;const n=new Date();scheduleClock.textContent=`${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}:${String(n.getSeconds()).padStart(2,'0')}`}
   if(scheduleClock){new MutationObserver(()=>{if(!/^\d{2}:\d{2}:\d{2}$/.test(scheduleClock.textContent.trim()))renderClock()}).observe(scheduleClock,{childList:true,characterData:true,subtree:true});renderClock();setInterval(renderClock,1000)}

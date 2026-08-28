@@ -24,6 +24,7 @@ test('angielski tłumaczy ekran, status czasu i komunikat głosowy',()=>{
   assert.equal(i18n.translateText('Trasa 32 km • 46 min • ruch +4 min'),'Route 32 km • 46 min • traffic +4 min');
   assert.equal(i18n.t('turnRoad',{direction:'left',road:' onto Main Street'}),'Turn left onto Main Street');
   assert.equal(i18n.speechLanguage(),'en-GB');
+  assert.equal(i18n.translateText('Nie udało się zablokować wygaszania. Sprawdź oszczędzanie baterii i ustawienia przeglądarki.'),'Could not keep the screen on. Check battery saving and browser settings.');
 });
 
 test('ukraiński tłumaczy ekran, status czasu i komunikat głosowy',()=>{
@@ -33,4 +34,5 @@ test('ukraiński tłumaczy ekran, status czasu i komunikat głosowy',()=>{
   assert.equal(i18n.translateText('KONIEC TRASY'),'КІНЕЦЬ МАРШРУТУ');
   assert.equal(i18n.t('inMeters',{distance:150,instruction:'Поверніть праворуч'}),'Через 150 метрів. Поверніть праворуч');
   assert.equal(i18n.speechLanguage(),'uk-UA');
+  assert.equal(i18n.translateText('Nie udało się zablokować wygaszania. Sprawdź oszczędzanie baterii i ustawienia przeglądarki.'),'Не вдалося заблокувати вимкнення екрана. Перевірте режим енергозбереження та налаштування браузера.');
 });
