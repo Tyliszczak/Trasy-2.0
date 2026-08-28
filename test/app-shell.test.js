@@ -39,6 +39,21 @@ test('każdy lokalny skrypt uruchamiany przez index znajduje się w cache PWA',a
   assert.match(sw,/const CACHE_NAME='trasy-2\.0-v\d+'/);
 });
 
+test('kierowca może przełączyć polski, angielski i ukraiński na ekranie wyboru trasy',async()=>{
+  const [html,i18n,nav,feedback]=await Promise.all([
+    readSource('index.html'),readSource('i18n.js'),readSource('nav-map.js'),readSource('navigation-feedback.js')
+  ]);
+  assert.match(html,/id="languageButton"/);
+  assert.match(html,/🌐/);
+  assert.ok(html.indexOf('./i18n.js')<html.indexOf('./app.js'),'Tłumaczenia muszą uruchomić się przed aplikacją');
+  assert.match(i18n,/SUPPORTED=\['pl','en','uk'\]/);
+  assert.match(i18n,/trasy2\.language/);
+  assert.match(i18n,/speechLanguage/);
+  assert.match(nav,/TrasyI18n\?\.t/);
+  assert.match(nav,/speechLanguage\?\.\(\)/);
+  assert.match(feedback,/recognition\.lang=window\.TrasyI18n/);
+});
+
 test('service worker przełącza wersję dopiero po działaniu kierowcy',async()=>{
   const [app,sw]=await Promise.all([readSource('app.js'),readSource('sw.js')]);
   const installHandler=sw.split('\n').find(line=>line.includes("addEventListener('install'"))||'';

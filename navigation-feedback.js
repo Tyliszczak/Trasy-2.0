@@ -280,7 +280,7 @@
     const Recognition=window.SpeechRecognition||window.webkitSpeechRecognition;
     if(!Recognition)return false;
     recognition=new Recognition();
-    recognition.lang='pl-PL';
+    recognition.lang=window.TrasyI18n?.speechLanguage?.()||'pl-PL';
     recognition.continuous=true;
     recognition.interimResults=false;
     recognition.onresult=event=>{
@@ -295,6 +295,7 @@
       voiceStatus.textContent=event.error==='not-allowed'?'Brak zgody na użycie mikrofonu.':'Nie udało się rozpoznać głosu. Możesz wpisać uwagę.';
     };
     recognition.onend=()=>setListening(false);
+    document.addEventListener('trasy:languagechange',()=>{if(recognition)recognition.lang=window.TrasyI18n?.speechLanguage?.()||'pl-PL'});
     return true;
   }
 
