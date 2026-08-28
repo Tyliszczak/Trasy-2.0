@@ -5,18 +5,13 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths:
-      - 'scripts/practical-live.mjs'
-      - '.github/workflows/practical-live.yml'
 
 jobs:
   practical:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
-      TARGET_URL: https://trasy-2-0.pages.dev
-      PINNED_URL: https://89a21315.trasy-2-0.pages.dev
-      EXPECTED_VERSION: 2.0.163
+      TARGET_URL: https://trasy.tyli.pl
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -24,6 +19,18 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Read expected version
+        run: node -e "const fs=require('fs');const html=fs.readFileSync('index.html','utf8');const version=html.match(/data-version=['\"]([^'\"]+)/)?.[1];if(!version)process.exit(1);fs.appendFileSync(process.env.GITHUB_ENV,'EXPECTED_VERSION='+version+'\n')"
+      - name: Wait for Cloudflare deployment
+        run: |
+          for attempt in {1..30}; do
+            if curl -fsS "$TARGET_URL/?deploy=$GITHUB_SHA" | grep -q "data-version=\"$EXPECTED_VERSION\""; then
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Cloudflare did not publish TEST $EXPECTED_VERSION in time"
+          exit 1
       - name: Install Playwright
         run: |
           npm install --no-save playwright@1.55.0

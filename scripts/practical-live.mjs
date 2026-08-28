@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
 
 const BASE=(process.env.TARGET_URL||'https://trasy-2-0.pages.dev').replace(/\/$/,'');
-const PINNED=(process.env.PINNED_URL||'https://89a21315.trasy-2-0.pages.dev').replace(/\/$/,'');
-const EXPECTED_VERSION=process.env.EXPECTED_VERSION||'2.0.163';
+const PINNED=(process.env.PINNED_URL||BASE).replace(/\/$/,'');
+const LOCAL_VERSION=readFileSync(new URL('../index.html',import.meta.url),'utf8').match(/data-version=["']([^"']+)/)?.[1]||'';
+const EXPECTED_VERSION=process.env.EXPECTED_VERSION||LOCAL_VERSION;
 const results=[];
 const timings={};
 
