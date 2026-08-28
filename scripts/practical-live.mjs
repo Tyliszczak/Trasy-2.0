@@ -268,7 +268,7 @@ await step('Nawigacja: mapa startuje, trasa OSRM się rysuje i nie ma surowego O
     await page.waitForFunction(()=>Boolean(document.getElementById('routeMapNav')),{timeout:10000});
     const started=Date.now();
     await page.locator('#scheduleBody .routeLink').first().click();
-    await page.locator('#routeMapNav').waitFor({state:'visible'});
+    await page.locator('#routeNavRoot').waitFor({state:'visible'});
     await page.locator('#routeMapCanvas canvas').first().waitFor({state:'visible',timeout:30000});
     timings.mapCanvasVisibleMs=Date.now()-started;
     await page.waitForFunction(()=>['ptv','openfreemap-liberty','openfreemap-dark'].includes(document.documentElement.dataset.mapProvider),{timeout:30000});
