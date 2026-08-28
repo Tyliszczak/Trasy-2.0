@@ -1,6 +1,4 @@
 (()=>{
-  let lastBase='';
-
   function trafficSuffix(){
     if(!window.__routeTrafficAvailable)return '';
     const seconds=Math.max(0,Number(window.__routeTrafficDelaySeconds||0));
@@ -13,11 +11,9 @@
     const status=document.getElementById('routeMapStatus');
     if(!nav||nav.hidden||!status)return;
 
-    const current=String(status.textContent||'');
-    if(!current.startsWith('Trasa '))return;
-
-    const base=current.replace(/ • ruch(?: bez opóźnień| \+\d+ min)$/,'');
-    lastBase=base;
+    if(status.dataset.state!=='ready')return;
+    const base=String(status.dataset.routeBase||'');
+    if(!base.startsWith('Trasa '))return;
     status.textContent=base+trafficSuffix();
   }
 

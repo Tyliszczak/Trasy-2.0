@@ -1,6 +1,7 @@
 (()=>{
   const body=document.getElementById('scheduleBody');
   if(!body)return;
+  const tr=(key,vars)=>window.TrasyI18n?.t(key,vars)??key;
 
   let map=null;
   let positionMarker=null;
@@ -730,77 +731,60 @@
     const type=m.type||'';
     const mod=m.modifier||'';
 
-    const road=
-      step.name
-        ?` w ${step.name}`
-        :'';
+    const road=step.name?tr('roadName',{name:step.name}):'';
 
     const dir={
-      left:'w lewo',
-      right:'w prawo',
-      'slight left':'lekko w lewo',
-      'slight right':'lekko w prawo',
-      'sharp left':'ostro w lewo',
-      'sharp right':'ostro w prawo',
-      straight:'prosto',
-      uturn:'zawróć'
+      left:tr('directionLeft'),
+      right:tr('directionRight'),
+      'slight left':tr('directionSlightLeft'),
+      'slight right':tr('directionSlightRight'),
+      'sharp left':tr('directionSharpLeft'),
+      'sharp right':tr('directionSharpRight'),
+      straight:tr('directionStraight'),
+      uturn:tr('directionUturn')
     }[mod]||'';
 
     if(type==='depart'){
-      return dir?`Rusz ${dir}`:'Rusz prosto';
+      return dir?tr('departDirection',{direction:dir}):tr('departStraight');
     }
 
     if(type==='arrive'){
-      return'Dojeżdżasz do punktu';
+      return tr('arrivePoint');
     }
 
     if(type==='roundabout'||type==='rotary'){
-      return(
-        `Wjedź na rondo${
-          m.exit
-            ?` i wybierz ${m.exit}. zjazd`
-            :''
-        }`
-      );
+      return m.exit?tr('roundaboutExit',{exit:m.exit}):tr('roundabout');
     }
 
     if(type==='merge'){
-      return`Włącz się ${dir}`.trim();
+      return tr('merge',{direction:dir}).trim();
     }
 
     if(type==='fork'){
-      return`Na rozwidleniu trzymaj się ${dir}`.trim();
+      return tr('fork',{direction:dir}).trim();
     }
 
     if(type==='on ramp'){
-      return`Wjedź na zjazd ${dir}`.trim();
+      return tr('onRamp',{direction:dir}).trim();
     }
 
     if(type==='off ramp'){
-      return`Zjedź ${dir}`.trim();
+      return tr('offRamp',{direction:dir}).trim();
     }
 
     if(type==='end of road'){
-      return(
-        `Na końcu drogi skręć ${dir}${road}`
-      ).trim();
+      return tr('endOfRoad',{direction:dir,road}).trim();
     }
 
     if(type==='continue'){
-      return(
-        `Jedź ${dir||'prosto'}${road}`
-      ).trim();
+      return tr('continueRoad',{direction:dir||tr('directionStraight'),road}).trim();
     }
 
     if(type==='turn'||type==='new name'){
-      return(
-        `Skręć ${dir}${road}`
-      ).trim();
+      return tr('turnRoad',{direction:dir,road}).trim();
     }
 
-    return(
-      `${dir?`Jedź ${dir}`:'Jedź prosto'}${road}`
-    ).trim();
+    return tr('driveRoad',{direction:dir||tr('directionStraight'),road}).trim();
   }
 
   function isVoiceManeuver(step){
@@ -869,10 +853,10 @@
         new SpeechSynthesisUtterance(
           bucket==='now'
             ?cleanText
-            :`Za ${bucket==='150'?'150':'400'} metrów. ${cleanText}`
+            :tr('inMeters',{distance:bucket==='150'?'150':'400',instruction:cleanText})
         );
 
-      u.lang='pl-PL';
+      u.lang=window.TrasyI18n?.speechLanguage?.()||'pl-PL';
       speechSynthesis.speak(u);
 
     }catch{}
@@ -1177,9 +1161,9 @@
 
       dispatchEta();
 
-      status.textContent=
-        `Trasa ${fmtDistance(route.distance)} • `+
-        `${Math.round(route.duration/60)} min`;
+      const routeSummary=`Trasa ${fmtDistance(route.distance)} • ${Math.round(route.duration/60)} min`;
+      status.dataset.routeBase=routeSummary;
+      status.textContent=routeSummary;
       status.dataset.state='ready';
     }catch(error){
       if(error?.name==='AbortError'||requestId!==routeRequestGeneration)return;
