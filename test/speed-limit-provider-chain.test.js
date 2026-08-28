@@ -9,16 +9,13 @@ const ptvProxy=read('functions/ptv-map/[[path]].js');
 const osmProxy=read('functions/osm-vmax/[[path]].js');
 const serviceWorker=read('sw.js');
 
-test('SpeedMax używa OSM najpierw i PTV wyłącznie jako fallback',()=>{
+test('SpeedMax używa wyłącznie OSM i nie ma płatnego fallbacku',()=>{
   assert.match(limitSource,/OSM_PROXY='\/osm-vmax'/);
   assert.match(limitSource,/nearestRoadLimit/);
   assert.match(limitSource,/source:'openstreetmap'/);
-  assert.match(limitSource,/PTV_PROXY='\/ptv-map\/mapmatch\/v1\/positions'/);
-  assert.match(limitSource,/normalizePtvSpeedLimit/);
-  assert.match(limitSource,/ptvFallback/);
+  assert.doesNotMatch(limitSource,/PTV_PROXY|normalizePtvSpeedLimit|ptvFallback|ptv-map-matching/i);
   assert.doesNotMatch(limitSource,/overpass-api\.de|overpass\.kumi/);
-  assert.match(ptvProxy,/MAPMATCH_PATH/);
-  assert.match(ptvProxy,/SEGMENT_ATTRIBUTES/);
+  assert.doesNotMatch(ptvProxy,/MAPMATCH_PATH|mapmatch|SEGMENT_ATTRIBUTES|X-Trasy-Speed-Provider/i);
   assert.match(ptvProxy,/PTV_API_KEY/);
   assert.doesNotMatch(limitSource,/PTV_API_KEY/);
   assert.match(serviceWorker,/url\.pathname\.startsWith\('\/ptv-map\/'\)/);
@@ -28,17 +25,16 @@ test('SpeedMax używa OSM najpierw i PTV wyłącznie jako fallback',()=>{
   assert.match(osmProxy,/sanitizeElements/);
 });
 
-test('OSM jest buforowane, a płatny fallback PTV ma rzadszy interwał',()=>{
+test('OSM jest buforowane i ogranicza częstotliwość zapytań',()=>{
   assert.match(limitSource,/OSM_CACHE_TTL_MS=90000/);
   assert.match(limitSource,/OSM_MIN_QUERY_INTERVAL_MS=15000/);
-  assert.match(limitSource,/PTV_MIN_QUERY_INTERVAL_MS=30000/);
   assert.match(limitSource,/OSM_STATIONARY_QUERY_INTERVAL_MS=60000/);
   assert.doesNotMatch(limitSource,/if\([^\n]*speed[^\n]*return/);
 });
 
-test('heading pomaga PTV rozpoznać właściwą jezdnię, ale nie narzuca przebiegu trasy',()=>{
+test('heading pomaga OSM rozpoznać właściwą jezdnię, ale nie narzuca przebiegu trasy',()=>{
   assert.match(limitSource,/HEADING_MAX_AGE_MS=45000/);
-  assert.match(limitSource,/url\.searchParams\.set\('heading'/);
+  assert.match(limitSource,/nearestRoadLimit\(osmElements,point,\{maxDistance:MAX_ROAD_DISTANCE_M,heading,previousWayId\}\)/);
   assert.doesNotMatch(limitSource,/continue_straight|bearings/);
 });
 

@@ -109,13 +109,17 @@ await step('PTV: kafelki wektorowe przechodzą przez produkcję i przypięte wdr
   return details.join(', ');
 });
 
-await step('PTV SpeedMax: Map Matching działa w produkcji i przypiętym wdrożeniu',async()=>{
+await step('VMAX: działa OSM, a PTV Map Matching jest zablokowane',async()=>{
   const details=[];
   for(const base of [BASE,PINNED]){
-    const response=await fetch(appUrl('ptv-map/mapmatch/v1/positions/51.9429132/15.5077919?heading=90',base),{cache:'no-store'});
-    if(!response.ok)throw new Error(`${base}: PTV mapmatch HTTP ${response.status}: ${await responseFailureDetail(response)}`);
-    const data=await response.json();
-    assert.ok(data&&typeof data==='object','Brak JSON z PTV Map Matching');
+    const osm=await fetch(appUrl('osm-vmax/51.94291/15.50779',base),{cache:'no-store'});
+    if(!osm.ok)throw new Error(`${base}: OSM VMAX HTTP ${osm.status}: ${await responseFailureDetail(osm)}`);
+    const data=await osm.json();
+    assert.equal(data?.ok,true,'Brak prawidłowej odpowiedzi OSM VMAX');
+    assert.ok(Array.isArray(data?.elements),'Brak listy dróg OSM');
+
+    const ptv=await fetch(appUrl('ptv-map/mapmatch/v1/positions/51.9429132/15.5077919?heading=90',base),{cache:'no-store'});
+    assert.equal(ptv.status,404,`${base}: PTV Map Matching nadal jest dostępne`);
     details.push(new URL(base).hostname);
   }
   return details.join(' + ');
