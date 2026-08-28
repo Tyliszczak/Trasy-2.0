@@ -141,13 +141,13 @@ test('kamera ustawia pierwszy kierunek od razu i płynnie reaguje na jazdę',asy
   assert.match(controls,/delta\*\.78/);
 });
 
-test('SpeedMax używa OSM przez proxy i zachowuje PTV jako fallback',async()=>{
+test('SpeedMax używa wyłącznie OSM przez proxy i cache urządzenia',async()=>{
   const [speed,limit,offline]=await Promise.all([readSource('speed-display.js'),readSource('road-speed-limit.js'),readSource('offline-vmax-cache.js')]);
   assert.match(speed,/trasy:road-speed-limit/);
   assert.match(limit,/trasy:road-speed-limit/);
   assert.match(limit,/OSM_PROXY='\/osm-vmax'/);
   assert.match(limit,/source:'openstreetmap'/);
-  assert.match(limit,/source:'ptv-map-matching'/);
+  assert.doesNotMatch(limit,/PTV_PROXY|ptvFallback|ptv-map-matching/i);
   assert.match(limit,/readVmaxCache/);
   assert.match(limit,/writeVmaxCache/);
   assert.match(offline,/MAX_ENTRIES=250/);

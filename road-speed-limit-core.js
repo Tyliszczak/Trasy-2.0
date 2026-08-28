@@ -1,22 +1,3 @@
-export function normalizePtvSpeedLimit(response,{maxMatchDistance=80}={}){
-  const attributes=response?.segmentAttributes||{};
-  const speed=Number(attributes.speedLimit);
-  const matchDistance=Number(response?.matchDistance);
-  const angleDifference=Number(response?.angleDifference);
-
-  if(Number.isFinite(matchDistance)&&matchDistance>maxMatchDistance)return null;
-  if(!Number.isFinite(speed)||speed<=0||speed>250)return null;
-
-  return{
-    maxspeed:Math.round(speed),
-    matchDistance:Number.isFinite(matchDistance)?matchDistance:null,
-    angleDifference:Number.isFinite(angleDifference)?angleDifference:null,
-    builtUpArea:attributes.builtUpArea===true,
-    matchedLatitude:Number.isFinite(Number(response?.latitude))?Number(response.latitude):null,
-    matchedLongitude:Number.isFinite(Number(response?.longitude))?Number(response.longitude):null
-  };
-}
-
 export function parseMaxspeed(value){
   const raw=String(value??'').trim().toLowerCase();
   if(!raw||raw.includes(';'))return null;

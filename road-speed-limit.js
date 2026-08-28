@@ -1,4 +1,4 @@
-import {normalizePtvSpeedLimit,nearestRoadLimit,distanceMeters,bearingDegrees} from './road-speed-limit-core.js?v=4';
+import {nearestRoadLimit,distanceMeters,bearingDegrees} from './road-speed-limit-core.js?v=5';
 import {readVmaxCache,writeVmaxCache} from './offline-vmax-cache.js?v=1';
 
 (()=>{
@@ -6,16 +6,12 @@ import {readVmaxCache,writeVmaxCache} from './offline-vmax-cache.js?v=1';
   if(!gps?.subscribe)return;
 
   const OSM_PROXY='/osm-vmax';
-  const PTV_PROXY='/ptv-map/mapmatch/v1/positions';
   const MAX_GPS_ACCURACY_M=80;
   const MAX_ROAD_DISTANCE_M=70;
-  const MAX_PTV_MATCH_DISTANCE_M=80;
   const OSM_MIN_QUERY_INTERVAL_MS=15000;
   const OSM_STATIONARY_QUERY_INTERVAL_MS=60000;
   const OSM_MIN_MOVE_M=65;
   const OSM_CACHE_TTL_MS=90000;
-  const PTV_MIN_QUERY_INTERVAL_MS=30000;
-  const PTV_MIN_MOVE_M=100;
   const HEADING_MIN_MOVE_M=8;
   const HEADING_MIN_SPEED_MPS=1.4;
   const HEADING_MAX_AGE_MS=45000;
@@ -24,8 +20,6 @@ import {readVmaxCache,writeVmaxCache} from './offline-vmax-cache.js?v=1';
 
   let lastOsmQueryAt=0;
   let lastOsmQueryPoint=null;
-  let lastPtvQueryAt=0;
-  let lastPtvQueryPoint=null;
   let lastGpsPoint=null;
   let lastHeading=null;
   let lastHeadingAt=0;
@@ -121,12 +115,6 @@ import {readVmaxCache,writeVmaxCache} from './offline-vmax-cache.js?v=1';
     return distanceMeters(lastOsmQueryPoint,point)>=OSM_MIN_MOVE_M||elapsed>=OSM_STATIONARY_QUERY_INTERVAL_MS;
   }
 
-  function shouldRequestPtv(point,now){
-    if(!lastPtvQueryPoint)return true;
-    if(now-lastPtvQueryAt<PTV_MIN_QUERY_INTERVAL_MS)return false;
-    return distanceMeters(lastPtvQueryPoint,point)>=PTV_MIN_MOVE_M||now-lastPtvQueryAt>=OSM_STATIONARY_QUERY_INTERVAL_MS;
-  }
-
   async function fetchJson(url){
     const controller=new AbortController();
     const timeout=setTimeout(()=>controller.abort(),REQUEST_TIMEOUT_MS);
@@ -165,30 +153,6 @@ import {readVmaxCache,writeVmaxCache} from './offline-vmax-cache.js?v=1';
     }
   }
 
-  async function requestPtv(point,heading){
-    const url=new URL(`${PTV_PROXY}/${point.lat.toFixed(7)}/${point.lon.toFixed(7)}`,location.origin);
-    if(Number.isFinite(heading))url.searchParams.set('heading',String(Math.round(heading)));
-    const data=await fetchJson(url.href);
-    return normalizePtvSpeedLimit(data,{maxMatchDistance:MAX_PTV_MATCH_DISTANCE_M});
-  }
-
-  async function ptvFallback(point,heading,now,attempts){
-    if(!shouldRequestPtv(point,now))return false;
-    lastPtvQueryAt=now;
-    lastPtvQueryPoint=point;
-    attempts.push('ptv');
-    try{
-      const limit=await requestPtv(point,heading);
-      if(!limit)return false;
-      publish(limit,{source:'ptv-map-matching',attempts});
-      return true;
-    }catch(error){
-      attempts.push('ptv-error');
-      console.warn('SpeedMax PTV fallback:',error);
-      return false;
-    }
-  }
-
   async function onPosition(position){
     if(!active())return;
     const coords=position?.coords;
@@ -213,16 +177,7 @@ import {readVmaxCache,writeVmaxCache} from './offline-vmax-cache.js?v=1';
 
     if(inFlight)return;
     if(!shouldRefreshOsm(point,now)){
-      if(!local?.maxspeed&&!validUntil){
-        inFlight=true;
-        try{
-          const attempts=['osm-cache-no-limit'];
-          const found=await ptvFallback(point,heading,now,attempts);
-          if(!found&&!validUntil)publish(null,{staleReason:'no-limit',attempts});
-        }finally{
-          inFlight=false;
-        }
-      }
+      if(!local?.maxspeed&&!validUntil)publish(null,{staleReason:'no-limit',attempts:['osm-cache-no-limit']});
       return;
     }
 
@@ -248,8 +203,7 @@ import {readVmaxCache,writeVmaxCache} from './offline-vmax-cache.js?v=1';
         console.warn('SpeedMax OSM:',error);
       }
 
-      const found=await ptvFallback(point,heading,now,attempts);
-      if(!found&&(!validUntil||Date.now()>=validUntil))publish(null,{staleReason:'no-limit',attempts});
+      if(!validUntil||Date.now()>=validUntil)publish(null,{staleReason:'no-limit',attempts});
     }finally{
       inFlight=false;
     }
@@ -258,8 +212,6 @@ import {readVmaxCache,writeVmaxCache} from './offline-vmax-cache.js?v=1';
   function reset(){
     lastOsmQueryAt=0;
     lastOsmQueryPoint=null;
-    lastPtvQueryAt=0;
-    lastPtvQueryPoint=null;
     lastGpsPoint=null;
     lastHeading=null;
     lastHeadingAt=0;
@@ -274,7 +226,6 @@ import {readVmaxCache,writeVmaxCache} from './offline-vmax-cache.js?v=1';
   gps.subscribe(onPosition,()=>{});
   window.addEventListener('online',()=>{
     lastOsmQueryAt=0;
-    lastPtvQueryAt=0;
     const current=gps.current?.();
     if(current)onPosition(current);
   });

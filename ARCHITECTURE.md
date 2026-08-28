@@ -39,5 +39,5 @@ Celem refaktoru jest usunięcie warstwowych poprawek powstałych podczas testów
 - Postęp nie może przeskoczyć na równoległy odcinek używany wiele kilometrów później.
 - Pierwszy punkt POWROTU jest START-em, nigdy celem GPS ani ETA `Dojazd`.
 - TAM wybiera najbliższy przyszły kurs; POWRÓT korzysta z najbliższego kursu w czasie.
-- SpeedMax pochodzi wyłącznie z PTV Map Matching; brak wartości ukrywa znak, prędkościomierz zostaje.
+- SpeedMax pochodzi wyłącznie z OpenStreetMap przez bezpieczny, buforowany endpoint Cloudflare; brak wartości ukrywa znak, prędkościomierz zostaje.
 - Dymek manewru jest elementem okna, niezależnym od ruchu mapy.
