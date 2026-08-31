@@ -1,19 +1,10 @@
+import {requestAllowed,secureHeaders,securityJson as json} from '../_shared/security.js';
+
 const PTV_ORIGIN='https://api.myptv.com';
 const TILE_PATHS=[
   /^maps\/v1\/vector-tiles\/\d+\/\d+\/\d+$/,
   /^maps\/overlays\/v1\/vector-tiles\/\d+\/\d+\/\d+$/
 ];
-
-function json(body,status=200){
-  return new Response(JSON.stringify(body),{
-    status,
-    headers:{
-      'Content-Type':'application/json; charset=utf-8',
-      'Cache-Control':'no-store, max-age=0',
-      'X-Content-Type-Options':'nosniff'
-    }
-  });
-}
 
 function pathFromParams(params){
   const raw=Array.isArray(params?.path)?params.path.join('/'):String(params?.path||'');
@@ -32,7 +23,7 @@ function copyResponseHeaders(upstream){
   }
   headers.set('X-Content-Type-Options','nosniff');
   headers.set('X-Trasy-Map-Provider','ptv');
-  return headers;
+  return secureHeaders(headers);
 }
 
 async function handleGet({request,env,params}){
@@ -70,5 +61,6 @@ async function handleGet({request,env,params}){
 
 export async function onRequest(context){
   if(context.request.method!=='GET')return json({ok:false,code:'METHOD_NOT_ALLOWED'},405);
+  if(!requestAllowed(context.request,context.env))return json({ok:false,code:'FORBIDDEN_SOURCE'},403);
   return handleGet(context);
 }

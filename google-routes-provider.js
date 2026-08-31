@@ -47,9 +47,9 @@
     const timeout=setTimeout(()=>controller.abort(),GOOGLE_ROUTE_TIMEOUT_MS);
 
     try{
-      const api=window.KURSY_DRIVER_API;
-      if(!api||typeof api.driverComputeRoute!=='function')throw Error('Bezpieczne Google Traffic nie jest jeszcze podłączone.');
-      const data=await api.driverComputeRoute(coords,{signal:controller.signal});
+      const platform=window.__trasyPlatform;
+      if(!platform?.capabilities().routing)throw Error('Bezpieczne Google Traffic nie jest jeszcze podłączone.');
+      const data=await platform.computeRoute(coords,{signal:controller.signal});
       const google=data?.google??data?.osrmLike??data;
       if(!Array.isArray(google?.routes)||!google.routes.length)throw Error(data?.message||'Brak danych Google Traffic');
       return google;

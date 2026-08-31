@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {onRequest} from '../functions/osm-vmax/[[path]].js';
 
-function context({method='GET',path=['52','15'],headers}={}){
+function context({method='GET',path=['52','15'],headers={'Sec-Fetch-Site':'same-origin'}}={}){
   return{
     request:new Request(`https://trasy.tyli.pl/osm-vmax/${path.join('/')}`,{method,headers}),
     params:{path}
@@ -13,6 +13,7 @@ test('proxy OSM odrzuca metodę i nieprawidłową pozycję',async()=>{
   assert.equal((await onRequest(context({method:'POST'}))).status,405);
   assert.equal((await onRequest(context({path:['999','15']}))).status,400);
   assert.equal((await onRequest(context({headers:{Origin:'https://obca.example'}}))).status,403);
+  assert.equal((await onRequest(context({headers:{}}))).status,403);
 });
 
 test('proxy OSM ogranicza odpowiedź do bezpiecznych tagów i zapisuje cache',async t=>{

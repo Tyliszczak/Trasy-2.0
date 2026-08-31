@@ -2,19 +2,17 @@ name: Google API diagnostic
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - 'scripts/google-api-diagnostic.mjs'
-      - '.github/workflows/google-api-diagnostic.yml'
+
+# Diagnostyka odpytuje działającą domenę produkcyjną, dlatego jest uruchamiana
+# ręcznie dopiero po zakończonym wdrożeniu Cloudflare. Testy PR sprawdzają ten
+# sam kontrakt statycznie i nie powinny porównywać nowego kodu ze starą produkcją.
 
 jobs:
   diagnostic:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      GAS_URL: https://script.google.com/macros/s/AKfycbyQcnU6xvvrUZNVUJRhQ293L47hZwlvsc6i3n9s9hiYqhLUAoKSqGbPohe_lSB0apfUcw/exec
-      APP_URL: https://trasy-2-0.pages.dev
+      APP_URL: https://trasy.tyli.pl
     steps:
       - name: Checkout
         uses: actions/checkout@v4

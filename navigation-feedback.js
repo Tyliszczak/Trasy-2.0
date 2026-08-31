@@ -1,10 +1,10 @@
 (()=>{
-  const STORAGE_KEY='trasy2.navigationFeedback.v1';
+  const platform=window.__trasyPlatform;
+  const STORAGE_KEY=platform?.storageKey('trasy2.navigationFeedback.v2')||'trasy2.navigationFeedback.v2.unassigned';
   const MAX_SAVED_NOTES=50;
   const MAX_NOTE_LENGTH=2000;
-  const TEMP_TEST_FEEDBACK_EMAIL='kswiderski70@gmail.com';
   const ARCHIVE_FORMAT='pl.tyli.trasy2.feedback-archive';
-  const ARCHIVE_DEVICE_KEY='trasy2.feedbackArchiveDeviceCode.v1';
+  const ARCHIVE_DEVICE_KEY=platform?.storageKey('trasy2.feedbackArchiveDeviceCode.v2')||'trasy2.feedbackArchiveDeviceCode.v2.unassigned';
 
   const style=document.createElement('style');
   style.textContent=`
@@ -172,7 +172,7 @@
   }
 
   function panelConnected(){
-    return typeof window.KURSY_DRIVER_API?.driverFeedback==='function';
+    return Boolean(platform?.capabilities().feedback);
   }
 
   function updateDeliveryUi(){
@@ -181,38 +181,20 @@
       deliveryInfo.textContent='Zgłoszenie zostanie wysłane do panelu administratora i na ustawiony przez niego adres e-mail.';
       return;
     }
-    saveButton.textContent='WYŚLIJ TESTOWO E-MAILEM';
-    deliveryInfo.textContent='Panel administratora nie jest jeszcze połączony. Zgłoszenie zostanie zapisane na tym urządzeniu, a następnie otworzy się gotowa wiadomość e-mail. Po nadaniu dostępu z panelu ten tymczasowy sposób zostanie automatycznie wyłączony.';
-  }
-
-  function temporaryEmailUrl(record){
-    const details=[
-      `Rodzaj: ${record.categoryLabel}`,
-      `Ekran: ${record.screen}`,
-      record.route&&`Trasa: ${record.route}`,
-      record.shift&&`Zmiana: ${record.shift}`,
-      record.vehicle&&`Pojazd: ${record.vehicle}`,
-      record.nextStop&&`Następny przystanek: ${record.nextStop}`,
-      record.version&&`Wersja: ${record.version}`,
-      `Czas: ${record.createdAt}`
-    ].filter(Boolean).join('\n');
-    const subject=`Trasy 2.0 — ${record.categoryLabel}`;
-    const body=`${record.text.slice(0,1600)}\n\n${details}\n\nId zgłoszenia: ${record.id}`;
-    return `mailto:${TEMP_TEST_FEEDBACK_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    saveButton.textContent='ZAPISZ LOKALNIE';
+    deliveryInfo.textContent='Panel administratora nie jest obecnie połączony. Zgłoszenie zostanie zapisane na tym urządzeniu i wysłane po odzyskaniu bezpiecznego połączenia.';
   }
 
   async function deliverRecord(record){
-    const api=window.KURSY_DRIVER_API;
-    if(!api||typeof api.driverFeedback!=='function')throw new Error('Panel administratora nie jest jeszcze połączony z tą wersją aplikacji. Zgłoszenie pozostaje bezpiecznie zapisane na urządzeniu.');
-    await api.driverFeedback(record);
+    if(!panelConnected())throw new Error('Panel administratora nie jest jeszcze połączony z tą wersją aplikacji. Zgłoszenie pozostaje bezpiecznie zapisane na urządzeniu.');
+    await platform.feedback(record);
     updateNote(record.id,{deliveryStatus:'sent',deliveredAt:new Date().toISOString(),lastDeliveryError:''});
   }
 
   let flushing=false;
   async function flushPending(){
     if(flushing||!navigator.onLine)return;
-    const api=window.KURSY_DRIVER_API;
-    if(!api||typeof api.driverFeedback!=='function')return;
+    if(!panelConnected())return;
     flushing=true;
     try{
       for(const record of readNotes().filter(note=>note.deliveryStatus!=='sent')){
@@ -320,10 +302,8 @@
       saveButton.disabled=true;
       const record=saveNote(textarea.value);
       if(!panelConnected()){
-        updateNote(record.id,{temporaryEmailOpenedAt:new Date().toISOString()});
         textarea.value='';
-        message.textContent='Zgłoszenie zapisano lokalnie. Dokończ wysyłanie w otwartej aplikacji pocztowej.';
-        window.location.href=temporaryEmailUrl(record);
+        message.textContent='Zgłoszenie zapisano lokalnie. Zostanie wysłane po połączeniu aplikacji z panelem administratora.';
         return;
       }
       await deliverRecord(record);

@@ -1,8 +1,10 @@
 (()=>{
   if(window.__trasyOfflineRoutes)return;
 
-  const CACHE_NAME='trasy-offline-routes-v1';
-  const ROUTES_KEY='trasy2.routes';
+  const platform=window.__trasyPlatform;
+  const scope=platform?.scope()||'unassigned';
+  const CACHE_NAME=`trasy-offline-routes-v2-${scope}`;
+  const ROUTES_KEY=platform?.storageKey('trasy2.routes.v3')||'trasy2.routes.v3.unassigned';
   const OSRM_ORIGIN='https://router.project-osrm.org';
   const PREFIX=`${location.origin}/_offline-route/`;
   const MAX_ROUTE_DISTANCE_M=2500;

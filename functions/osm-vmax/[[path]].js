@@ -1,3 +1,5 @@
+import {requestAllowed,securityJson as json} from '../_shared/security.js';
+
 const OVERPASS_ENDPOINTS=[
   'https://lz4.overpass-api.de/api/interpreter',
   'https://z.overpass-api.de/api/interpreter'
@@ -17,19 +19,6 @@ const SAFE_TAGS=new Set([
   'oneway','name','ref'
 ]);
 
-function json(body,status=200,headers={}){
-  return new Response(JSON.stringify(body),{
-    status,
-    headers:{
-      'Content-Type':'application/json; charset=utf-8',
-      'Cache-Control':'no-store, max-age=0',
-      'X-Content-Type-Options':'nosniff',
-      'X-Robots-Tag':'noindex',
-      ...headers
-    }
-  });
-}
-
 function pathFromParams(params){
   const raw=Array.isArray(params?.path)?params.path.join('/'):String(params?.path||'');
   return raw.replace(/^\/+|\/+$/g,'');
@@ -41,16 +30,6 @@ function coordinates(path){
   const lat=Number(match[1]),lon=Number(match[2]);
   if(!Number.isFinite(lat)||lat<-90||lat>90||!Number.isFinite(lon)||lon<-180||lon>180)return null;
   return{lat,lon};
-}
-
-function isAllowedOrigin(request){
-  const origin=request.headers.get('Origin');
-  if(!origin)return true;
-  try{
-    return new URL(origin).origin===new URL(request.url).origin;
-  }catch{
-    return false;
-  }
 }
 
 function queryText(point){
@@ -184,7 +163,7 @@ async function handleGet(context){
 
 export async function onRequest(context){
   if(context.request.method!=='GET')return json({ok:false,code:'METHOD_NOT_ALLOWED'},405);
-  if(!isAllowedOrigin(context.request))return json({ok:false,code:'FORBIDDEN_ORIGIN'},403);
+  if(!requestAllowed(context.request,context.env))return json({ok:false,code:'FORBIDDEN_SOURCE'},403);
   return handleGet(context);
 }
 

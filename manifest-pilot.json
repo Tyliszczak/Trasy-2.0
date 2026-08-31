@@ -1,0 +1,13 @@
+{
+  "id": "/?app=trasy-pilot",
+  "name": "Trasy 2.0 PILOT",
+  "short_name": "Trasy PILOT",
+  "description": "Wersja pilotażowa aplikacji kierowcy Trasy 2.0.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#1a1a1a",
+  "theme_color": "#1a1a1a",
+  "icons": [{"src":"Tyliszczak.png","sizes":"762x762","type":"image/png","purpose":"any"}]
+}
+
