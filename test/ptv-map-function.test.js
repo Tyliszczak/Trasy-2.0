@@ -12,7 +12,7 @@ test('proxy PTV odrzuca Map Matching używany wcześniej dla VMAX',async t=>{
   t.after(()=>{globalThis.fetch=originalFetch;});
 
   const response=await onRequest({
-    request:new Request('https://trasy.tyli.pl/ptv-map/mapmatch/v1/positions/52/15'),
+    request:new Request('https://trasy.tyli.pl/ptv-map/mapmatch/v1/positions/52/15',{headers:{'Sec-Fetch-Site':'same-origin'}}),
     params:{path:['mapmatch','v1','positions','52','15']},
     env:{PTV_API_KEY:'test-key'}
   });

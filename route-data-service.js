@@ -1,11 +1,8 @@
 (()=>{
   if(window.__trasyRouteDataService)return;
 
-  // Upstream arkusza Trasy 2.0 za proxy Cloudflare:
-  // https://script.google.com/macros/s/AKfycbyQcnU6xvvrUZNVUJRhQ293L47hZwlvsc6i3n9s9hiYqhLUAoKSqGbPohe_lSB0apfUcw/exec
-  const SOURCE_URL='/trasy-data';
-  const STORAGE_KEY='trasy2.sheetRawRouteData.v2';
-  const REQUIRED_SHEETS=['SAS Sulechów','APT - Krężoły','SAS Świebodzin','TopPoint','POJAZDY'];
+  const platform=window.__trasyPlatform;
+  const STORAGE_KEY=platform?.storageKey('trasy2.routeData.v3')||'trasy2.routeData.v3.unassigned';
   let cached=null,inflight=null;
 
   function readStored(){try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||'null')}catch{return null}}
@@ -15,25 +12,17 @@
     return data;
   }
   function validatePayload(payload){
-    const data=payload?.data??payload;
-    if(!data||Array.isArray(data)||typeof data!=='object')throw new Error('Arkusz Trasy 2.0 zwrócił nieprawidłowe dane.');
-    const missing=REQUIRED_SHEETS.filter(name=>!Array.isArray(data[name]));
-    if(missing.length)throw new Error(`Arkusz Trasy 2.0 nie zawiera wymaganych kart: ${missing.join(', ')}`);
+    const data=payload?.routes??payload?.data??payload;
+    if(Array.isArray(data)){
+      if(!data.every(route=>route&&typeof route==='object'))throw new Error('Panel kierowcy zwrócił nieprawidłową listę tras.');
+      return data;
+    }
+    if(!data||typeof data!=='object')throw new Error('Źródło danych zwróciło nieprawidłowe dane tras.');
     return data;
   }
-
   async function request(){
-    const controller=new AbortController();
-    const timer=setTimeout(()=>controller.abort(),12000);
-    try{
-      const url=new URL(SOURCE_URL,location.origin);
-      url.searchParams.set('_',String(Date.now()));
-      const response=await fetch(url.href,{method:'GET',cache:'no-store',credentials:'same-origin',signal:controller.signal});
-      if(!response.ok)throw new Error(`Arkusz Trasy 2.0 odpowiedział kodem ${response.status}.`);
-      const payload=await response.json();
-      if(payload?.status==='error')throw new Error(payload.message||'Nie udało się pobrać arkusza Trasy 2.0.');
-      return validatePayload(payload);
-    }finally{clearTimeout(timer)}
+    platform?.assertReady();
+    return validatePayload(await platform.routes({fresh:true}));
   }
 
   window.__trasyRouteDataService={
@@ -47,6 +36,7 @@
     peek(){return cached},
     stored:readStored,
     invalidate(){cached=null},
-    url:SOURCE_URL
+    source:'platform',
+    storageKey:STORAGE_KEY
   };
 })();

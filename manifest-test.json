@@ -8,12 +8,5 @@
   "display": "standalone",
   "background_color": "#1a1a1a",
   "theme_color": "#1a1a1a",
-  "icons": [
-    {
-      "src": "Tyliszczak.png",
-      "sizes": "762x762",
-      "type": "image/png",
-      "purpose": "any"
-    }
-  ]
+  "icons": [{"src":"Tyliszczak.png","sizes":"762x762","type":"image/png","purpose":"any"}]
 }

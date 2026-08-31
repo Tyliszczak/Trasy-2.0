@@ -1,9 +1,11 @@
 (()=>{
   if(window.__trasyOfflineMap)return;
 
-  const CACHE_NAME='trasy-offline-map-v1';
-  const ROUTES_KEY='trasy2.routes';
-  const META_KEY='trasy2.offlineMap.v1';
+  const platform=window.__trasyPlatform;
+  const scope=platform?.scope()||'unassigned';
+  const CACHE_NAME=`trasy-offline-map-v2-${scope}`;
+  const ROUTES_KEY=platform?.storageKey('trasy2.routes.v3')||'trasy2.routes.v3.unassigned';
+  const META_KEY=platform?.storageKey('trasy2.offlineMap.v2')||'trasy2.offlineMap.v2.unassigned';
   const STYLE_URLS=[
     'https://tiles.openfreemap.org/styles/liberty',
     'https://tiles.openfreemap.org/styles/dark'

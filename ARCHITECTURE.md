@@ -9,6 +9,8 @@ Celem refaktoru jest usunięcie warstwowych poprawek powstałych podczas testów
 3. Kierunek TAM/POWRÓT i START powrotu: `return-route.js`; tracker zna jedynie minimalny dozwolony indeks celu.
 4. Wyznaczanie trasy: `nav-map.js` + jawny adapter cache OSRM. Nie nadpisujemy `window.fetch`.
 5. Mapa bazowa: jeden `map-runtime.js` wybiera PTV, nocny OpenFreeMap i fallback; żadnego Proxy na `maplibregl.Map`.
+6. Dostęp kierowcy: `driver-access-bootstrap.js` uruchamia aplikację dopiero po kontroli sesji przez `/api`; sesja jest związana z firmą, kierowcą i urządzeniem.
+7. Dane firmowe: w publicznym wdrożeniu nie ma pliku tras ani wspólnego źródła testowego. Pusta firma otrzymuje pustą listę tras.
 6. Rysowanie trasy: jeden `route-progress-style.js`; bez podmieniania `map.addSource` i `source.setData`.
 7. Kamera: jeden `RouteCameraController`; profil prędkości jest danymi, nie monkey-patchem metod kontrolera.
 8. ETA: nawigacja publikuje ETA, `eta-status.js` odpowiada za prezentację harmonogramu.
@@ -16,6 +18,11 @@ Celem refaktoru jest usunięcie warstwowych poprawek powstałych podczas testów
 10. CSS interfejsu nawigacji: `navigation.css`; moduły nie wstrzykują kolejnych arkuszy stylów w runtime.
 11. PWA: rejestracja, sprawdzanie i aktywacja aktualizacji mają jednego właściciela w `app.js`.
 12. Offline: OpenFreeMap i geometrie OSRM są cache'owane jawnie; service worker rzeczywiście obsługuje żądania OpenFreeMap z CacheStorage.
+13. Integracja: `platform-bridge.js` jest jedyną granicą pomiędzy aplikacją kierowcy a panelem Kursy; moduły funkcjonalne nie obsługują tokenów sesyjnych.
+14. Izolacja: dane firmy w LocalStorage i CacheStorage mają zakres `companyId.driverId.deviceId`.
+15. Profile: `deployment-profile.js` rozdziela test, pilot i produkcję; tylko test może użyć arkusza i tras zapasowych.
+16. Ekran: `wake-style.js` odpowiada wyłącznie za Screen Wake Lock, a `schedule-enhancer.js` za dodatkowe zachowania harmonogramu.
+17. Administracja: aplikacja kierowcy tylko odczytuje parkingi. Ich zapis i uwierzytelnienie należą do panelu administratora.
 
 ## Problemy wykryte w audycie 2.0.162
 

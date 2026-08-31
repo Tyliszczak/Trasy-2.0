@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
   <meta name="theme-color" content="#1a1a1a">
-  <link rel="manifest" href="./manifest.json">
+  <link rel="manifest" href="./manifest-test.json">
   <link rel="stylesheet" href="./style.css?v=i18n-1">
   <link rel="stylesheet" href="./navigation.css?v=2">
   <style>
@@ -19,13 +19,22 @@
     #routeMapCenter{top:110px!important;right:12px!important}
     #routeVoiceToggle{top:112px!important;right:62px!important}
   </style>
-  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.12.0/dist/maplibre-gl.css">
+  <link rel="stylesheet" href="./vendor/maplibre-gl/5.12.0/maplibre-gl.css">
   <link rel="preconnect" href="https://vectormaps-resources.myptv.com" crossorigin>
   <link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin>
   <title>Trasy 2.0</title>
 </head>
 <body>
-  <div id="globalTestVersion" data-version="2.0.174">TEST 2.0.174</div>
+  <section id="driverAccessGate" class="driverAccessGate" aria-live="polite">
+    <div class="driverAccessCard">
+      <img src="./Tyliszczak.png" alt="" class="driverAccessLogo">
+      <h1 id="driverAccessTitle">Sprawdzanie dostępu…</h1>
+      <p id="driverAccessMessage">Trwa bezpieczne łączenie z panelem firmy.</p>
+      <button id="driverActivateButton" class="primary" type="button" hidden>AKTYWUJ TO URZĄDZENIE</button>
+    </div>
+  </section>
+  <div id="driverAppShell" hidden>
+  <div id="globalTestVersion" data-version="2.0.176">TEST 2.0.176</div>
   <header class="header"><div class="headerActions"><span id="connectionStatus" class="status">Offline</span></div></header>
   <main class="container">
     <aside id="updateNotice" class="notice updateNotice" hidden><span>Nowa wersja aplikacji jest gotowa.</span><button id="updateAppButton">ODŚWIEŻ</button></aside>
@@ -55,42 +64,8 @@
       <div class="tableWrap"><table><thead><tr><th>Przystanek</th><th>Godzina</th><th>Trasa</th></tr></thead><tbody id="scheduleBody"></tbody></table></div>
     </section>
   </main>
-  <div id="installBanner" class="installBanner" hidden><strong>Chcesz zainstalować aplikację TRASY 2.0?</strong><div class="installActions"><button id="installButton" class="installButton">ZAINSTALUJ</button><button id="rejectInstall" class="rejectButton">ODRZUĆ</button></div></div>
-  <script src="./i18n.js?v=2"></script>
-  <script src="./time-core.js?v=3"></script>
-  <script src="./geo-core.js?v=1"></script>
-  <script src="./eta-core.js?v=1"></script>
-  <script src="./route-data-service.js?v=5"></script>
-  <script src="./gps-hub.js?v=resume-1"></script>
-  <script type="module" src="./app.js?v=secure-data-4"></script>
-  <script src="./wake-style.js?v=navigation-wake-3"></script>
-  <script src="./offline-map-cache.js?v=1"></script>
-  <script src="./offline-route-cache.js?v=1"></script>
-  <script src="https://unpkg.com/maplibre-gl@5.12.0/dist/maplibre-gl.js"></script>
-  <script type="module" src="./map-runtime.js?v=2"></script>
-  <script src="./vehicles.js?v=sheet-data-2"></script>
-  <script src="./return-route.js?v=parking-notice-1"></script>
-  <script src="./speed-display.js?v=road-only-1"></script>
-  <script type="module" src="./road-speed-limit.js?v=osm-only-1"></script>
-  <script type="module" src="./gps-stop-tracker.js?v=stop-engine-12"></script>
-  <script src="./active-stop-guard.js?v=1"></script>
-  <script src="./google-routes-provider.js?v=secure-api-1"></script>
-  <script src="./nav-map.js?v=i18n-1"></script>
-  <script src="./maneuver-bubble.js?v=3"></script>
-  <script type="module" src="./route-progress-style.js?v=6"></script>
-  <script src="./traffic-delay-ui.js?v=1"></script>
-  <script src="./navigation-ui-controls.js?v=27"></script>
-  <script src="./navigation-compass.js?v=2"></script>
-  <script type="module" src="./navigation-live-engine.js?v=6"></script>
-  <script src="./navigation-feedback.js?v=i18n-1"></script>
-  <script src="./android-back-navigation.js?v=2"></script>
-  <script src="./etoll-overlay.js?v=2"></script>
-  <script src="./skip-stop-control.js?v=5"></script>
-  <script src="./skip-detection.js?v=resume-validation-1"></script>
-  <script src="./final-stop-ui.js?v=4"></script>
-  <script src="./stop-map-links.js?v=1"></script>
-  <script type="module" src="./eta-status.js?v=status-9"></script>
-  <script src="./next-stop-header.js?v=status-13"></script>
-  <script src="./visual-stop-alert.js?v=1"></script>
+    <div id="installBanner" class="installBanner" hidden><strong>Chcesz zainstalować aplikację TRASY 2.0?</strong><div class="installActions"><button id="installButton" class="installButton">ZAINSTALUJ</button><button id="rejectInstall" class="rejectButton">ODRZUĆ</button></div></div>
+  </div>
+  <script src="./driver-access-bootstrap.js?v=1"></script>
 </body>
 </html>

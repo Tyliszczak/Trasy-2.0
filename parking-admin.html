@@ -3,41 +3,18 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Bazy i parkingi — Trasy 2.0</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Bazy i parkingi — panel administratora</title>
   <style>
-    :root{font-family:Arial,sans-serif;color:#fff;background:#181818}*{box-sizing:border-box}body{margin:0}.page{display:grid;grid-template-columns:minmax(300px,420px) 1fr;min-height:100vh}.form{padding:22px;background:#222;box-shadow:4px 0 18px #0008;z-index:2}.form h1{margin:0 0 8px;color:#ccff33;font-size:1.45rem}.hint,.message{color:#bbb;line-height:1.4}.field{display:grid;gap:6px;margin-top:15px;font-weight:800}.field input,.field select,button{min-height:46px;border:1px solid #666;border-radius:8px;font:inherit}.field input,.field select{padding:0 11px;background:#111;color:#fff}button{padding:9px 12px;background:#ccff33;color:#111;font-weight:900;cursor:pointer}.secondary{background:#3b3b3b;color:#fff}.actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:16px}.actions #saveParking{grid-column:1/-1}.message{min-height:22px;margin:13px 0 0}.records{display:grid;gap:7px;margin-top:18px}.record{display:block;width:100%;text-align:left;background:#333;color:#fff}.record small{display:block;margin-top:3px;color:#bbb}.map{min-height:100vh}.leaflet-control-attribution{font-size:9px}@media(max-width:760px){.page{display:flex;flex-direction:column}.form{box-shadow:0 4px 18px #0008}.map{min-height:52vh}}
+    :root{font-family:Arial,sans-serif;color:#fff;background:#181818}*{box-sizing:border-box}body{min-height:100vh;margin:0;display:grid;place-items:center;padding:24px}.card{width:min(620px,100%);padding:28px;border:1px solid #555;border-radius:16px;background:#252525;box-shadow:0 18px 60px #0008}.card h1{margin:0 0 12px;color:#ccff33}.card p{color:#ddd;line-height:1.55}.card a{display:block;margin-top:20px;padding:14px;border-radius:10px;background:#ccff33;color:#111;font-weight:900;text-align:center;text-decoration:none}
   </style>
 </head>
 <body>
-  <main class="page">
-    <section class="form" aria-labelledby="pageTitle">
-      <h1 id="pageTitle">Bazy i parkingi</h1>
-      <p class="hint">Administrator wskazuje punkt na mapie albo pobiera bieżącą lokalizację. Trasy 2.0 użyją go po zakończeniu trasy powrotnej.</p>
-      <label class="field" for="parkingName">Nazwa
-        <input id="parkingName" value="Baza" maxlength="80" autocomplete="off">
-      </label>
-      <label class="field" for="parkingRoute">Dostępność
-        <select id="parkingRoute"><option value="*">Wszystkie trasy</option></select>
-      </label>
-      <label class="field" for="parkingCoordinates">Lokalizacja GPS
-        <input id="parkingCoordinates" inputmode="decimal" placeholder="52.000000, 15.500000" autocomplete="off">
-      </label>
-      <label class="field" for="adminPassword">Hasło administratora
-        <input id="adminPassword" type="password" autocomplete="current-password">
-      </label>
-      <div class="actions">
-        <button id="useLocation" type="button" class="secondary">MOJA LOKALIZACJA</button>
-        <button id="centerMap" type="button" class="secondary">POKAŻ NA MAPIE</button>
-        <button id="saveParking" type="button">ZAPISZ BAZĘ / PARKING</button>
-      </div>
-      <p id="parkingMessage" class="message" role="status" aria-live="polite"></p>
-      <div id="parkingRecords" class="records" aria-label="Zapisane bazy i parkingi"></div>
-    </section>
-    <div id="parkingMap" class="map" aria-label="Mapa wyboru lokalizacji"></div>
+  <main class="card">
+    <h1>Bazy i parkingi</h1>
+    <p>Edycja lokalizacji została przeniesiona do zabezpieczonego panelu administratora. Ta aplikacja kierowcy tylko odczytuje opublikowane parkingi przypisane do zalogowanej firmy.</p>
+    <p>Hasło administratora nie jest już przyjmowane ani przesyłane przez publiczny ekran Tras 2.0.</p>
+    <a href="https://app.tyli.pl/" rel="noopener">OTWÓRZ PANEL ADMINISTRATORA</a>
   </main>
-  <script src="./route-data-service.js?v=2"></script>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script type="module" src="./parking-admin.js?v=1"></script>
 </body>
 </html>

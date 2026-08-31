@@ -2,7 +2,13 @@
   "name": "trasy-2.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22 <25"
+  },
   "scripts": {
-    "test": "node --test"
+    "preview": "node scripts/static-server.mjs",
+    "check:syntax": "node scripts/check-syntax.mjs",
+    "test": "node --test",
+    "verify": "npm run check:syntax && npm test"
   }
 }

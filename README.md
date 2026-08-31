@@ -4,7 +4,7 @@ Trasy 2.0 to statyczna aplikacja PWA dla kierowcy: pokazuje harmonogram kursu, p
 
 ## Dane i synchronizacja
 
-Dane tras są pobierane przez `route-data-service.js` z uwierzytelnionego kontraktu `KURSY_DRIVER_API`, który przekazuje panel kierowcy po sprawdzeniu sesji, urządzenia i licencji. Główna aplikacja nie wywołuje już starego publicznego adresu Apps Script, który zwracał 403. `routes.js` pozostaje źródłem testowym i zapasowym, dlatego wersja internetowa od razu pozwala sprawdzić harmonogram oraz nawigację także przed podłączeniem panelu kierowcy.
+Dane tras są pobierane przez `route-data-service.js` wyłącznie z uwierzytelnionego kontraktu `KURSY_DRIVER_API`, po sprawdzeniu sesji, urządzenia, firmy i licencji. `platform-bridge.js` zapewnia jeden wersjonowany kontrakt, a cache jest rozdzielany według firmy, kierowcy i urządzenia. Publiczny pakiet nie zawiera tras żadnej firmy i wszystkie profile odmawiają uruchomienia bez bezpiecznego połączenia z panelem.
 
 Źródło danych może zawierać zakładkę `PARKINGI` z kolumnami:
 
@@ -14,7 +14,9 @@ Dane tras są pobierane przez `route-data-service.js` z uwierzytelnionego kontra
 
 Po potwierdzonym przez GPS dotarciu do końca trasy powrotnej aplikacja tworzy osobny odcinek do Bazy/Parkingu. Jeden dostępny punkt jest wybierany automatycznie. Przy kilku punktach kierowca wybiera cel. Ręczny przełącznik `NA PUSTO` nadal pozwala uruchomić przejazd bez pasażerów w obu kierunkach.
 
-Docelowy panel administratora korzysta z operacji `loadParkings` i `saveParkings`, a kierowca z `driverParkings`. Backend zapisuje punkty w osobnej karcie `PARKINGI`, zawsze z identyfikatorem firmy. Lokalny `parking-admin.html` pozostaje ekranem roboczym do czasu osadzenia nowej wersji Tras 2.0 w module administratora.
+Panel administratora korzysta z operacji `loadParkings` i `saveParkings`, a kierowca wyłącznie z `driverParkings`. Backend zapisuje punkty w osobnej karcie `PARKINGI`, zawsze z identyfikatorem firmy. Publiczny edytor i pole hasła zostały usunięte z aplikacji kierowcy; `parking-admin.html` kieruje teraz do zabezpieczonego panelu.
+
+Szczegółowy kontrakt integracyjny znajduje się w `docs/driver-platform-contract-v1.md`, a wymagane ustawienia Cloudflare w `docs/cloudflare-security.md`.
 
 ## Nawigacja
 

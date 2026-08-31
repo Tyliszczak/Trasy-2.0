@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-import { ROUTES } from '../routes.js';
 import { getParkingOptions,getParkingRecords,normalizeCoordinate } from '../parking-data.js';
 import { getRoute,getSchedule,mapUrl } from '../schedule.js';
 
@@ -13,6 +12,15 @@ function localScripts(html){
     .map(match=>`./${match[1].split('?')[0]}`);
 }
 
+function bootstrapScripts(source){
+  return [...source.matchAll(/\[['"](\.\/[^?'"]+)(?:\?[^'"]*)?['"]/g)].map(match=>match[1]);
+}
+
+async function applicationScripts(){
+  const [html,bootstrap]=await Promise.all([readSource('index.html'),readSource('driver-access-bootstrap.js')]);
+  return [...localScripts(html),...bootstrapScripts(bootstrap)];
+}
+
 function shellEntries(sw){
   const match=sw.match(/const APP_SHELL=\[(.*?)\];/s);
   assert.ok(match,'Brak APP_SHELL w sw.js');
@@ -20,32 +28,32 @@ function shellEntries(sw){
 }
 
 test('główny ekran używa MapLibre i nie ładuje Leafleta',async()=>{
-  const html=await readSource('index.html');
-  assert.doesNotMatch(html,/leaflet/i);
-  assert.match(html,/maplibre-gl@5\.12\.0/);
+  const [html,bootstrap]=await Promise.all([readSource('index.html'),readSource('driver-access-bootstrap.js')]);
+  assert.doesNotMatch(html+bootstrap,/leaflet/i);
+  assert.match(bootstrap,/vendor\/maplibre-gl\/5\.12\.0\/maplibre-gl\.js/);
+  assert.doesNotMatch(html+bootstrap,/unpkg\.com/);
 });
 
 test('każdy lokalny skrypt głównej aplikacji jest ładowany tylko raz',async()=>{
-  const html=await readSource('index.html');
-  const scripts=localScripts(html);
+  const scripts=await applicationScripts();
   assert.equal(new Set(scripts).size,scripts.length,`Powtórzone skrypty: ${scripts.filter((item,index)=>scripts.indexOf(item)!==index).join(', ')}`);
 });
 
 test('każdy lokalny skrypt uruchamiany przez index znajduje się w cache PWA',async()=>{
-  const [html,sw]=await Promise.all([readSource('index.html'),readSource('sw.js')]);
+  const [scripts,sw]=await Promise.all([applicationScripts(),readSource('sw.js')]);
   const shell=new Set(shellEntries(sw));
-  const missing=localScripts(html).filter(script=>!shell.has(script));
+  const missing=scripts.filter(script=>!shell.has(script));
   assert.deepEqual(missing,[],'Skrypt z index.html nie jest objęty APP_SHELL');
   assert.match(sw,/const CACHE_NAME='trasy-2\.0-v\d+'/);
 });
 
 test('kierowca może przełączyć polski, angielski i ukraiński na ekranie wyboru trasy',async()=>{
-  const [html,i18n,nav,feedback]=await Promise.all([
-    readSource('index.html'),readSource('i18n.js'),readSource('nav-map.js'),readSource('navigation-feedback.js')
+  const [html,bootstrap,i18n,nav,feedback]=await Promise.all([
+    readSource('index.html'),readSource('driver-access-bootstrap.js'),readSource('i18n.js'),readSource('nav-map.js'),readSource('navigation-feedback.js')
   ]);
   assert.match(html,/id="languageButton"/);
   assert.match(html,/🌐/);
-  assert.ok(html.indexOf('./i18n.js')<html.indexOf('./app.js'),'Tłumaczenia muszą uruchomić się przed aplikacją');
+  assert.ok(bootstrap.indexOf('./i18n.js')<bootstrap.indexOf('./app.js'),'Tłumaczenia muszą uruchomić się przed aplikacją');
   assert.match(i18n,/SUPPORTED=\['pl','en','uk'\]/);
   assert.match(i18n,/trasy2\.language/);
   assert.match(i18n,/speechLanguage/);
@@ -65,8 +73,7 @@ test('service worker przełącza wersję dopiero po działaniu kierowcy',async()
 });
 
 test('tylko gps-hub utrzymuje fizyczny watchPosition dla głównej aplikacji',async()=>{
-  const html=await readSource('index.html');
-  const scripts=localScripts(html).map(path=>path.slice(2)).filter(name=>name.endsWith('.js'));
+  const scripts=(await applicationScripts()).map(path=>path.slice(2)).filter(name=>name.endsWith('.js')&&!name.startsWith('vendor/'));
   const sources=await Promise.all(scripts.map(async name=>[name,await readSource(name)]));
   const owners=sources.filter(([,source])=>/\bwatchPosition\s*\(/.test(source)).map(([name])=>name);
   assert.deepEqual(owners,['gps-hub.js']);
@@ -78,28 +85,31 @@ test('blokadą wygaszania zarządza tylko wake-style',async()=>{
   assert.match(wake,/wakeLock\.request\('screen'\)/);
 });
 
-test('dane tras są pobierane wyłącznie z arkusza Trasy 2.0',async()=>{
-  const [service,app,returnRoute]=await Promise.all([
-    readSource('route-data-service.js'),readSource('app.js'),readSource('return-route.js')
+test('dane tras używają wyłącznie bezpiecznego kontraktu przypisanego do firmy',async()=>{
+  const [service,app,returnRoute,bridge,profile]=await Promise.all([
+    readSource('route-data-service.js'),readSource('app.js'),readSource('return-route.js'),readSource('platform-bridge.js'),readSource('deployment-profile.js')
   ]);
-  assert.match(service,/AKfycbyQcnU6xvvrUZNVUJRhQ293L47hZwlvsc6i3n9s9hiYqhLUAoKSqGbPohe_lSB0apfUcw/);
-  for(const name of ['SAS Sulechów','APT - Krężoły','SAS Świebodzin','TopPoint','POJAZDY'])assert.match(service,new RegExp(name));
-  assert.match(service,/fetch\(url\.href/);
-  assert.doesNotMatch(service,/KURSY_DRIVER_API|driverRoutes/);
+  assert.match(service,/platform\.routes/);
+  assert.doesNotMatch(service,/trasy-data|LEGACY_TEST_URL|REQUIRED_SHEETS|fetch\(/);
+  assert.match(bridge,/KURSY_DRIVER_API/);
+  assert.match(bridge,/driverRoutes/);
+  assert.match(profile,/production:\{/);
+  assert.match(profile,/allowLegacySheet:false/);
+  assert.match(profile,/allowFallbackRoutes:false/);
+  assert.doesNotMatch(app,/FALLBACK_ROUTES|routes\.js/);
   assert.match(app,/__trasyRouteDataService/);
-  assert.match(returnRoute,/__trasyRouteDataService/);
+  assert.match(returnRoute,/__trasyPlatform/);
 });
 
-test('pojazdy są pobierane z karty POJAZDY tego samego arkusza',async()=>{
+test('pojazdy są pobierane z bezpiecznego kontraktu tej samej firmy',async()=>{
   const [app,vehicles,service,provider]=await Promise.all([
     readSource('app.js'),readSource('vehicles.js'),readSource('route-data-service.js'),readSource('google-routes-provider.js')
   ]);
-  assert.match(app,/routes=FALLBACK_ROUTES\.filter\(valid\);renderRoutes\(\)/);
-  assert.match(app,/Tryb testowy/);
+  assert.doesNotMatch(app,/profile\.allowFallbackRoutes|Tryb testowy|FALLBACK_ROUTES/);
+  assert.match(vehicles,/platform\.vehicles/);
+  assert.match(vehicles,/data\?\.data\?\.POJAZDY/);
   assert.match(vehicles,/__trasyRouteDataService/);
-  assert.match(vehicles,/data\?\.POJAZDY/);
-  assert.doesNotMatch(vehicles,/KURSY_DRIVER_API|standaloneTestVehicle/);
-  assert.match(service,/POJAZDY/);
+  assert.doesNotMatch(vehicles,/standaloneTestVehicle/);
   for(const source of [app,vehicles,provider,service])assert.doesNotMatch(source,/AKfycbzdG_ARbbPgMdlPteqFLakZHR5EEkT4Lb3YFDbXW_I_OyrDKo8l0_KrQLjnncxj_M9q/);
 });
 
@@ -194,38 +204,29 @@ test('uwagi nawigacyjne nie zapisują nagrań głosowych',async()=>{
 
 test('zgłoszenia kierowcy trafiają przez bezpieczny kontrakt do panelu i zachowują kolejkę offline',async()=>{
   const feedback=await readSource('navigation-feedback.js');
-  assert.match(feedback,/api\.driverFeedback\(record\)/);
+  assert.match(feedback,/platform\.feedback\(record\)/);
   assert.match(feedback,/deliveryStatus:'pending'/);
   assert.match(feedback,/deliveryStatus:'sent'/);
   assert.match(feedback,/window\.addEventListener\('online',flushPending\)/);
   assert.match(feedback,/panelu administratora i na ustawiony przez niego adres e-mail/);
   assert.doesNotMatch(feedback,/feedbackEmail|adminEmail/);
   assert.doesNotMatch(feedback,/WhatsApp|WHATSAPP|sms:|navigator\.share|navigator\.clipboard|INNA APLIKACJA/);
-  assert.match(feedback,/TEMP_TEST_FEEDBACK_EMAIL='kswiderski70@gmail\.com'/);
+  assert.doesNotMatch(feedback,/temporaryFeedbackEmail|TEMP_TEST_FEEDBACK_EMAIL|mailto:/);
   assert.match(feedback,/body\.routeFeedbackNavigation #routeFeedbackButton\{position:fixed;right:auto;bottom:auto\}/);
   assert.match(feedback,/button\.style\.top=`\$\{Math\.round\(backRect\.bottom\+10\)\}px`/);
   assert.match(feedback,/new MutationObserver\(updatePosition\)\.observe\(navigationBack,\{attributes:true,attributeFilter:\['style'\]\}\)/);
   assert.doesNotMatch(feedback,/const target=navVisible&&canvas\?canvas:document\.body/);
   assert.match(feedback,/if\(!panelConnected\(\)\)/);
-  assert.match(feedback,/mailto:\$\{TEMP_TEST_FEEDBACK_EMAIL\}/);
-  assert.match(feedback,/Po nadaniu dostępu z panelu ten tymczasowy sposób zostanie automatycznie wyłączony/);
   assert.match(feedback,/pl\.tyli\.trasy2\.feedback-archive/);
   assert.match(feedback,/Trasy2_archiwum_\$\{deviceCode\}_\$\{exportedAt\.slice\(0,10\)\}\.trasy2\.json/);
   assert.match(feedback,/deliveryStatus!=='sent'/);
   assert.doesNotMatch(feedback,/driverSessionToken|refreshToken|activationToken|latitude|longitude/);
 });
 
-test('dane zapasowe tworzą kompletny harmonogram każdej zmiany',()=>{
-  assert.ok(ROUTES.length>0);
-  for(const route of ROUTES){
-    assert.equal(getRoute(ROUTES,route.name),route);
-    assert.ok(route.times.length>0,`${route.name}: brak oznaczeń zmian`);
-    assert.ok(route.stops.length>0,`${route.name}: brak przystanków`);
-    for(const time of route.times){
-      const schedule=getSchedule(route,time);
-      assert.equal(schedule.length,route.stops.length,`${route.name} ${time}: niepełny harmonogram`);
-    }
-  }
+test('publiczny pakiet nie zawiera wspólnych tras żadnej firmy',async()=>{
+  const [app,worker,bootstrap]=await Promise.all([readSource('app.js'),readSource('sw.js'),readSource('driver-access-bootstrap.js')]);
+  assert.doesNotMatch(app+worker+bootstrap,/SAS Sulechów|APT - Krężoły|SAS Świebodzin|TopPoint/);
+  assert.doesNotMatch(worker,/\.\/routes\.js/);
 });
 
 test('parkingi wspólne i przypisane do trasy są poprawnie wybierane',()=>{
@@ -269,16 +270,15 @@ test('koniec trasy powrotnej uruchamia osobny odcinek do Bazy lub Parkingu',asyn
   assert.doesNotMatch(returnRoute,/alert\('Administrator nie wprowadził lokalizacji/);
 });
 
-test('administrator ma edytor Bazy i Parkingu oraz autoryzowany zapis backendu',async()=>{
-  const [html,editor,mapEditor,backendPatch]=await Promise.all([
-    readSource('parking-admin.html'),readSource('parking-admin.js'),readSource('map-editor.html'),readSource('PARKING_BACKEND_PATCH.gs.txt')
+test('edycja Bazy i Parkingu jest dostępna wyłącznie w zabezpieczonym panelu administratora',async()=>{
+  const [html,mapEditor,returnRoute]=await Promise.all([
+    readSource('parking-admin.html'),readSource('map-editor.html'),readSource('return-route.js')
   ]);
   assert.match(html,/Bazy i parkingi/);
-  assert.match(editor,/action:'upsertParking'/);
-  assert.match(editor,/getParkingRecords/);
-  assert.match(mapEditor,/href="\.\/parking-admin\.html"/);
-  assert.match(backendPatch,/wyłącznie PO istniejącej, poprawnej autoryzacji/);
-  assert.match(backendPatch,/getSheetByName\('PARKINGI'\)/);
+  assert.match(html,/https:\/\/app\.tyli\.pl\//);
+  assert.doesNotMatch(html,/adminPassword|Leaflet|upsertParking/);
+  assert.match(mapEditor,/https:\/\/app\.tyli\.pl\//);
+  assert.match(returnRoute,/platform\.parkings\(\)/);
 });
 
 test('link mapy zachowuje współrzędne',()=>{

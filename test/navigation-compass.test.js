@@ -36,7 +36,7 @@ test('kompas wskazuje północ i lekko pochyla się razem z mapą 3D',async()=>{
 });
 
 test('PWA ładuje i cacheuje kontroler kompasu',async()=>{
-  const [html,worker]=await Promise.all([read('index.html'),read('sw.js')]);
-  assert.match(html,/navigation-compass\.js\?v=2/);
+  const [bootstrap,worker]=await Promise.all([read('driver-access-bootstrap.js'),read('sw.js')]);
+  assert.match(bootstrap,/navigation-compass\.js\?v=2/);
   assert.match(worker,/\.\/navigation-compass\.js/);
 });
