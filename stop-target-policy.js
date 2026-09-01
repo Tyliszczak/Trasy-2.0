@@ -23,12 +23,18 @@ export function shouldApplySchedulePriority({
 export function canAutoAdvanceBySchedule({
   currentPlan,
   nextPlan,
-  now=new Date()
+  now=new Date(),
+  transitionReason=''
 }={}){
   const nowMs=dateMs(now);
   const currentMs=dateMs(currentPlan);
   const nextMs=dateMs(nextPlan);
   if(nowMs===null||currentMs===null||nextMs===null)return false;
+
+  // Gdy GPS podczas jazdy wiarygodnie potwierdzi fizyczne minięcie celu,
+  // bieżący przystanek może zostać zamknięty już od jego planowej godziny.
+  // Przed planem nadal go chronimy, aby przejazd obok nie oznaczał pominięcia.
+  if(transitionReason==='passed-stop')return nowMs>=currentMs;
 
   // Po wyraźnym minięciu planu bieżącego przystanku harmonogram nie może
   // już przytrzymywać prowadzenia na celu pozostawionym za pojazdem.

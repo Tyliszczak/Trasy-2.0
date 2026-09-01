@@ -61,7 +61,7 @@ import{canAutoAdvanceBySchedule,shouldApplySchedulePriority}from'./stop-target-p
     return planDateForRow(rows(),row,now);
   }
 
-  function scheduleAllowsAutoAdvance(fromIndex,toIndex,now=new Date()){
+  function scheduleAllowsAutoAdvance(fromIndex,toIndex,transitionReason='',now=new Date()){
     const routeRows=rows();
     const current=routeRows[fromIndex];
     const next=routeRows[toIndex];
@@ -69,7 +69,8 @@ import{canAutoAdvanceBySchedule,shouldApplySchedulePriority}from'./stop-target-p
     return canAutoAdvanceBySchedule({
       currentPlan:rowPlanDate(current,now),
       nextPlan:rowPlanDate(next,now),
-      now
+      now,
+      transitionReason
     });
   }
 
@@ -254,7 +255,7 @@ import{canAutoAdvanceBySchedule,shouldApplySchedulePriority}from'./stop-target-p
         :result.reason==='reacquired-target'&&Number.isInteger(result.fromIndex)
           ?result.fromIndex
           :minimumTargetIndex();
-      if(!scheduleAllowsAutoAdvance(fromIndex,currentIndex)){
+      if(!scheduleAllowsAutoAdvance(fromIndex,currentIndex,result.reason)){
         currentIndex=fromIndex;
         engine.setIndex(currentIndex);
         applyIndex(currentIndex,'schedule-priority',result);

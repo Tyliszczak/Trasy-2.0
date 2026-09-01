@@ -37,6 +37,24 @@ test('po 10 minutach od planu pierwszego przystanku ochrona wygasa całkowicie',
   }),true);
 });
 
+test('potwierdzone przez GPS minięcie po planie od razu przełącza na następny przystanek',()=>{
+  assert.equal(canAutoAdvanceBySchedule({
+    currentPlan:at('06:15'),
+    nextPlan:at('06:40'),
+    now:at('06:16'),
+    transitionReason:'passed-stop'
+  }),true);
+});
+
+test('GPS nie pomija przystanku przejechanego przed jego planową godziną',()=>{
+  assert.equal(canAutoAdvanceBySchedule({
+    currentPlan:at('06:15'),
+    nextPlan:at('06:40'),
+    now:at('06:14'),
+    transitionReason:'passed-stop'
+  }),false);
+});
+
 test('dawno minięty przystanek nie blokuje celu nawet przy dużej luce w harmonogramie',()=>{
   assert.equal(canAutoAdvanceBySchedule({
     currentPlan:at('06:15'),
@@ -68,6 +86,16 @@ test('ochrona harmonogramu działa tylko na kursie z godzinami, nigdy na powroci
 test('samonaprawa GPS nie może ominąć aktywnego przystanku przed czasem',()=>{
   const source=fs.readFileSync(new URL('../gps-stop-tracker.js',import.meta.url),'utf8');
   assert.match(source,/result\.reason==='reacquired-target'/);
-  assert.match(source,/scheduleAllowsAutoAdvance\(fromIndex,currentIndex\)/);
+  assert.match(source,/scheduleAllowsAutoAdvance\(fromIndex,currentIndex,result\.reason\)/);
   assert.match(source,/engine\.setIndex\(currentIndex\)/);
+});
+
+test('oba kierunki używają jednego automatycznego komunikatu o minięciu przystanku',()=>{
+  const index=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
+  const sw=fs.readFileSync(new URL('../sw.js',import.meta.url),'utf8');
+  const tracker=fs.readFileSync(new URL('../gps-stop-tracker.js',import.meta.url),'utf8');
+  assert.doesNotMatch(index,/skip-detection\.js/);
+  assert.doesNotMatch(sw,/skip-detection\.js/);
+  assert.match(tracker,/POMINĄŁEŚ PRZYSTANEK/);
+  assert.doesNotMatch(tracker,/POMIŃ WSZYSTKIE/);
 });

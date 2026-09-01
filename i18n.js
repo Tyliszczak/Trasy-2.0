@@ -139,7 +139,6 @@
     'MOŻLIWE POMINIĘCIE PRZYSTANKU':['POSSIBLE MISSED STOP','МОЖЛИВО ПРОПУЩЕНО ЗУПИНКУ'],
     'NIE — JADĘ DO PRZYSTANKU':['NO — I AM DRIVING TO THE STOP','НІ — Я ЇДУ ДО ЗУПИНКИ'],
     'POMIŃ NASTĘPNY':['SKIP NEXT','ПРОПУСТИТИ НАСТУПНУ'],
-    'POMIŃ WSZYSTKIE':['SKIP ALL','ПРОПУСТИТИ ВСІ'],
     'POMIŃ PRZYSTANEK':['SKIP STOP','ПРОПУСТИТИ ЗУПИНКУ'],
     'TRASY 2.0 ZAKOŃCZONE':['TRASY 2.0 FINISHED','TRASY 2.0 ЗАВЕРШЕНО'],
     'Dojechałeś do ostatniego punktu. Wybierz dalszą czynność.':['You have reached the last point. Choose what to do next.','Ви прибули до останнього пункту. Виберіть подальшу дію.'],
@@ -170,7 +169,6 @@
     if((match=text.match(/^START (.+)$/)))return en?`START ${match[1]}`:`ПОЧАТОК ${match[1]}`;
     if((match=text.match(/^Start (.+)$/)))return en?`Start ${match[1]}`:`Початок ${match[1]}`;
     if((match=text.match(/^POMIŃ NASTĘPNY: (.+)$/)))return en?`SKIP NEXT: ${match[1]}`:`ПРОПУСТИТИ НАСТУПНУ: ${match[1]}`;
-    if((match=text.match(/^POMIŃ WSZYSTKIE \((\d+)\)$/)))return en?`SKIP ALL (${match[1]})`:`ПРОПУСТИТИ ВСІ (${match[1]})`;
     if((match=text.match(/^Otwórz (.+) na mapie$/)))return en?`Open ${match[1]} on the map`:`Відкрити ${match[1]} на карті`;
     if((match=text.match(/^Uruchom nawigację od przystanku (.+)$/)))return en?`Start navigation from stop ${match[1]}`:`Почати навігацію від зупинки ${match[1]}`;
     if((match=text.match(/^Nawiguj do parkingu (.+)$/)))return en?`Navigate to parking ${match[1]}`:`Навігація до парковки ${match[1]}`;
