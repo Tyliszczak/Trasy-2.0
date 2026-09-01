@@ -8,6 +8,8 @@ function dateMs(value){
   return Number.isFinite(ms)?ms:null;
 }
 
+const SCHEDULE_PRIORITY_GRACE_MS=10*60*1000;
+
 export function shouldApplySchedulePriority({
   direction='forward',
   emptyRun=false
@@ -28,9 +30,11 @@ export function canAutoAdvanceBySchedule({
   const nextMs=dateMs(nextPlan);
   if(nowMs===null||currentMs===null||nextMs===null)return false;
 
-  // Bieżący przystanek zachowuje priorytet aż do planowej godziny
-  // przystanku, na który GPS chciałby przełączyć prowadzenie.
-  // Dzięki temu odstęp może wynosić 5, 10, 25 czy 60 minut bez
-  // sztywnego okna czasowego.
+  // Po wyraźnym minięciu planu bieżącego przystanku harmonogram nie może
+  // już przytrzymywać prowadzenia na celu pozostawionym za pojazdem.
+  if(nowMs-currentMs>=SCHEDULE_PRIORITY_GRACE_MS)return true;
+
+  // W krótkim okresie ochronnym bieżący przystanek zachowuje priorytet
+  // do planowej godziny przystanku, na który GPS chce przełączyć cel.
   return nowMs>=nextMs;
 }

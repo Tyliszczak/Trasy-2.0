@@ -5,11 +5,11 @@ import{canAutoAdvanceBySchedule,shouldApplySchedulePriority}from'../stop-target-
 
 const at=value=>new Date(`2026-08-25T${value}:00`);
 
-test('bieżący przystanek ma priorytet aż do godziny następnego',()=>{
+test('bieżący przystanek zachowuje priorytet przed upływem 10 minut od planu',()=>{
   assert.equal(canAutoAdvanceBySchedule({
     currentPlan:at('06:15'),
     nextPlan:at('06:40'),
-    now:at('06:31')
+    now:at('06:24')
   }),false);
 });
 
@@ -29,12 +29,20 @@ test('tuż przed godziną następnego przystanku cel jeszcze się nie zmienia',(
   }),false);
 });
 
-test('późniejszy przystanek daleko w harmonogramie nie przejmuje celu przez samą bliskość GPS',()=>{
+test('po 10 minutach od planu pierwszego przystanku ochrona wygasa całkowicie',()=>{
+  assert.equal(canAutoAdvanceBySchedule({
+    currentPlan:at('06:15'),
+    nextPlan:at('06:40'),
+    now:at('06:25')
+  }),true);
+});
+
+test('dawno minięty przystanek nie blokuje celu nawet przy dużej luce w harmonogramie',()=>{
   assert.equal(canAutoAdvanceBySchedule({
     currentPlan:at('06:15'),
     nextPlan:at('08:00'),
     now:at('06:45')
-  }),false);
+  }),true);
 });
 
 test('brak czasu bieżącego lub następnego przystanku blokuje automatyczne pominięcie',()=>{
