@@ -1219,7 +1219,9 @@
 
       dispatchEta();
 
-      const routeSummary=`Trasa ${fmtDistance(route.distance)} • ${Math.round(route.duration/60)} min`;
+      const routeMinutes=Math.max(1,Math.round(route.duration/60));
+      const routeDuration=window.__trasyEta?.formatMinutes?.(routeMinutes)||`${routeMinutes} min`;
+      const routeSummary=`Trasa ${fmtDistance(route.distance)} • ${routeDuration}`;
       status.dataset.routeBase=routeSummary;
       status.textContent=routeSummary;
       status.dataset.state='ready';

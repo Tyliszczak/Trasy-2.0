@@ -3,7 +3,9 @@
     if(!window.__routeTrafficAvailable)return '';
     const seconds=Math.max(0,Number(window.__routeTrafficDelaySeconds||0));
     if(seconds<60)return ' • ruch bez opóźnień';
-    return ` • ruch +${Math.max(1,Math.round(seconds/60))} min`;
+    const minutes=Math.max(1,Math.round(seconds/60));
+    const duration=window.__trasyEta?.formatMinutes?.(minutes)||`${minutes} min`;
+    return ` • ruch +${duration}`;
   }
 
   function refresh(){

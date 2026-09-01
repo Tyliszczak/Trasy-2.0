@@ -21,7 +21,9 @@ test('angielski tłumaczy ekran, status czasu i komunikat głosowy',()=>{
   const i18n=translator('en');
   assert.equal(i18n.translateText('Wybierz trasę'),'Choose a route');
   assert.equal(i18n.translateText('17 min opóźnienia'),'17 min late');
+  assert.equal(i18n.translateText('1 godz. 37 min opóźnienia'),'1 h 37 min late');
   assert.equal(i18n.translateText('Trasa 32 km • 46 min • ruch +4 min'),'Route 32 km • 46 min • traffic +4 min');
+  assert.equal(i18n.translateText('Trasa 92 km • 1 godz. 37 min • ruch +1 godz. 1 min'),'Route 92 km • 1 h 37 min • traffic +1 h 1 min');
   assert.equal(i18n.t('turnRoad',{direction:'left',road:' onto Main Street'}),'Turn left onto Main Street');
   assert.equal(i18n.speechLanguage(),'en-GB');
   assert.equal(i18n.translateText('Nie udało się zablokować wygaszania. Sprawdź oszczędzanie baterii i ustawienia przeglądarki.'),'Could not keep the screen on. Check battery saving and browser settings.');
@@ -31,6 +33,8 @@ test('ukraiński tłumaczy ekran, status czasu i komunikat głosowy',()=>{
   const i18n=translator('uk');
   assert.equal(i18n.translateText('Język aplikacji'),'Мова застосунку');
   assert.equal(i18n.translateText('17 min za wcześnie'),'17 хв раніше');
+  assert.equal(i18n.translateText('2 godz. za wcześnie'),'2 год раніше');
+  assert.equal(i18n.translateText('Trasa 92 km • 1 godz. 37 min'),'Маршрут 92 km • 1 год 37 хв');
   assert.equal(i18n.translateText('KONIEC TRASY'),'КІНЕЦЬ МАРШРУТУ');
   assert.equal(i18n.t('inMeters',{distance:150,instruction:'Поверніть праворуч'}),'Через 150 метрів. Поверніть праворуч');
   assert.equal(i18n.speechLanguage(),'uk-UA');

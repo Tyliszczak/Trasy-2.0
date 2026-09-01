@@ -160,6 +160,8 @@
     if(language==='pl')return text;
     const en=language==='en';
     let match;
+    if((match=text.match(/^(\d+) godz\.(?: (\d+) min)? za wcześnie$/)))return en?`${match[1]} h${match[2]?` ${match[2]} min`:''} early`:`${match[1]} год${match[2]?` ${match[2]} хв`:''} раніше`;
+    if((match=text.match(/^(\d+) godz\.(?: (\d+) min)? opóźnienia$/)))return en?`${match[1]} h${match[2]?` ${match[2]} min`:''} late`:`${match[1]} год${match[2]?` ${match[2]} хв`:''} запізнення`;
     if((match=text.match(/^(\d+) min za wcześnie$/)))return en?`${match[1]} min early`:`${match[1]} хв раніше`;
     if((match=text.match(/^(\d+) min opóźnienia$/)))return en?`${match[1]} min late`:`${match[1]} хв запізнення`;
     if((match=text.match(/^Dojazd (.+)$/)))return en?`Arrival ${match[1]}`:`Прибуття ${match[1]}`;
@@ -177,8 +179,14 @@
     if((match=text.match(/^Ograniczenie prędkości (\d+) kilometrów na godzinę$/)))return en?`Speed limit ${match[1]} kilometres per hour`:`Обмеження швидкості ${match[1]} кілометрів на годину`;
     if((match=text.match(/^Trasa (.+) • (\d+) min • ruch bez opóźnień$/)))return en?`Route ${match[1]} • ${match[2]} min • traffic flowing normally`:`Маршрут ${match[1]} • ${match[2]} хв • рух без затримок`;
     if((match=text.match(/^Trasa (.+) • (\d+) min • ruch \+(\d+) min$/)))return en?`Route ${match[1]} • ${match[2]} min • traffic +${match[3]} min`:`Маршрут ${match[1]} • ${match[2]} хв • затримка руху +${match[3]} хв`;
+    if((match=text.match(/^Trasa (.+) • (\d+) godz\.(?: (\d+) min)? • ruch bez opóźnień$/)))return en?`Route ${match[1]} • ${match[2]} h${match[3]?` ${match[3]} min`:''} • traffic flowing normally`:`Маршрут ${match[1]} • ${match[2]} год${match[3]?` ${match[3]} хв`:''} • рух без затримок`;
+    if((match=text.match(/^Trasa (.+) • (\d+) godz\.(?: (\d+) min)? • ruch \+(\d+) min$/)))return en?`Route ${match[1]} • ${match[2]} h${match[3]?` ${match[3]} min`:''} • traffic +${match[4]} min`:`Маршрут ${match[1]} • ${match[2]} год${match[3]?` ${match[3]} хв`:''} • затримка руху +${match[4]} хв`;
+    if((match=text.match(/^Trasa (.+) • (\d+) min • ruch \+(\d+) godz\.(?: (\d+) min)?$/)))return en?`Route ${match[1]} • ${match[2]} min • traffic +${match[3]} h${match[4]?` ${match[4]} min`:''}`:`Маршрут ${match[1]} • ${match[2]} хв • затримка руху +${match[3]} год${match[4]?` ${match[4]} хв`:''}`;
+    if((match=text.match(/^Trasa (.+) • (\d+) godz\.(?: (\d+) min)? • ruch \+(\d+) godz\.(?: (\d+) min)?$/)))return en?`Route ${match[1]} • ${match[2]} h${match[3]?` ${match[3]} min`:''} • traffic +${match[4]} h${match[5]?` ${match[5]} min`:''}`:`Маршрут ${match[1]} • ${match[2]} год${match[3]?` ${match[3]} хв`:''} • затримка руху +${match[4]} год${match[5]?` ${match[5]} хв`:''}`;
     if((match=text.match(/^Trasa (.+) • (\d+) min$/)))return en?`Route ${match[1]} • ${match[2]} min`:`Маршрут ${match[1]} • ${match[2]} хв`;
+    if((match=text.match(/^Trasa (.+) • (\d+) godz\.(?: (\d+) min)?$/)))return en?`Route ${match[1]} • ${match[2]} h${match[3]?` ${match[3]} min`:''}`:`Маршрут ${match[1]} • ${match[2]} год${match[3]?` ${match[3]} хв`:''}`;
     if((match=text.match(/^ • ruch \+(\d+) min$/)))return en?` • traffic +${match[1]} min`:` • затримка руху +${match[1]} хв`;
+    if((match=text.match(/^ • ruch \+(\d+) godz\.(?: (\d+) min)?$/)))return en?` • traffic +${match[1]} h${match[2]?` ${match[2]} min`:''}`:` • затримка руху +${match[1]} год${match[2]?` ${match[2]} хв`:''}`;
     if((match=text.match(/^Trasa (.+)$/)))return en?`Route ${match[1]}`:`Маршрут ${match[1]}`;
     if((match=text.match(/^Po wznowieniu nawigacji wygląda na to, że minąłeś przystanek „(.+)”. Czy chcesz go pominąć\?$/)))return en?`After resuming navigation, it looks like you passed “${match[1]}”. Skip this stop?`:`Після відновлення навігації схоже, що ви проїхали зупинку «${match[1]}». Пропустити її?`;
     if((match=text.match(/^Wygląda na to, że omijasz przystanek „(.+)”. Czy chcesz go pominąć\?$/)))return en?`It looks like you are bypassing “${match[1]}”. Skip this stop?`:`Схоже, ви оминаєте зупинку «${match[1]}». Пропустити її?`;

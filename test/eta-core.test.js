@@ -14,6 +14,10 @@ test('tolerancja punktualności wynosi plus minus 30 sekund',()=>{
 test('tekst za wcześnie i opóźnienia powstaje w jednym rdzeniu',()=>{
   assert.equal(eta.statusFromDiff(-61).text,'1 min za wcześnie');
   assert.equal(eta.statusFromDiff(121).text,'2 min opóźnienia');
+  assert.equal(eta.statusFromDiff(-97*60).text,'1 godz. 37 min za wcześnie');
+  assert.equal(eta.statusFromDiff(120*60).text,'2 godz. opóźnienia');
+  assert.equal(eta.formatMinutes(60),'60 min');
+  assert.equal(eta.formatMinutes(61),'1 godz. 1 min');
 });
 
 test('ostrzeżenie 100 m nie powinno uznać za wczesny dojazdu, który według ETA wypada po planie',()=>{
