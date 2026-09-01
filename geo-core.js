@@ -42,10 +42,28 @@
     return Math.abs(((first-second+540)%360)-180);
   }
 
+  function osrmStartDirectionQuery({
+    heading,
+    speedMps,
+    headingAgeMs,
+    waypointCount,
+    tolerance=55
+  }={}){
+    const direction=heading===null||heading===undefined||heading===''?NaN:Number(heading);
+    const speed=Number(speedMps);
+    const age=Number(headingAgeMs);
+    const count=Number(waypointCount);
+    if(!Number.isFinite(direction)||direction<0||!Number.isFinite(speed)||speed<1.5||!Number.isFinite(age)||age<0||age>10000||!Number.isInteger(count)||count<2)return'';
+    const normalized=Math.round((direction%360+360)%360);
+    const range=Math.max(30,Math.min(90,Math.round(Number(tolerance)||55)));
+    return`&bearings=${normalized},${range}${';'.repeat(count-1)}&continue_straight=true`;
+  }
+
   globalThis.__trasyGeo=Object.freeze({
     parseCoordinate,
     distanceMeters,
     bearingDegrees,
-    angleDifference
+    angleDifference,
+    osrmStartDirectionQuery
   });
 })();

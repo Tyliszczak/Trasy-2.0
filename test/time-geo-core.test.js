@@ -87,3 +87,16 @@ test('wspólna geometria poprawnie liczy odległość, kierunek i różnicę ką
   assert.ok(bearingDegrees(south,north)<1||bearingDegrees(south,north)>359);
   assert.equal(angleDifference(350,10),20);
 });
+
+test('OSRM dostaje kierunek startu wyłącznie podczas wiarygodnej jazdy',()=>{
+  const query=globalThis.__trasyGeo.osrmStartDirectionQuery({
+    heading:271.4,
+    speedMps:8,
+    headingAgeMs:800,
+    waypointCount:3
+  });
+  assert.equal(query,'&bearings=271,55;;&continue_straight=true');
+  assert.equal(globalThis.__trasyGeo.osrmStartDirectionQuery({heading:271,speedMps:0,headingAgeMs:100,waypointCount:3}),'');
+  assert.equal(globalThis.__trasyGeo.osrmStartDirectionQuery({heading:271,speedMps:8,headingAgeMs:11000,waypointCount:3}),'');
+  assert.equal(globalThis.__trasyGeo.osrmStartDirectionQuery({heading:null,speedMps:8,headingAgeMs:100,waypointCount:3}),'');
+});

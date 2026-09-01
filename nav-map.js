@@ -21,8 +21,11 @@
 
   let currentStops=[];
   let lastGpsPoint=null;
+  let lastGpsAt=0;
   let currentHeading=0;
   let headingReady=false;
+  let currentSpeedMps=0;
+  let routingHeadingAt=0;
 
   let stopMarkers=[];
   let progressIndex=0;
@@ -34,6 +37,8 @@
   let routeBuildInFlight=false;
   let routeRequestGeneration=0;
   let routeAbortController=null;
+  let routeUsesStartDirection=false;
+  let lastDirectionAttemptAt=0;
   let offRouteFixes=0;
   let hiddenAt=0;
   let resumeInstant=false;
@@ -321,7 +326,8 @@
   }
 
   function headingFromPosition(p,ll){
-    let h=Number(p.coords.heading);
+    const rawHeading=p.coords.heading;
+    let h=rawHeading===null||rawHeading===undefined?NaN:Number(rawHeading);
 
     if(!Number.isFinite(h)||h<0){
       if(
@@ -342,6 +348,39 @@
     }
 
     return smoothHeading(h);
+  }
+
+  function updateNavigationMotion(position,ll){
+    const previous=lastGpsPoint?.slice?.()||null;
+    const timestamp=Number(position?.timestamp)||Date.now();
+    const moved=previous?hav(previous,ll):0;
+    let speed=Number(position?.coords?.speed);
+    if(!Number.isFinite(speed)||speed<0){
+      speed=previous&&lastGpsAt&&timestamp>lastGpsAt
+        ?moved/((timestamp-lastGpsAt)/1000)
+        :0;
+    }
+    currentSpeedMps=Math.max(0,speed);
+    const rawSensorHeading=position?.coords?.heading;
+    const sensorHeading=rawSensorHeading===null||rawSensorHeading===undefined?NaN:Number(rawSensorHeading);
+    const sensorReliable=Number.isFinite(sensorHeading)&&sensorHeading>=0;
+    const movementReliable=Boolean(previous&&moved>=4&&lastGpsAt&&timestamp>lastGpsAt);
+    const nextHeading=headingFromPosition(position,ll);
+    lastGpsAt=timestamp;
+    if(currentSpeedMps>=1.5&&(sensorReliable||movementReliable)){
+      const sampleAge=Date.now()-timestamp;
+      routingHeadingAt=sampleAge>=0&&sampleAge<60000?timestamp:Date.now();
+    }
+    return nextHeading;
+  }
+
+  function startDirectionQuery(stops){
+    return globalThis.__trasyGeo?.osrmStartDirectionQuery?.({
+      heading:currentHeading,
+      speedMps:currentSpeedMps,
+      headingAgeMs:routingHeadingAt?Date.now()-routingHeadingAt:Infinity,
+      waypointCount:stops.length+1
+    })||'';
   }
 
   function headingFromRoute(origin){
@@ -1109,26 +1148,45 @@
         status.textContent='Pobieranie przebiegu trasy…';
       }
 
-      const routeUrl=
+      const baseRouteUrl=
         `https://router.project-osrm.org/route/v1/driving/${coords}`+
         `?overview=full&geometries=geojson&steps=true&annotations=duration,distance`;
+      const directionQuery=startDirectionQuery(stops);
+      let routeUrl=`${baseRouteUrl}${directionQuery}`;
+      let usedStartDirection=Boolean(directionQuery);
+      if(usedStartDirection)lastDirectionAttemptAt=Date.now();
       const routeFetch=window.__trasyRouteFetch||window.fetch.bind(window);
-      const res=await routeFetch(routeUrl,{cache:'no-store',signal:controller.signal});
+      let res=await routeFetch(routeUrl,{cache:'no-store',signal:controller.signal});
 
       if(requestId!==routeRequestGeneration||controller.signal.aborted)return;
-      if(!res.ok){
-        throw Error(`HTTP ${res.status}`);
+      if(!res.ok&&usedStartDirection){
+        routeUrl=baseRouteUrl;
+        usedStartDirection=false;
+        res=await routeFetch(routeUrl,{cache:'no-store',signal:controller.signal});
+        if(requestId!==routeRequestGeneration||controller.signal.aborted)return;
       }
+      if(!res.ok)throw Error(`HTTP ${res.status}`);
 
-      const rawData=await res.json();
+      let rawData=await res.json();
       if(requestId!==routeRequestGeneration||controller.signal.aborted)return;
-      const data=window.__trasyNormalizeRouteResponse?.(rawData)||rawData;
+      let data=window.__trasyNormalizeRouteResponse?.(rawData)||rawData;
+      if(!data.routes?.[0]&&usedStartDirection){
+        routeUrl=baseRouteUrl;
+        usedStartDirection=false;
+        res=await routeFetch(routeUrl,{cache:'no-store',signal:controller.signal});
+        if(requestId!==routeRequestGeneration||controller.signal.aborted)return;
+        if(!res.ok)throw Error(`HTTP ${res.status}`);
+        rawData=await res.json();
+        if(requestId!==routeRequestGeneration||controller.signal.aborted)return;
+        data=window.__trasyNormalizeRouteResponse?.(rawData)||rawData;
+      }
       window.__trasyCaptureRoute?.(routeUrl,data);
       const route=data.routes?.[0];
 
       if(!route){
         throw Error('Nie znaleziono trasy.');
       }
+      routeUsesStartDirection=usedStartDirection;
 
       const geo=
         routeGeoJSON(route.geometry.coordinates);
@@ -1364,13 +1422,23 @@
     window.__navAcc=position.coords.accuracy||0;
     setVehiclePosition(ll,instant);
 
-    const sensorHeading=Number(position.coords.heading);
+    const rawSensorHeading=position.coords.heading;
+    const sensorHeading=rawSensorHeading===null||rawSensorHeading===undefined?NaN:Number(rawSensorHeading);
     if(instant&&(!Number.isFinite(sensorHeading)||sensorHeading<0)){
       currentHeading=headingFromCurrentRoute(ll);
       headingReady=true;
       lastGpsPoint=ll;
     }
-    const heading=headingFromPosition(position,ll);
+    const heading=updateNavigationMotion(position,ll);
+    if(
+      !routeUsesStartDirection&&
+      !routeBuildInFlight&&
+      currentStops.length&&
+      startDirectionQuery(currentStops)&&
+      Date.now()-lastDirectionAttemptAt>=30000
+    ){
+      buildRoute(ll,currentStops).catch(error=>console.warn('Korekta kierunku trasy:',error));
+    }
     followCamera(ll,heading,instant);
     updateGuidance(ll);
     resumeInstant=false;
@@ -1384,6 +1452,7 @@
     resumePromise=window.__trasyGps.refresh()
       .then(async position=>{
         const origin=[Number(position.coords.latitude),Number(position.coords.longitude)];
+        updateNavigationMotion(position,origin);
         const remaining=remainingStopsFromGps();
         if(remaining.length)currentStops=remaining;
         if(currentStops.length){
@@ -1450,8 +1519,13 @@
 
     lastSpoken='';
     lastGpsPoint=null;
+    lastGpsAt=0;
     currentHeading=0;
     headingReady=false;
+    currentSpeedMps=0;
+    routingHeadingAt=0;
+    routeUsesStartDirection=false;
+    lastDirectionAttemptAt=0;
     progressIndex=0;
     offRouteFixes=0;
     lastRerouteAt=0;
@@ -1474,7 +1548,7 @@
         pos.coords.longitude
       ];
 
-      lastGpsPoint=origin;
+      const initialHeading=updateNavigationMotion(pos,origin);
 
       window.__navAcc=
         pos.coords.accuracy||0;
@@ -1539,15 +1613,12 @@
 
       updateGuidance(origin);
 
-      const sensorHeading=Number(pos.coords.heading);
-      currentHeading=Number.isFinite(sensorHeading)&&sensorHeading>=0
-        ?sensorHeading
-        :headingFromRoute(origin);
+      if(!routingHeadingAt)currentHeading=headingFromRoute(origin);
       headingReady=true;
 
       followCamera(
         origin,
-        currentHeading,
+        routingHeadingAt?initialHeading:currentHeading,
         true
       );
 
@@ -1607,8 +1678,13 @@
     speechSynthesis?.cancel?.();
 
     lastGpsPoint=null;
+    lastGpsAt=0;
     currentHeading=0;
     headingReady=false;
+    currentSpeedMps=0;
+    routingHeadingAt=0;
+    routeUsesStartDirection=false;
+    lastDirectionAttemptAt=0;
     progressIndex=0;
     offRouteFixes=0;
     routeBuildInFlight=false;
