@@ -14,8 +14,7 @@
   const maneuver=document.getElementById('routeManeuver');
   if(!root||!close||!center||!maneuver)return;
 
-  root.dataset.compactNavUi='22';
-
+  root.dataset.compactNavUi='23';
 
   const top=close.parentElement;
   const title=top?.querySelector('strong');
@@ -26,7 +25,6 @@
   close.setAttribute('aria-label','Wróć');
   close.title='Wróć';
 
-
   let voice=document.getElementById('routeVoiceToggle');
   if(!voice){
     voice=document.createElement('button');
@@ -34,12 +32,80 @@
     voice.type='button';
     root.appendChild(voice);
   }
+
   const northIndicator=document.createElement('div');
   northIndicator.id='routeNorthIndicator';
   northIndicator.hidden=true;
   northIndicator.setAttribute('aria-label','Kierunek północny');
   northIndicator.innerHTML='<span>N</span><span class="northArrow" aria-hidden="true">↑</span>';
   root.appendChild(northIndicator);
+
+  const layoutStyle=document.createElement('style');
+  layoutStyle.textContent=`
+    #routeFunctionStack{
+      position:fixed;
+      left:12px;
+      top:112px;
+      z-index:50120;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:7px;
+      width:42px;
+      pointer-events:none;
+    }
+    #routeFunctionStack>#routeMapClose,
+    #routeFunctionStack>#routeMapCenter,
+    #routeFunctionStack>#routeVoiceToggle,
+    #routeFunctionStack>.maplibregl-ctrl-group,
+    #routeFunctionStack>#routeNorthIndicator{
+      position:static!important;
+      top:auto!important;
+      right:auto!important;
+      bottom:auto!important;
+      left:auto!important;
+      margin:0!important;
+      pointer-events:auto;
+      flex:0 0 auto;
+    }
+    #routeFunctionStack>#routeMapClose,
+    #routeFunctionStack>#routeMapCenter,
+    #routeFunctionStack>#routeVoiceToggle{
+      transform:none!important;
+    }
+    #routeFunctionStack>.maplibregl-ctrl-group{
+      display:flex!important;
+      flex-direction:column!important;
+      align-items:stretch!important;
+      overflow:hidden;
+      border-radius:5px!important;
+      box-shadow:0 1px 6px #0008!important;
+    }
+    #routeFunctionStack>.maplibregl-ctrl-group button,
+    #routeFunctionStack>#routePitchToggle{
+      margin:0!important;
+    }
+    #routeFunctionStack>#routeNorthIndicator{
+      width:42px!important;
+      height:42px!important;
+    }
+  `;
+  document.head.appendChild(layoutStyle);
+
+  function ensureFunctionStack(){
+    let stack=document.getElementById('routeFunctionStack');
+    if(!stack){
+      stack=document.createElement('div');
+      stack.id='routeFunctionStack';
+      stack.setAttribute('aria-label','Funkcje nawigacji');
+      root.appendChild(stack);
+    }
+    if(close.parentElement!==stack)stack.appendChild(close);
+    if(center.parentElement!==stack)stack.appendChild(center);
+    if(voice.parentElement!==stack)stack.appendChild(voice);
+    return stack;
+  }
+
   window.__routeVoiceMuted=window.__routeVoiceMuted===true;
   const speech=window.speechSynthesis;
   function updateVoice(){
@@ -58,13 +124,12 @@
 
   const infoPanel=maneuver.parentElement;
   function repositionControls(){
+    const stack=ensureFunctionStack();
     if(!infoPanel)return;
     const rect=infoPanel.getBoundingClientRect();
     const controlTop=Math.max(10,Math.ceil(rect.bottom)+10);
-    close.style.top=`${controlTop}px`;
-    center.style.top=`${controlTop}px`;
-    voice.style.top=`${controlTop+50}px`;
-    northIndicator.style.top=`${controlTop+100}px`;
+    stack.style.top=`${controlTop}px`;
+    mergeViewControl();
   }
   if('ResizeObserver'in window){
     const observer=new ResizeObserver(repositionControls);
@@ -72,7 +137,6 @@
   }
   window.addEventListener('resize',repositionControls,{passive:true});
   document.addEventListener('trasy:route-map-ready',repositionControls);
-  requestAnimationFrame(repositionControls);
 
   const navIcon='<svg viewBox="0 0 32 32" width="29" height="29"><path d="M27.4 4.7 17.8 27c-.7 1.7-3.1 1.5-3.5-.3l-1.9-8.8-8.8-1.9c-1.8-.4-2-2.8-.3-3.5L25.6 3c1.2-.5 2.3.6 1.8 1.7Z" fill="#fff"/><path d="m13.2 17.1 7.8-7.8" stroke="#111" stroke-width="2.4"/></svg>';
   const flatGrid='<svg viewBox="0 0 28 22" width="25" height="20"><rect x="3" y="2" width="22" height="17" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10.3 2v17M17.7 2v17M3 7.7h22M3 13.3h22" stroke="currentColor"/></svg>';
@@ -81,18 +145,24 @@
   function mergeViewControl(){
     const pitch=document.getElementById('routePitchToggle');
     const canvas=document.getElementById('routeMapCanvas');
+    const stack=ensureFunctionStack();
     if(!pitch||!canvas)return false;
-    const zoomGroup=[...canvas.querySelectorAll('.maplibregl-ctrl-bottom-right .maplibregl-ctrl-group')]
-      .find(group=>group.querySelector('.maplibregl-ctrl-zoom-in')&&group.querySelector('.maplibregl-ctrl-zoom-out'));
+    const groups=[...stack.querySelectorAll('.maplibregl-ctrl-group'),...canvas.querySelectorAll('.maplibregl-ctrl-group')];
+    const zoomGroup=groups.find(group=>group.querySelector('.maplibregl-ctrl-zoom-in')&&group.querySelector('.maplibregl-ctrl-zoom-out'));
     if(!zoomGroup)return false;
     const zoomIn=zoomGroup.querySelector('.maplibregl-ctrl-zoom-in');
     const oldParent=pitch.parentElement;
     if(pitch.parentElement!==zoomGroup||pitch.nextElementSibling!==zoomIn)zoomGroup.insertBefore(pitch,zoomIn);
     if(oldParent?.classList?.contains('route-view-control')&&!oldParent.children.length)oldParent.remove();
+    if(zoomGroup.parentElement!==stack)stack.appendChild(zoomGroup);
+    if(northIndicator.parentElement!==stack)stack.appendChild(northIndicator);
     return true;
   }
+
+  ensureFunctionStack();
   center.innerHTML=navIcon;
   center.title='Wróć do nawigacji';
+  requestAnimationFrame(repositionControls);
 
   function distanceMetres(a,b){
     if(!a||!b)return Infinity;
@@ -147,6 +217,7 @@
       };
       this.map.addControl(control,'bottom-right');
       if(!mergeViewControl())requestAnimationFrame(()=>mergeViewControl());
+      requestAnimationFrame(repositionControls);
     }
 
     installGestureListeners(){
