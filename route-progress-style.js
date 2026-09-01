@@ -15,6 +15,11 @@ import { advanceRouteProgress, projectRoutePosition, splitRemainingRouteAtPositi
   const ERASE_MAX_MS=1400;
   const ERASE_INTERVAL_FACTOR=1.15;
 
+  const ACTIVE_OUTLINE_WIDTH=['interpolate',['linear'],['zoom'],6,7,10,9,14,11,17,13,20,15];
+  const ACTIVE_LINE_WIDTH=['interpolate',['linear'],['zoom'],6,4,10,5.5,14,7,17,8.5,20,10];
+  const FUTURE_OUTLINE_WIDTH=['interpolate',['linear'],['zoom'],6,5,10,6.5,14,8,17,9.5,20,11];
+  const FUTURE_LINE_WIDTH=['interpolate',['linear'],['zoom'],6,3,10,4,14,5,17,6,20,7];
+
   let map=null;
   let fullCoords=[];
   let progressIndex=0;
@@ -78,7 +83,12 @@ import { advanceRouteProgress, projectRoutePosition, splitRemainingRouteAtPositi
     const beforeId=firstSymbolLayer();
     if(!beforeId)return;
     for(const id of[FUTURE_OUTLINE,FUTURE_LINE,ACTIVE_OUTLINE,ACTIVE_LINE]){
-      try{if(map.getLayer?.(id))map.moveLayer(id,beforeId)}catch{}
+      try{
+        if(map.getLayer?.(id)){
+          map.setLayoutProperty(id,'visibility','visible');
+          map.moveLayer(id,beforeId);
+        }
+      }catch{}
     }
   }
 
@@ -89,10 +99,42 @@ import { advanceRouteProgress, projectRoutePosition, splitRemainingRouteAtPositi
       if(!map.getSource(FUTURE_SOURCE))map.addSource(FUTURE_SOURCE,{type:'geojson',data:emptyRoute()});
       if(!map.getSource(ACTIVE_SOURCE))map.addSource(ACTIVE_SOURCE,{type:'geojson',data:emptyRoute()});
 
-      addLayer({id:FUTURE_OUTLINE,type:'line',source:FUTURE_SOURCE,layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'#4b5442','line-width':9,'line-opacity':.34}},beforeId);
-      addLayer({id:FUTURE_LINE,type:'line',source:FUTURE_SOURCE,layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'#b8c99f','line-width':6,'line-opacity':.58}},beforeId);
-      addLayer({id:ACTIVE_OUTLINE,type:'line',source:ACTIVE_SOURCE,layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'#203000','line-width':11,'line-opacity':.9}},beforeId);
-      addLayer({id:ACTIVE_LINE,type:'line',source:ACTIVE_SOURCE,layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'#86c900','line-width':7,'line-opacity':1}},beforeId);
+      addLayer({
+        id:FUTURE_OUTLINE,
+        type:'line',
+        source:FUTURE_SOURCE,
+        minzoom:0,
+        maxzoom:24,
+        layout:{'line-cap':'round','line-join':'round','visibility':'visible'},
+        paint:{'line-color':'#26301f','line-width':FUTURE_OUTLINE_WIDTH,'line-opacity':.30}
+      },beforeId);
+      addLayer({
+        id:FUTURE_LINE,
+        type:'line',
+        source:FUTURE_SOURCE,
+        minzoom:0,
+        maxzoom:24,
+        layout:{'line-cap':'round','line-join':'round','visibility':'visible'},
+        paint:{'line-color':'#9aaa83','line-width':FUTURE_LINE_WIDTH,'line-opacity':.36}
+      },beforeId);
+      addLayer({
+        id:ACTIVE_OUTLINE,
+        type:'line',
+        source:ACTIVE_SOURCE,
+        minzoom:0,
+        maxzoom:24,
+        layout:{'line-cap':'round','line-join':'round','visibility':'visible'},
+        paint:{'line-color':'#142000','line-width':ACTIVE_OUTLINE_WIDTH,'line-opacity':.98}
+      },beforeId);
+      addLayer({
+        id:ACTIVE_LINE,
+        type:'line',
+        source:ACTIVE_SOURCE,
+        minzoom:0,
+        maxzoom:24,
+        layout:{'line-cap':'round','line-join':'round','visibility':'visible'},
+        paint:{'line-color':'#a8f000','line-width':ACTIVE_LINE_WIDTH,'line-opacity':1}
+      },beforeId);
       keepRouteBelowLabels();
       return true;
     }catch(error){
@@ -186,6 +228,7 @@ import { advanceRouteProgress, projectRoutePosition, splitRemainingRouteAtPositi
       active=fullCoords.slice();
       future=[];
     }
+
     setSource(ACTIVE_SOURCE,routeGeoJson(active));
     setSource(FUTURE_SOURCE,routeGeoJson(future));
     keepRouteBelowLabels();
@@ -198,7 +241,8 @@ import { advanceRouteProgress, projectRoutePosition, splitRemainingRouteAtPositi
       eraseAnimationMs,
       nextStopIndex:split.stopIndex,
       activePoints:active.length,
-      futurePoints:future.length
+      futurePoints:future.length,
+      zoom:Number(map.getZoom?.()||0)
     };
     document.dispatchEvent(new CustomEvent('trasy:route-progress-rendered',{detail:window.__routeProgressState}));
     if(animationContinues||targetRoutePosition>displayRoutePosition+1e-6)queueRender();
@@ -234,7 +278,16 @@ import { advanceRouteProgress, projectRoutePosition, splitRemainingRouteAtPositi
       ensureLayers();
       queueRender();
     });
-    map.on('styledata',keepRouteBelowLabels);
+    map.on('styledata',()=>{
+      keepRouteBelowLabels();
+      queueRender();
+    });
+    map.on('zoom',keepRouteBelowLabels);
+    map.on('zoomend',()=>{
+      ensureLayers();
+      keepRouteBelowLabels();
+      queueRender();
+    });
     ensureLayers();
     queueRender();
   }
