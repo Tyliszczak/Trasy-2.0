@@ -27,15 +27,15 @@
   function ensureModal(){
     let modal=document.getElementById('skipDetectionDialog');if(modal)return modal;
     modal=document.createElement('div');modal.id='skipDetectionDialog';modal.hidden=true;
-    modal.style.cssText='position:fixed;inset:0;z-index:70500;background:#000b;display:flex;align-items:center;justify-content:center;padding:16px';
-    modal.innerHTML=`<div style="width:min(100%,520px);background:#1d1d1d;border:2px solid #ffb020;border-radius:15px;padding:18px;box-shadow:0 12px 42px #000c">
-      <div style="font-size:20px;font-weight:1000;color:#ffb020;text-align:center">MOŻLIWE POMINIĘCIE PRZYSTANKU</div>
-      <div id="skipDetectionText" style="margin-top:13px;font-size:16px;line-height:1.4;color:#fff"></div>
-      <div id="skipDetectionList" style="margin-top:11px;padding:11px;border-radius:9px;background:#292929;color:#fff;font-weight:800"></div>
-      <div style="display:grid;gap:9px;margin-top:16px">
-        <button id="skipDetectionOne" type="button" style="padding:13px;background:#d97706;color:#fff;font-weight:1000">POMIŃ NASTĘPNY</button>
-        <button id="skipDetectionAll" type="button" style="padding:13px;background:#b91c1c;color:#fff;font-weight:1000">POMIŃ WSZYSTKIE</button>
-        <button id="skipDetectionNo" type="button" style="padding:13px;background:#444;color:#fff;font-weight:900">NIE — JADĘ DO PRZYSTANKU</button>
+    modal.style.cssText='position:fixed;left:50%;top:86px;z-index:100002;width:min(90vw,520px);transform:translateX(-50%);padding:0;box-sizing:border-box;pointer-events:auto';
+    modal.innerHTML=`<div style="background:#241b08f2;border:2px solid #ffb020;border-radius:12px;padding:12px 13px;box-shadow:0 5px 18px #000b,0 0 0 0 #ffb02066;color:#fff">
+      <div style="font-size:.82rem;font-weight:1000;color:#ffca55;letter-spacing:.03em">OMIJASZ PRZYSTANEK</div>
+      <div id="skipDetectionText" style="margin-top:4px;font-size:1rem;line-height:1.22;font-weight:900;color:#fff"></div>
+      <div id="skipDetectionList" style="margin-top:7px;color:#fff;font-size:.93rem;font-weight:800;line-height:1.25"></div>
+      <div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:10px">
+        <button id="skipDetectionOne" type="button" style="flex:1 1 145px;padding:9px 10px;border:1px solid #fff6;border-radius:9px;background:#d97706;color:#fff;font-weight:1000">POMIŃ</button>
+        <button id="skipDetectionAll" type="button" style="flex:1 1 145px;padding:9px 10px;border:1px solid #fff6;border-radius:9px;background:#b91c1c;color:#fff;font-weight:1000">POMIŃ WSZYSTKIE</button>
+        <button id="skipDetectionNo" type="button" style="flex:1 1 100%;padding:9px 10px;border:1px solid #fff6;border-radius:9px;background:#444;color:#fff;font-weight:900">NIE — JADĘ DO PRZYSTANKU</button>
       </div>
     </div>`;
     document.body.append(modal);return modal;
@@ -52,17 +52,16 @@
     lastPromptKey=key;lastPromptAt=Date.now();
     const modal=ensureModal(),text=modal.querySelector('#skipDetectionText'),list=modal.querySelector('#skipDetectionList'),one=modal.querySelector('#skipDetectionOne'),all=modal.querySelector('#skipDetectionAll'),no=modal.querySelector('#skipDetectionNo');
     text.textContent=reason==='resume'
-      ?(skipped.length===1?`Po wznowieniu nawigacji wygląda na to, że minąłeś przystanek „${skipped[0]}”. Czy chcesz go pominąć?`:`Po wznowieniu nawigacji wygląda na to, że minąłeś ${skipped.length} przystanki. Wybierz, co zrobić:`)
-      :(skipped.length===1?`Wygląda na to, że omijasz przystanek „${skipped[0]}”. Czy chcesz go pominąć?`:`Wygląda na to, że obecny kierunek jazdy omija ${skipped.length} przystanki. Wybierz, co zrobić:`);
-    list.innerHTML=skipped.map((n,i)=>`<div>${i+1}. ${String(n).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}</div>`).join('');
-    one.textContent=`POMIŃ NASTĘPNY: ${skipped[0]}`;
+      ?(skipped.length===1?`Minąłeś przystanek „${skipped[0]}”. Pominąć go?`:`Minąłeś ${skipped.length} przystanki. Co zrobić?`)
+      :(skipped.length===1?`Wygląda na to, że omijasz „${skipped[0]}”. Pominąć ten przystanek?`:`Wygląda na to, że omijasz ${skipped.length} przystanki. Co zrobić?`);
+    list.innerHTML=skipped.length>1?skipped.map((n,i)=>`<div>${i+1}. ${String(n).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}</div>`).join(''):'';
+    one.textContent=skipped.length===1?'POMIŃ PRZYSTANEK':`POMIŃ NASTĘPNY: ${skipped[0]}`;
     all.hidden=skipped.length<2;
     if(skipped.length>1)all.textContent=`POMIŃ WSZYSTKIE (${skipped.length})`;
     one.onclick=()=>{body.dispatchEvent(new CustomEvent('gps-skip-stop',{bubbles:true,detail:{index:fromIndex+1,skippedIndex:fromIndex,source:reason}}));closePrompt()};
     all.onclick=()=>{body.dispatchEvent(new CustomEvent('gps-skip-stop',{bubbles:true,detail:{index:toIndex,skippedFrom:fromIndex,skippedTo:toIndex-1,source:`${reason}-multiple`}}));closePrompt()};
     no.onclick=()=>{closePrompt();lastPromptAt=Date.now()};
     window.__routeStopActionsOpen=true;
-    if(typeof window.__routeEnterManualView==='function')window.__routeEnterManualView();
     modal.hidden=false;
   }
 
@@ -95,9 +94,7 @@
     if((p.coords.accuracy||999)>MAX_ACCURACY)return;
     const here=[p.coords.latitude,p.coords.longitude],now=Number(p.timestamp)||Date.now();
     let speed=Number(p.coords.speed);
-    if(!Number.isFinite(speed)||speed<0){
-      speed=lastPos&&lastPosAt&&now>lastPosAt?dist(lastPos,here)/((now-lastPosAt)/1000):0;
-    }
+    if(!Number.isFinite(speed)||speed<0){speed=lastPos&&lastPosAt&&now>lastPosAt?dist(lastPos,here)/((now-lastPosAt)/1000):0}
     let h=Number(p.coords.heading);
     if(!Number.isFinite(h)||h<0){
       if(!headingAnchor)headingAnchor=here;
@@ -120,10 +117,7 @@
     if(!position?.coords)return;
     const here=[Number(position.coords.latitude),Number(position.coords.longitude)];
     if(!Number.isFinite(here[0])||!Number.isFinite(here[1]))return;
-    lastPos=here;
-    lastPosAt=Number(position.timestamp)||Date.now();
-    headingAnchor=here;
-    heading=null;
+    lastPos=here;lastPosAt=Number(position.timestamp)||Date.now();headingAnchor=here;heading=null;
   });
   watch=window.__trasyGps.subscribe(onPos,()=>{});
 })();
