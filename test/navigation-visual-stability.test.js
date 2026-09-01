@@ -22,3 +22,18 @@ test('podświetlenie aktywnego przystanku ma spokojny pasek zamiast pełnej kolo
   assert.match(source,/#scheduleBody tr\.gpsNextStop\{background:rgba\(255,255,255,\.045\)!important;box-shadow:inset 5px 0 0 var/);
   assert.doesNotMatch(source,/inset 0 1\.5px 0 var\(--gps-status-color/);
 });
+
+test('linia aktywnej trasy jest utrzymywana nad warstwami dróg i wiaduktów',()=>{
+  const source=read('route-progress-style.js');
+  assert.match(source,/function keepRouteOnTop\(\)/);
+  assert.match(source,/map\.moveLayer\(id\)/);
+  assert.doesNotMatch(source,/map\.moveLayer\(id,beforeId\)/);
+});
+
+test('komunikaty nawigacji są półprzezroczyste, nagłówek większy, a cofanie używa chevronu',()=>{
+  const source=read('index.html');
+  assert.match(source,/#routeManeuverBubble\{background:rgba\(68,68,68,\.55\)!important/);
+  assert.match(source,/#routeNextStop \.nextStopMain\{font-size:19px!important/);
+  assert.match(source,/#routeNextStop \.nextStopStatus\{[^}]*font-size:18px!important/);
+  assert.match(source,/#routeMapClose::before,#backFromSchedule::before\{content:""/);
+});
