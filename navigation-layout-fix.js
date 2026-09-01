@@ -21,7 +21,6 @@
     #routeFunctionStack>#routeMapClose,
     #routeFunctionStack>#routeMapCenter,
     #routeFunctionStack>#routeVoiceToggle,
-    #routeFunctionStack>#routeNorthIndicator,
     #routeFunctionStack>#routeFeedbackButton{
       position:static!important;
       inset:auto!important;
@@ -37,9 +36,16 @@
       min-height:42px!important;
       border-radius:21px!important;
     }
-    #routeFunctionStack>#routeNorthIndicator{
-      width:42px!important;
-      height:42px!important;
+    #routeMapCanvas>#routeNorthIndicator{
+      position:absolute!important;
+      left:auto!important;
+      bottom:auto!important;
+      right:12px!important;
+      width:54px!important;
+      height:54px!important;
+      margin:0!important;
+      z-index:50135!important;
+      pointer-events:none!important;
     }
     #routeMapCanvas .maplibregl-ctrl-bottom-right{
       right:10px!important;
@@ -51,6 +57,18 @@
       margin:0!important;
       border-radius:5px!important;
       overflow:hidden!important;
+    }
+    #routeMapCanvas .maplibregl-ctrl-bottom-left{
+      left:6px!important;
+      bottom:5px!important;
+      max-width:calc(100% - 92px)!important;
+      z-index:50020!important;
+    }
+    #routeMapCanvas .maplibregl-ctrl-bottom-left .maplibregl-ctrl-attrib{
+      margin:0!important;
+      max-width:100%!important;
+      font-size:9px!important;
+      opacity:.72!important;
     }
   `;
   document.head.appendChild(style);
@@ -66,8 +84,7 @@
       document.getElementById('routeMapClose'),
       document.getElementById('routeVoiceToggle'),
       document.getElementById('routeMapCenter'),
-      document.getElementById('routeFeedbackButton'),
-      document.getElementById('routeNorthIndicator')
+      document.getElementById('routeFeedbackButton')
     ].filter(Boolean);
     items.forEach(item=>{if(item.parentElement!==stack)stack.appendChild(item)});
     return stack;
@@ -91,9 +108,35 @@
     if(zoomGroup.parentElement!==bottomRight)bottomRight.appendChild(zoomGroup);
   }
 
+  function placeCompass(){
+    const canvas=document.getElementById('routeMapCanvas');
+    const compass=document.getElementById('routeNorthIndicator');
+    if(!canvas||!compass)return;
+    if(compass.parentElement!==canvas)canvas.appendChild(compass);
+    const speed=document.getElementById('routeMapSpeedBox');
+    let top=82;
+    if(speed){
+      const canvasRect=canvas.getBoundingClientRect();
+      const speedRect=speed.getBoundingClientRect();
+      top=Math.max(10,Math.round(speedRect.bottom-canvasRect.top+8));
+    }
+    compass.style.top=`${top}px`;
+    compass.style.right='12px';
+  }
+
+  function moveAttribution(){
+    const canvas=document.getElementById('routeMapCanvas');
+    if(!canvas)return;
+    const attribution=canvas.querySelector('.maplibregl-ctrl-attrib');
+    const bottomLeft=canvas.querySelector('.maplibregl-ctrl-bottom-left');
+    if(attribution&&bottomLeft&&attribution.parentElement!==bottomLeft)bottomLeft.appendChild(attribution);
+  }
+
   function sync(){
     ensureStack();
     restoreRightMapControls();
+    placeCompass();
+    moveAttribution();
   }
 
   let queued=false;
@@ -106,6 +149,8 @@
   const observer=new MutationObserver(scheduleSync);
   observer.observe(document.body,{subtree:true,childList:true});
   document.addEventListener('trasy:route-map-ready',scheduleSync);
+  document.addEventListener('trasy:gps-speed',scheduleSync);
+  document.addEventListener('trasy:road-speed-limit',scheduleSync);
   window.addEventListener('resize',scheduleSync,{passive:true});
   setInterval(sync,1000);
   sync();
