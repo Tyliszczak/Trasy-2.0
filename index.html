@@ -15,9 +15,6 @@
     #scheduleBody tr.isActiveStop:not(.gpsNextStop) td{padding:10px 8px!important;font-weight:inherit!important;border-bottom-color:#444!important}
     #scheduleBody tr.isActiveStop:not(.gpsNextStop) td:first-child{padding-left:8px!important;font-size:inherit!important;font-weight:inherit!important}
     #scheduleBody tr.isActiveStop:not(.gpsNextStop) td:first-child::before{display:none!important;content:none!important}
-    #routeMapClose{top:112px!important}
-    #routeMapCenter{top:110px!important;right:12px!important}
-    #routeVoiceToggle{top:112px!important;right:62px!important}
   </style>
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.12.0/dist/maplibre-gl.css">
   <link rel="preconnect" href="https://vectormaps-resources.myptv.com" crossorigin>
@@ -25,7 +22,7 @@
   <title>Trasy 2.0</title>
 </head>
 <body>
-  <div id="globalTestVersion" data-version="2.0.174">TEST 2.0.174</div>
+  <div id="globalTestVersion" data-version="2.0.175">TEST 2.0.175</div>
   <header class="header"><div class="headerActions"><span id="connectionStatus" class="status">Offline</span></div></header>
   <main class="container">
     <aside id="updateNotice" class="notice updateNotice" hidden><span>Nowa wersja aplikacji jest gotowa.</span><button id="updateAppButton">ODŚWIEŻ</button></aside>
@@ -70,7 +67,7 @@
   <script type="module" src="./map-runtime.js?v=2"></script>
   <script src="./vehicles.js?v=sheet-data-2"></script>
   <script src="./return-route.js?v=parking-notice-1"></script>
-  <script src="./speed-display.js?v=road-only-1"></script>
+  <script src="./speed-display.js?v=map-top-right-1"></script>
   <script type="module" src="./road-speed-limit.js?v=osm-only-1"></script>
   <script type="module" src="./gps-stop-tracker.js?v=stop-engine-12"></script>
   <script src="./active-stop-guard.js?v=1"></script>
@@ -79,7 +76,7 @@
   <script src="./maneuver-bubble.js?v=3"></script>
   <script type="module" src="./route-progress-style.js?v=6"></script>
   <script src="./traffic-delay-ui.js?v=1"></script>
-  <script src="./navigation-ui-controls.js?v=27"></script>
+  <script src="./navigation-ui-controls.js?v=left-stack-1"></script>
   <script src="./navigation-compass.js?v=2"></script>
   <script type="module" src="./navigation-live-engine.js?v=6"></script>
   <script src="./navigation-feedback.js?v=i18n-1"></script>
