@@ -23,11 +23,12 @@ test('podświetlenie aktywnego przystanku ma spokojny pasek zamiast pełnej kolo
   assert.doesNotMatch(source,/inset 0 1\.5px 0 var\(--gps-status-color/);
 });
 
-test('linia aktywnej trasy jest utrzymywana nad warstwami dróg i wiaduktów',()=>{
+test('linia trasy jest nad drogami i wiaduktami, ale pod etykietami mapy',()=>{
   const source=read('route-progress-style.js');
   assert.match(source,/function keepRouteOnTop\(\)/);
-  assert.match(source,/map\.moveLayer\(id\)/);
-  assert.doesNotMatch(source,/map\.moveLayer\(id,beforeId\)/);
+  assert.match(source,/function keepBelowLabels\(\)/);
+  assert.match(source,/map\.moveLayer\(symbolId\)/);
+  assert.match(source,/map\.moveLayer\(id,beforeId\)/);
 });
 
 test('komunikaty nawigacji są półprzezroczyste, nagłówek większy, a cofanie używa chevronu',()=>{

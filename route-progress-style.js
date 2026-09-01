@@ -11,6 +11,7 @@ import { advanceRouteProgress, projectRoutePosition, splitRemainingRouteAtPositi
   const FUTURE_SOURCE='route-future';
   const FUTURE_OUTLINE='route-future-outline';
   const FUTURE_LINE='route-future-line';
+  const ROUTE_LAYER_IDS=[FUTURE_OUTLINE,FUTURE_LINE,ACTIVE_OUTLINE,ACTIVE_LINE];
   const ERASE_MIN_MS=550;
   const ERASE_MAX_MS=1400;
   const ERASE_INTERVAL_FACTOR=1.15;
@@ -69,6 +70,10 @@ import { advanceRouteProgress, projectRoutePosition, splitRemainingRouteAtPositi
     return Number.isFinite(lat)&&Number.isFinite(lng)?[lng,lat]:null;
   }
 
+  function firstSymbolLayer(){
+    return map?.getStyle?.()?.layers?.find(layer=>layer.type==='symbol')?.id||null;
+  }
+
   function addLayer(spec){
     if(!map||map.getLayer?.(spec.id))return;
     map.addLayer(spec);
@@ -76,11 +81,66 @@ import { advanceRouteProgress, projectRoutePosition, splitRemainingRouteAtPositi
 
   function keepRouteOnTop(){
     if(!map)return;
-    for(const id of[FUTURE_OUTLINE,FUTURE_LINE,ACTIVE_OUTLINE,ACTIVE_LINE]){
+    for(const id of ROUTE_LAYER_IDS){
       try{
         if(map.getLayer?.(id)){
           map.setLayoutProperty(id,'visibility','visible');
           map.moveLayer(id);
+        }
+      }catch{}
+    }
+  }
+
+  function routeOrderNeedsRepair(layers){
+    if(!Array.isArray(layers)||!layers.length)return false;
+    const routeSet=new Set(ROUTE_LAYER_IDS);
+    const routePositions=[];
+    const currentRouteOrder=[];
+    for(let index=0;index<layers.length;index++){
+      if(routeSet.has(layers[index]?.id)){
+        routePositions.push(index);
+        currentRouteOrder.push(layers[index].id);
+      }
+    }
+    if(!routePositions.length)return false;
+    const expectedRouteOrder=ROUTE_LAYER_IDS.filter(id=>currentRouteOrder.includes(id));
+    if(currentRouteOrder.join('|')!==expectedRouteOrder.join('|'))return true;
+    const firstRoute=Math.min(...routePositions);
+    const lastRoute=Math.max(...routePositions);
+    for(let index=0;index<layers.length;index++){
+      const layer=layers[index];
+      if(routeSet.has(layer?.id))continue;
+      if(layer?.type==='symbol'){
+        if(index<lastRoute)return true;
+      }else if(index>firstRoute){
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function keepBelowLabels(){
+    if(!map)return;
+    const layers=map.getStyle?.()?.layers||[];
+    for(const id of ROUTE_LAYER_IDS){
+      try{if(map.getLayer?.(id))map.setLayoutProperty(id,'visibility','visible')}catch{}
+    }
+    if(!routeOrderNeedsRepair(layers))return;
+
+    const symbolIds=layers.filter(layer=>layer.type==='symbol').map(layer=>layer.id);
+    if(!symbolIds.length){keepRouteOnTop();return}
+
+    // Najpierw przenosimy etykiety na sam wierzch. Dzięki temu wszystkie drogi,
+    // mosty i wiadukty zostają pod trasą, a nazwy i numery dróg pozostają czytelne.
+    for(const symbolId of symbolIds){
+      try{if(map.getLayer?.(symbolId))map.moveLayer(symbolId)}catch{}
+    }
+    const beforeId=firstSymbolLayer();
+    for(const id of ROUTE_LAYER_IDS){
+      try{
+        if(map.getLayer?.(id)){
+          map.setLayoutProperty(id,'visibility','visible');
+          if(beforeId)map.moveLayer(id,beforeId);else map.moveLayer(id);
         }
       }catch{}
     }
@@ -128,7 +188,7 @@ import { advanceRouteProgress, projectRoutePosition, splitRemainingRouteAtPositi
         layout:{'line-cap':'round','line-join':'round','visibility':'visible'},
         paint:{'line-color':'#a8f000','line-width':ACTIVE_LINE_WIDTH,'line-opacity':1}
       });
-      keepRouteOnTop();
+      keepBelowLabels();
       return true;
     }catch(error){
       console.warn('Warstwy trasy:',error);
@@ -224,7 +284,7 @@ import { advanceRouteProgress, projectRoutePosition, splitRemainingRouteAtPositi
 
     setSource(ACTIVE_SOURCE,routeGeoJson(active));
     setSource(FUTURE_SOURCE,routeGeoJson(future));
-    keepRouteOnTop();
+    keepBelowLabels();
 
     window.__routeProgressState={
       fullPoints:fullCoords.length,
@@ -272,13 +332,13 @@ import { advanceRouteProgress, projectRoutePosition, splitRemainingRouteAtPositi
       queueRender();
     });
     map.on('styledata',()=>{
-      keepRouteOnTop();
+      keepBelowLabels();
       queueRender();
     });
-    map.on('zoom',keepRouteOnTop);
+    map.on('zoom',keepBelowLabels);
     map.on('zoomend',()=>{
       ensureLayers();
-      keepRouteOnTop();
+      keepBelowLabels();
       queueRender();
     });
     ensureLayers();
