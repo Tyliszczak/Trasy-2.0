@@ -32,11 +32,14 @@ import{canAutoAdvanceBySchedule,shouldApplySchedulePriority}from'./stop-target-p
   let earlyWarningTimer=null;
   let missedStopWarningTimer=null;
 
-
   const coord=value=>geo.parseCoordinate(value);
 
   function rows(){
     return[...body.querySelectorAll('tr')].filter(row=>coord(row.dataset.coordinate));
+  }
+
+  function returnOriginLocked(){
+    return body.dataset.direction==='return'&&body.dataset.emptyRun!=='1'&&body.dataset.returnOriginActive==='1';
   }
 
   function minimumTargetIndex(){
@@ -70,9 +73,14 @@ import{canAutoAdvanceBySchedule,shouldApplySchedulePriority}from'./stop-target-p
     });
   }
 
-  function routeChanged(){
+  function clearActiveTarget(){
     delete body.dataset.gpsNextStop;
     delete body.dataset.gpsNextStopKey;
+    body.querySelectorAll('tr').forEach(row=>row.classList.remove('gpsNextStop','isActiveStop'));
+  }
+
+  function routeChanged(){
+    clearActiveTarget();
     currentIndex=null;
     lastPos=null;
     lastPosAt=0;
@@ -81,7 +89,7 @@ import{canAutoAdvanceBySchedule,shouldApplySchedulePriority}from'./stop-target-p
     headingAt=0;
     reachedBeforeTime=false;
     engine.reset();
-    setTimeout(chooseAndApply,100);
+    if(!returnOriginLocked())setTimeout(chooseAndApply,100);
   }
 
   function showEarlyDepartureWarning(planText){
@@ -170,6 +178,10 @@ import{canAutoAdvanceBySchedule,shouldApplySchedulePriority}from'./stop-target-p
   function updateStopGuard(){
     const routeRows=rows();
     document.querySelectorAll('#scheduleBody .stopGuardNotice').forEach(element=>element.remove());
+    if(returnOriginLocked()){
+      emitGuard('','',0,null,'',Infinity);
+      return;
+    }
     if(currentIndex===null||!routeRows[currentIndex]||!lastPos){
       emitGuard('','',0,currentIndex,'',Infinity);
       return;
@@ -211,6 +223,13 @@ import{canAutoAdvanceBySchedule,shouldApplySchedulePriority}from'./stop-target-p
 
   function chooseAndApply(motion={}){
     if(view.hidden||!lastPos)return;
+    if(returnOriginLocked()){
+      currentIndex=null;
+      engine.reset();
+      clearActiveTarget();
+      updateStopGuard();
+      return;
+    }
     const routeRows=rows();
     const result=engine.update({
       stops:stops(),
@@ -346,9 +365,30 @@ import{canAutoAdvanceBySchedule,shouldApplySchedulePriority}from'./stop-target-p
     updateStopGuard();
   }
 
+  function onReturnOriginChange(event){
+    const active=event.detail?.active===true||body.dataset.returnOriginActive==='1';
+    if(active){
+      currentIndex=null;
+      engine.reset();
+      clearActiveTarget();
+      updateStopGuard();
+      return;
+    }
+    if(body.dataset.direction!=='return'||body.dataset.emptyRun==='1')return;
+    const firstTarget=minimumTargetIndex();
+    const routeRows=rows();
+    if(!routeRows[firstTarget])return;
+    currentIndex=firstTarget;
+    reachedBeforeTime=false;
+    engine.setIndex(firstTarget);
+    applyIndex(firstTarget,'return-departure-first-target');
+    updateStopGuard();
+  }
+
   body.addEventListener('route-direction-change',routeChanged);
   body.addEventListener('route-mode-change',routeChanged);
   body.addEventListener('schedule-rendered',routeChanged);
+  body.addEventListener('return-origin-change',onReturnOriginChange);
   body.addEventListener('gps-skip-stop',event=>setManualIndex(Number(event.detail?.index),event.detail?.source));
   setInterval(updateStopGuard,1000);
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')start()});
