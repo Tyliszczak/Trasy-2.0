@@ -1,6 +1,7 @@
 (()=>{
   const body=document.getElementById('scheduleBody');
   const guard=document.querySelector('#routeNextStop .nextStopGuard');
+  const nav=document.getElementById('routeMapNav');
   if(!body||!guard)return;
 
   const style=document.createElement('style');
@@ -35,6 +36,8 @@
   let lastState='';
   let lastStopKey='';
 
+  function navigationVisible(){return !!nav&&nav.hidden===false}
+
   function stopKey(){
     const row=body.querySelector('tr.gpsNextStop');
     return[
@@ -52,15 +55,27 @@
     return'';
   }
 
-  function flashScreen(){
+  function stopFlash(){
     clearTimeout(timer);
+    timer=null;
     flash.classList.remove('on');
+  }
+
+  function flashScreen(){
+    if(!navigationVisible())return;
+    stopFlash();
     void flash.offsetWidth;
     flash.classList.add('on');
     timer=setTimeout(()=>flash.classList.remove('on'),150);
   }
 
   function sync(){
+    if(!navigationVisible()){
+      stopFlash();
+      lastState='';
+      lastStopKey='';
+      return;
+    }
     const nextState=state();
     const nextStopKey=stopKey();
     if(nextState&&(
@@ -82,18 +97,14 @@
     subtree:true
   });
 
-  body.addEventListener('gps-next-stop-change',()=>{
-    lastState='';
-    lastStopKey='';
-  });
-  body.addEventListener('route-direction-change',()=>{
-    lastState='';
-    lastStopKey='';
-  });
-  body.addEventListener('route-mode-change',()=>{
-    lastState='';
-    lastStopKey='';
-  });
+  if(nav){
+    const navObserver=new MutationObserver(sync);
+    navObserver.observe(nav,{attributes:true,attributeFilter:['hidden']});
+  }
+
+  body.addEventListener('gps-next-stop-change',()=>{lastState='';lastStopKey='';sync()});
+  body.addEventListener('route-direction-change',()=>{lastState='';lastStopKey='';sync()});
+  body.addEventListener('route-mode-change',()=>{lastState='';lastStopKey='';sync()});
 
   sync();
 })();
