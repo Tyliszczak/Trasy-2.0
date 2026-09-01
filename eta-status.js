@@ -17,10 +17,10 @@ import'./geo-core.js';
   let etaSeconds=null,etaMeasuredAt=0,requesting=false;
   let infoEl=null,infoRow=null;
 
-
   const coord=value=>geo.parseCoordinate(value);
   function activeRow(){return body.querySelector('tr.gpsNextStop')}
   function routeRows(){return [...body.querySelectorAll('tr')].filter(r=>r.dataset.coordinate)}
+  function returnOriginLocked(){return body.dataset.direction==='return'&&body.dataset.emptyRun!=='1'&&body.dataset.returnOriginActive==='1'}
   function isReturnStartRow(row){const rows=routeRows();return body.dataset.direction==='return'&&!!row&&rows.length>0&&row===rows[0]}
   function isFinalRow(row){const rows=routeRows();return !!row&&rows.length>0&&row===rows[rows.length-1]}
   function isFinalArrived(row){if(!isFinalRow(row)||!pos)return false;const c=coord(row.dataset.coordinate);if(!c)return false;return geo.distanceMeters([pos.lat,pos.lng],c)<=Math.max(FINAL_ARRIVAL_RADIUS,Math.min(90,(pos.accuracy||0)*1.2))}
@@ -43,6 +43,7 @@ import'./geo-core.js';
   function resetEta(){lastTarget=null;etaSeconds=null;etaMeasuredAt=0;clearInfo()}
 
   async function refreshEta(force=false){
+    if(returnOriginLocked()){resetEta();return}
     const row=activeRow();
     if(requesting||!row||!pos)return;
     if(isReturnStartRow(row)){etaSeconds=null;etaMeasuredAt=0;lastTarget=row;clearInfo();return}
@@ -63,6 +64,7 @@ import'./geo-core.js';
 
   function render(){
     if(view.hidden)return;
+    if(returnOriginLocked()){clearInfo();return}
     const row=activeRow();
     if(!row){clearInfo();return}
     if(isReturnStartRow(row)){clearInfo();return}
@@ -89,6 +91,7 @@ import'./geo-core.js';
   }
 
   body.addEventListener('nav-eta-update',event=>{
+    if(returnOriginLocked())return;
     const row=activeRow();
     if(row&&isReturnStartRow(row))return;
     if(row&&isFinalArrived(row))return;
@@ -98,6 +101,11 @@ import'./geo-core.js';
   body.addEventListener('gps-next-stop-change',()=>{resetEta();refreshEta(true).then(render)});
   body.addEventListener('route-direction-change',()=>{resetEta();setTimeout(()=>refreshEta(true).then(render),0)});
   body.addEventListener('route-mode-change',()=>{resetEta();setTimeout(()=>refreshEta(true).then(render),0)});
+  body.addEventListener('return-origin-change',event=>{
+    resetEta();
+    if(event.detail?.active===true||returnOriginLocked()){render();return}
+    setTimeout(()=>refreshEta(true).then(render),0);
+  });
   body.addEventListener('stop-guard-change',()=>render());
   function start(){if(watch!==null)return;watch=window.__trasyGps.subscribe(p=>{pos={lat:p.coords.latitude,lng:p.coords.longitude,accuracy:p.coords.accuracy||999};if(pos.accuracy<=MAX_GPS_ACCURACY){refreshEta().then(render)}},()=>{})}
   start();
