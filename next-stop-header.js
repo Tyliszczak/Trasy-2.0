@@ -28,16 +28,14 @@
   guardEl.hidden=true;
   header.append(labelEl,mainEl,planEl,statusEl,guardEl);
 
-
   const STOPPED_MAX_KMH=4;
   const STOPPED_CONFIRM_MS=700;
   const APPROACH_RADIUS_M=100;
   const APPROACH_CLEAR_M=140;
   const APPROACH_MAX_ACCURACY_M=80;
-  const AUDIO_PRIME_MS=220;
-  const BEEP_LEAD_SECONDS=.08;
-  const BEEP_DURATION_SECONDS=.28;
-  const BEEP_SPACING_SECONDS=.42;
+  const BEEP_LEAD_SECONDS=.04;
+  const BEEP_DURATION_SECONDS=.34;
+  const BEEP_SPACING_SECONDS=.46;
   const AudioContextClass=window.AudioContext||window.webkitAudioContext;
 
   let lastStatusDetail=null;
@@ -178,36 +176,61 @@
 
   function ensureAudio(){
     if(!AudioContextClass)return null;
-    try{if(!audioContext)audioContext=new AudioContextClass();return audioContext}catch{return null}
+    try{
+      if(!audioContext||audioContext.state==='closed')audioContext=new AudioContextClass();
+      return audioContext;
+    }catch{return null}
   }
-  const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   function primeAudio(context){
     try{
       const oscillator=context.createOscillator();
       const gain=context.createGain();
-      gain.gain.setValueAtTime(.0001,context.currentTime);
+      gain.gain.setValueAtTime(.00001,context.currentTime);
       oscillator.frequency.setValueAtTime(40,context.currentTime);
-      oscillator.connect(gain);gain.connect(context.destination);oscillator.start();oscillator.stop(context.currentTime+.08);
+      oscillator.connect(gain);gain.connect(context.destination);
+      oscillator.start();oscillator.stop(context.currentTime+.05);
     }catch{}
   }
-  async function prepareAudio(context){
-    try{if(context.state==='suspended')await context.resume();primeAudio(context);await delay(AUDIO_PRIME_MS);if(context.state==='suspended')await context.resume();return context.state==='running'}catch{return false}
+  async function unlockAudio(){
+    const context=ensureAudio();if(!context)return false;
+    try{
+      if(context.state==='suspended')await context.resume();
+      primeAudio(context);
+      return context.state==='running';
+    }catch{return false}
+  }
+  function fallbackVibration(count){
+    try{
+      if(typeof navigator.vibrate!=='function')return false;
+      const pattern=[];
+      for(let i=0;i<count;i+=1){if(i)pattern.push(120);pattern.push(220)}
+      return navigator.vibrate(pattern)!==false;
+    }catch{return false}
   }
   async function playBeeps(count){
-    const context=ensureAudio();if(!context)return;
+    const context=ensureAudio();
+    if(!context)return fallbackVibration(count);
     try{
-      if(!await prepareAudio(context))return;
+      if(context.state!=='running'&&!await unlockAudio())return fallbackVibration(count);
       const start=context.currentTime+BEEP_LEAD_SECONDS;
       for(let i=0;i<count;i+=1){
         const at=start+i*BEEP_SPACING_SECONDS,end=at+BEEP_DURATION_SECONDS;
         const oscillator=context.createOscillator(),gain=context.createGain();
-        oscillator.type='square';oscillator.frequency.setValueAtTime(1180,at);
-        gain.gain.setValueAtTime(.0001,at);gain.gain.exponentialRampToValueAtTime(.55,at+.025);gain.gain.setValueAtTime(.55,at+.18);gain.gain.exponentialRampToValueAtTime(.0001,end);
-        oscillator.connect(gain);gain.connect(context.destination);oscillator.start(at);oscillator.stop(end+.02);
+        oscillator.type='square';
+        oscillator.frequency.setValueAtTime(1080,at);
+        gain.gain.setValueAtTime(.0001,at);
+        gain.gain.exponentialRampToValueAtTime(.75,at+.025);
+        gain.gain.setValueAtTime(.75,Math.max(at+.025,end-.08));
+        gain.gain.exponentialRampToValueAtTime(.0001,end);
+        oscillator.connect(gain);gain.connect(context.destination);
+        oscillator.start(at);oscillator.stop(end+.03);
       }
-    }catch{}
+      return true;
+    }catch{return fallbackVibration(count)}
   }
-  async function unlockAudio(){const context=ensureAudio();if(!context)return;try{if(context.state==='suspended')await context.resume();primeAudio(context)}catch{}}
+  function markBeeps(promise,key,setter){
+    Promise.resolve(promise).then(ok=>{if(ok)setter(key)}).catch(()=>{});
+  }
   function flashHold(){guardEl.classList.remove('flash3');void guardEl.offsetWidth;guardEl.classList.add('flash3')}
   function clearApproach(){if(!activeApproachKey)return;activeApproachKey='';render()}
 
@@ -227,15 +250,19 @@
     if(punctuality.kind==='early'&&distance<=APPROACH_RADIUS_M){
       activeApproachKey=key;
       render();
-      if(alertedApproachKey!==key){alertedApproachKey=key;playBeeps(1)}
+      if(alertedApproachKey!==key){
+        markBeeps(playBeeps(1),key,value=>{alertedApproachKey=value});
+      }
       return;
     }
     if(activeApproachKey===key&&(punctuality.kind!=='early'||distance>APPROACH_CLEAR_M))clearApproach();
   }
 
   guardEl.addEventListener('animationend',()=>guardEl.classList.remove('flash3'));
-  document.addEventListener('pointerdown',unlockAudio,{once:true,capture:true});
-  document.addEventListener('keydown',unlockAudio,{once:true,capture:true});
+  ['pointerdown','touchstart','click'].forEach(type=>document.addEventListener(type,unlockAudio,{capture:true,passive:true}));
+  document.addEventListener('keydown',unlockAudio,{capture:true});
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')unlockAudio()});
+  window.addEventListener('pageshow',unlockAudio);
 
   document.addEventListener('trasy:gps-speed',event=>{
     const kmh=Number(event.detail?.kmh);if(!Number.isFinite(kmh))return;
@@ -257,13 +284,18 @@
       activeApproachKey='';
       if(activeHoldKey!==key)activeHoldKey=key;
       render();
-      if(alertedHoldKey!==key){alertedHoldKey=key;playBeeps(1);flashHold()}
+      if(alertedHoldKey!==key){
+        markBeeps(playBeeps(1),key,value=>{alertedHoldKey=value});
+        flashHold();
+      }
       return;
     }
     if(state==='ready'){
       activeApproachKey='';activeHoldKey='';render();
       const message=String(lastGuardDetail?.message||'');
-      if(message.includes('MOŻESZ JECHAĆ')&&alertedReadyKey!==key){alertedReadyKey=key;playBeeps(2)}
+      if(message.includes('MOŻESZ JECHAĆ')&&alertedReadyKey!==key){
+        markBeeps(playBeeps(2),key,value=>{alertedReadyKey=value});
+      }
       return;
     }
     if(state!=='hold')activeHoldKey='';
