@@ -1,0 +1,117 @@
+/*
+ * TRASY 2.0 TEST — odbiór diagnostyki z Cloudflare.
+ *
+ * 1. Dodaj ten plik do projektu Apps Script przypisanego do arkusza „Trasy 2.0”.
+ * 2. W Script Properties ustaw DIAGNOSTICS_SHARED_SECRET (ta sama wartość co
+ *    sekret Cloudflare Pages).
+ * 3. W doPost(e), zaraz po utworzeniu scriptProperties, dodaj:
+ *
+ *    if (action === 'appendTestDiagnostics') {
+ *      return appendTestDiagnostics_(postData);
+ *    }
+ *
+ * 4. Utwórz nową wersję istniejącego wdrożenia aplikacji internetowej.
+ */
+
+function appendTestDiagnostics_(p) {
+  var properties = PropertiesService.getScriptProperties();
+  var expected = String(properties.getProperty('DIAGNOSTICS_SHARED_SECRET') || '');
+  var received = String(p && p.secret || '');
+  if (!expected || !constantTimeEqualsDiagnostics_(expected, received)) {
+    return createJsonResponse({status:'error', message:'UNAUTHORIZED'});
+  }
+
+  var batchId = safeDiagnosticsText_(p.batchId, 180);
+  var installationId = safeDiagnosticsText_(p.installationId, 100);
+  var appVersion = safeDiagnosticsText_(p.appVersion, 24);
+  var sessionId = safeDiagnosticsText_(p.sessionId, 180);
+  var events = Array.isArray(p.events) ? p.events : [];
+  if (!/^[A-Za-z0-9:._-]+$/.test(batchId) ||
+      !/^[A-Za-z0-9:._-]+$/.test(installationId) ||
+      !/^2\.0\.\d+$/.test(appVersion) ||
+      !/^[A-Za-z0-9:._-]+$/.test(sessionId) ||
+      !events.length || events.length > 40) {
+    return createJsonResponse({status:'error', message:'INVALID_PAYLOAD'});
+  }
+
+  var normalized = [];
+  for (var i = 0; i < events.length; i++) {
+    var event = events[i] || {};
+    if (String(event.sessionId || '') !== sessionId ||
+        !isFinite(Number(event.id)) ||
+        !/^\d{4}-\d{2}-\d{2}T/.test(String(event.at || '')) ||
+        !/^[A-Za-z0-9:._-]+$/.test(String(event.type || ''))) {
+      return createJsonResponse({status:'error', message:'INVALID_EVENT'});
+    }
+    normalized.push(event);
+  }
+
+  var json = JSON.stringify(normalized);
+  if (json.length > 50000) return createJsonResponse({status:'error', message:'PAYLOAD_TOO_LARGE'});
+
+  var lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = spreadsheet.getSheetByName('DIAGNOSTYKA TESTÓW');
+    if (!sheet) sheet = createTestDiagnosticsSheet_(spreadsheet);
+
+    var lastRow = sheet.getLastRow();
+    if (lastRow > 1) {
+      var duplicate = sheet.getRange(2, 1, lastRow - 1, 1)
+        .createTextFinder(batchId).matchEntireCell(true).findNext();
+      if (duplicate) return createJsonResponse({status:'success', batchId:batchId, duplicate:true});
+    }
+
+    var first = normalized[0];
+    var last = normalized[normalized.length - 1];
+    var snapshot = last.snapshot || first.snapshot || {};
+    var gpsCount = 0, skippedCount = 0, errorCount = 0;
+    for (var n = 0; n < normalized.length; n++) {
+      var type = String(normalized[n].type || '');
+      if (type === 'gps-fix') gpsCount++;
+      if (type === 'gps-stop-skipped') skippedCount++;
+      if (/error|unhandled-rejection|gps-error/.test(type)) errorCount++;
+    }
+    var chunk = String(first.id) + '-' + String(last.id);
+    var row = [[
+      safeSheetValue_(batchId), safeSheetValue_(sessionId), safeSheetValue_(installationId),
+      safeSheetValue_(appVersion), new Date(), safeSheetValue_(first.at), safeSheetValue_(last.at),
+      safeSheetValue_(snapshot.route || ''), safeSheetValue_(snapshot.shift || ''),
+      safeSheetValue_(snapshot.direction || ''), normalized.length, gpsCount, skippedCount,
+      errorCount, safeSheetValue_(first.at), safeSheetValue_(last.at), safeSheetValue_(chunk), json
+    ]];
+    sheet.getRange(Math.max(2, lastRow + 1), 1, 1, 18).setValues(row);
+    SpreadsheetApp.flush();
+    return createJsonResponse({status:'success', batchId:batchId, duplicate:false});
+  } catch (error) {
+    return createJsonResponse({status:'error', message:'WRITE_FAILED'});
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function constantTimeEqualsDiagnostics_(a, b) {
+  var length = Math.max(a.length, b.length), mismatch = a.length ^ b.length;
+  for (var i = 0; i < length; i++) mismatch |= (a.charCodeAt(i % Math.max(1, a.length)) || 0) ^ (b.charCodeAt(i % Math.max(1, b.length)) || 0);
+  return mismatch === 0;
+}
+
+function safeDiagnosticsText_(value, max) {
+  return String(value == null ? '' : value).trim().slice(0, max);
+}
+
+function safeSheetValue_(value) {
+  var text = String(value == null ? '' : value);
+  return /^[=+@-]/.test(text) ? "'" + text : text;
+}
+
+function createTestDiagnosticsSheet_(spreadsheet) {
+  var sheet = spreadsheet.insertSheet('DIAGNOSTYKA TESTÓW');
+  sheet.getRange(1, 1, 1, 18).setValues([[
+    'BATCH_ID','SESSION_ID','INSTALACJA','WERSJA','WYSŁANO','START','KONIEC','TRASA','ZMIANA','KIERUNEK',
+    'ZDARZENIA','GPS','POMINIĘTE','BŁĘDY','PIERWSZE_ZDARZENIE','OSTATNIE_ZDARZENIE','CZĘŚĆ','DANE_JSON'
+  ]]);
+  sheet.setFrozenRows(1);
+  return sheet;
+}

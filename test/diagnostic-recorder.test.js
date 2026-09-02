@@ -23,6 +23,17 @@ test('diagnostyka zapisuje lokalnie GPS i zdarzenia wyboru przystanku',()=>{
   assert.match(source,/visibility-change/);
 });
 
+test('aktywna diagnostyka automatycznie wysyła kolejkowane paczki przez Cloudflare',()=>{
+  const source=read('diagnostic-recorder.js');
+  assert.match(source,/UPLOAD_ENDPOINT='\/test-diagnostics'/);
+  assert.match(source,/LAST_UPLOADED_KEY/);
+  assert.match(source,/keepalive:true/);
+  assert.match(source,/visibilityState==='hidden'/);
+  assert.match(source,/window\.addEventListener\('pagehide'/);
+  assert.match(source,/setInterval\(\(\)=>\{if\(active\)flush\(\)\.then\(\(\)=>uploadPending\(\)\)/);
+  assert.doesNotMatch(source,/DIAGNOSTICS_SHARED_SECRET/);
+});
+
 test('eksport wskazuje uzgodniony email i nie udostępnia WhatsApp',()=>{
   const source=read('diagnostic-recorder.js');
   assert.match(source,/kswiderski\.de@gmail\.com/);
@@ -35,6 +46,6 @@ test('eksport wskazuje uzgodniony email i nie udostępnia WhatsApp',()=>{
 test('skrypt diagnostyczny jest częścią powłoki offline PWA',()=>{
   const html=read('index.html');
   const sw=read('sw.js');
-  assert.match(html,/src="\.\/diagnostic-recorder\.js\?v=2"/);
+  assert.match(html,/src="\.\/diagnostic-recorder\.js\?v=3"/);
   assert.match(sw,/'\.\/diagnostic-recorder\.js'/);
 });

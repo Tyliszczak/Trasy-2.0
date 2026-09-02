@@ -9,6 +9,12 @@
   const STORE='events';
   const ACTIVE_KEY='trasy2.diagnostics.active';
   const SESSION_KEY='trasy2.diagnostics.session';
+  const INSTALLATION_KEY='trasy2.diagnostics.installation';
+  const LAST_UPLOADED_KEY='trasy2.diagnostics.lastUploadedId';
+  const UPLOAD_ENDPOINT='/test-diagnostics';
+  const UPLOAD_INTERVAL_MS=60000;
+  const UPLOAD_BATCH_SIZE=40;
+  const UPLOAD_MAX_BYTES=56*1024;
   const MAX_EVENTS=50000;
   const GPS_MIN_INTERVAL_MS=900;
   let dbPromise=null;
@@ -18,9 +24,24 @@
   let lastGpsAt=0;
   let active=localStorage.getItem(ACTIVE_KEY)==='1';
   let sessionId=localStorage.getItem(SESSION_KEY)||'';
+  let uploadTimer=0,uploadInFlight=null,lastSyncMessage='';
+
+  function randomId(){
+    if(crypto.randomUUID)return crypto.randomUUID();
+    const bytes=new Uint8Array(16);crypto.getRandomValues(bytes);
+    return Array.from(bytes,value=>value.toString(16).padStart(2,'0')).join('');
+  }
+
+  function installationId(){
+    let id=localStorage.getItem(INSTALLATION_KEY)||'';
+    if(!/^[A-Za-z0-9._-]{16,100}$/.test(id)){
+      id=randomId();localStorage.setItem(INSTALLATION_KEY,id);
+    }
+    return id;
+  }
 
   function newSessionId(){
-    return `${new Date().toISOString().replace(/[:.]/g,'-')}-${Math.random().toString(36).slice(2,8)}`;
+    return `${new Date().toISOString().replace(/[:.]/g,'-')}-${randomId()}`;
   }
 
   function openDb(){
@@ -143,6 +164,17 @@
     });
   }
 
+  async function pendingEvents(afterId,limit=UPLOAD_BATCH_SIZE){
+    await flush();
+    const db=await openDb();
+    return new Promise((resolve,reject)=>{
+      const range=IDBKeyRange.lowerBound(Math.max(0,Number(afterId)||0),true);
+      const request=db.transaction(STORE,'readonly').objectStore(STORE).getAll(range,limit);
+      request.onsuccess=()=>resolve(request.result||[]);
+      request.onerror=()=>reject(request.error);
+    });
+  }
+
   async function clearEvents(){
     queue=[];
     const db=await openDb();
@@ -151,7 +183,63 @@
       request.onsuccess=resolve;
       request.onerror=()=>reject(request.error);
     });
+    localStorage.removeItem(LAST_UPLOADED_KEY);
     updateUi('Dane diagnostyczne zostały usunięte.');
+  }
+
+  function scheduleUpload(delay=1000){
+    clearTimeout(uploadTimer);
+    uploadTimer=setTimeout(()=>{uploadTimer=0;uploadPending()},delay);
+  }
+
+  function payloadFor(events){
+    const first=events[0],last=events[events.length-1];
+    return{
+      batchId:`${installationId()}:${first.id}-${last.id}`,
+      installationId:installationId(),
+      appVersion:version?.dataset.version||'',
+      sessionId:first.sessionId,
+      events
+    };
+  }
+
+  function boundedBatch(events){
+    const sameSession=events.filter(event=>event.sessionId===events[0]?.sessionId);
+    while(sameSession.length>1&&new TextEncoder().encode(JSON.stringify(payloadFor(sameSession))).byteLength>UPLOAD_MAX_BYTES)sameSession.pop();
+    return sameSession;
+  }
+
+  async function uploadPending(){
+    if(uploadInFlight||!navigator.onLine)return uploadInFlight;
+    uploadInFlight=(async()=>{
+      let sent=0;
+      try{
+        await flush();
+        for(let part=0;part<8;part++){
+          const lastUploaded=Math.max(0,Number(localStorage.getItem(LAST_UPLOADED_KEY))||0);
+          const pending=await pendingEvents(lastUploaded);
+          if(!pending.length)break;
+          const events=boundedBatch(pending);
+          if(!events.length)throw new Error('Nie można przygotować paczki diagnostycznej.');
+          const payload=payloadFor(events);
+          const response=await fetch(UPLOAD_ENDPOINT,{
+            method:'POST',cache:'no-store',credentials:'same-origin',keepalive:true,
+            headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)
+          });
+          const result=await response.json().catch(()=>({}));
+          if(!response.ok||result?.status!=='success')throw new Error(result?.message||`HTTP ${response.status}`);
+          localStorage.setItem(LAST_UPLOADED_KEY,String(events[events.length-1].id));
+          sent+=events.length;
+        }
+        lastSyncMessage=sent?`Automatycznie wysłano ${sent} zdarzeń do arkusza.`:'Wszystkie zapisane dane są wysłane.';
+      }catch(error){
+        lastSyncMessage=navigator.onLine?'Wysyłka nie powiodła się — aplikacja ponowi ją automatycznie.':'Brak internetu — dane czekają bezpiecznie na telefonie.';
+        console.warn('Automatyczna wysyłka diagnostyki:',error);
+      }finally{
+        uploadInFlight=null;updateUi();
+      }
+    })();
+    return uploadInFlight;
   }
 
   function setActive(next){
@@ -171,7 +259,7 @@
       record('recording-stopped');
       active=false;
       localStorage.removeItem(ACTIVE_KEY);
-      flush();
+      flush().then(()=>uploadPending());
     }
     root.classList.toggle('diagnosticRecording',active);
     updateUi(active?'Rejestrowanie jest włączone. Wykonaj przejazd testowy.':'Rejestrowanie zostało zatrzymane.');
@@ -185,8 +273,9 @@
     dialog.className='diagnosticDialog';
     dialog.innerHTML=`<form method="dialog">
       <div class="diagnosticDialogHead"><span aria-hidden="true">●</span><h2>Diagnostyka testowa</h2></div>
-      <p class="diagnosticPrivacy">Plik zawiera przebieg działania aplikacji oraz dokładne pozycje GPS. Dane są zapisywane tylko na tym telefonie do chwili eksportu lub usunięcia.</p>
+      <p class="diagnosticPrivacy">Rejestr obejmuje działanie aplikacji oraz dokładne pozycje GPS. Po włączeniu dane są automatycznie przesyłane do zabezpieczonej karty DIAGNOSTYKA TESTÓW. Przy braku internetu pozostają na telefonie i zostaną wysłane później.</p>
       <p id="diagnosticState" class="diagnosticState"></p>
+      <p id="diagnosticSync" class="diagnosticSync"></p>
       <div class="diagnosticActions">
         <button id="diagnosticToggle" type="button" class="primary"></button>
         <button id="diagnosticSend" type="button">WYŚLIJ E-MAIL</button>
@@ -212,9 +301,11 @@
     if(!dialog)return;
     const toggle=dialog.querySelector('#diagnosticToggle');
     const state=dialog.querySelector('#diagnosticState');
+    const sync=dialog.querySelector('#diagnosticSync');
     toggle.textContent=active?'ZATRZYMAJ REJESTROWANIE':'ROZPOCZNIJ REJESTROWANIE';
     toggle.classList.toggle('diagnosticStop',active);
     state.textContent=message||(active?'Rejestrowanie włączone.':'Rejestrowanie wyłączone.');
+    sync.textContent=lastSyncMessage;
   }
 
   function downloadFile(file){
@@ -269,9 +360,13 @@
 
   window.addEventListener('error',event=>record('window-error',{message:event.message,filename:event.filename,line:event.lineno,column:event.colno,error:event.error}));
   window.addEventListener('unhandledrejection',event=>record('unhandled-rejection',{reason:event.reason}));
-  window.addEventListener('online',()=>record('network-online'));
+  window.addEventListener('online',()=>{record('network-online');scheduleUpload(500)});
   window.addEventListener('offline',()=>record('network-offline'));
-  document.addEventListener('visibilitychange',()=>record('visibility-change',{state:document.visibilityState}));
+  document.addEventListener('visibilitychange',()=>{
+    record('visibility-change',{state:document.visibilityState});
+    if(document.visibilityState==='hidden')flush().then(()=>uploadPending());
+  });
+  window.addEventListener('pagehide',()=>{flush().then(()=>uploadPending())});
   document.addEventListener('click',event=>{
     const control=event.target.closest?.('button,a,select,input');
     if(!control)return;
@@ -304,4 +399,6 @@
   });
   root.classList.toggle('diagnosticRecording',active);
   if(active)record('recording-restored',{appVersion:version?.dataset.version||''});
+  setInterval(()=>{if(active)flush().then(()=>uploadPending())},UPLOAD_INTERVAL_MS);
+  if(navigator.onLine)scheduleUpload(1500);
 })();
