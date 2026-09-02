@@ -33,6 +33,18 @@ import'./geo-core.js';
     const value=['early','late','onTime','arrived'].includes(kind)?kind:'neutral';
     document.documentElement.dataset.navPunctuality=value;
   }
+  function broadcastStatus(kind,diffSeconds,etaSecondsValue){
+    publishStatusKind(kind);
+    body.dataset.etaKind=kind;
+    body.dataset.etaDiffSeconds=diffSeconds===null||diffSeconds===undefined?'':String(diffSeconds);
+    body.dataset.etaSeconds=Number.isFinite(etaSecondsValue)?String(etaSecondsValue):'';
+    const detail={kind,diffSeconds,etaSeconds:etaSecondsValue,source:'eta-status'};
+    body.dispatchEvent(new CustomEvent('eta-status-change',{bubbles:true,detail}));
+    // Górna belka nawigacji historycznie słucha nav-eta-update. Wysyłamy jej
+    // ten sam, już poprawnie wyliczony status, aby harmonogram, belka i marker
+    // pojazdu korzystały z jednego wyniku zamiast dwóch niezależnych obliczeń.
+    body.dispatchEvent(new CustomEvent('nav-eta-update',{bubbles:true,detail}));
+  }
 
   function ensureInfo(row){
     if(!row)return null;
@@ -108,28 +120,28 @@ import'./geo-core.js';
       const etaSecondsLive=liveEta();
       if(etaSecondsLive===null){hideInfo(row);return}
       setInfo(info,'etaPunctuality returnArrival',`Dojazd ${arrivalClock(etaSecondsLive)}`);
-      body.dataset.etaKind='returnArrival';body.dataset.etaDiffSeconds='';body.dataset.etaSeconds=String(etaSecondsLive);
-      publishStatusKind('neutral');
-      body.dispatchEvent(new CustomEvent('eta-status-change',{bubbles:true,detail:{kind:'returnArrival',diffSeconds:null,etaSeconds:etaSecondsLive}}));
+      broadcastStatus('returnArrival',null,etaSecondsLive);
       return;
     }
     if(isFinalArrived(row)){
       setInfo(info,'etaPunctuality onTime','OK');
-      row.style.setProperty('--gps-status-color','#34c759');publishStatusKind('arrived');body.dataset.etaKind='arrived';body.dataset.etaDiffSeconds='0';body.dataset.etaSeconds='0';body.dispatchEvent(new CustomEvent('eta-status-change',{bubbles:true,detail:{kind:'arrived',diffSeconds:0,etaSeconds:0}}));return
+      row.style.setProperty('--gps-status-color','#34c759');
+      broadcastStatus('arrived',0,0);
+      return;
     }
     const etaSecondsLive=liveEta();if(etaSecondsLive===null){hideInfo(row);return}
     const plan=planSeconds(row);if(plan===null){hideInfo(row);return}
     const punctuality=etaCore.statusFromEta(etaSecondsLive,plan);const kind=punctuality.kind;const diff=punctuality.diffSeconds;
     const color=statusColor(kind);
     row.style.setProperty('--gps-status-color',color);
-    publishStatusKind(kind);
     setInfo(info,`etaPunctuality ${kind}`,punctuality.text);
-    body.dataset.etaKind=kind;body.dataset.etaDiffSeconds=String(diff);body.dataset.etaSeconds=String(etaSecondsLive);
-    body.dispatchEvent(new CustomEvent('eta-status-change',{bubbles:true,detail:{kind,diffSeconds:diff,etaSeconds:etaSecondsLive}}));
+    broadcastStatus(kind,diff,etaSecondsLive);
   }
 
   body.addEventListener('nav-eta-update',event=>{
-    publishStatusKind(event.detail?.kind);
+    // Zdarzenie z własnego broadcastu jest tylko dla pozostałych modułów.
+    // Nie przeliczamy go ponownie, żeby nie tworzyć pętli zdarzeń.
+    if(event.detail?.source==='eta-status')return;
     if(returnOriginLocked())return;
     const row=activeRow();
     if(row&&isReturnStartRow(row))return;
