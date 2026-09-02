@@ -1,5 +1,5 @@
-const APP_VERSION='2.0.201';
-const CACHE_NAME='trasy-2.0-v232';
+const APP_VERSION='2.0.202';
+const CACHE_NAME='trasy-2.0-v233';
 const OFFLINE_MAP_CACHE='trasy-offline-map-v1';
 const OFFLINE_ROUTE_CACHE='trasy-offline-routes-v1';
 const APP_SHELL=['./','./index.html','./style.css','./navigation.css','./i18n.js','./time-core.js','./geo-core.js','./eta-core.js','./route-data-service.js','./parking-data.js','./gps-hub.js','./diagnostic-recorder.js','./gps-stop-engine.js','./stop-target-policy.js','./stop-alert-core.js','./schedule-time.js','./app.js','./wake-style.js','./map-runtime.js','./offline-map-cache.js','./offline-route-cache.js','./offline-vmax-cache.js','./vehicles.js','./return-route.js','./speed-display.js','./road-speed-limit-core.js','./road-speed-limit.js','./navigation-live-core.js','./navigation-live-engine.js','./gps-stop-tracker.js','./active-stop-guard.js','./return-navigation-origin-fix.js','./google-routes-provider.js','./route-renderer-bridge.js','./nav-map.js','./guidance-text-fix.js','./maneuver-bubble.js','./route-progress-core.js','./route-progress-style.js','./map-theme-core.js','./traffic-delay-ui.js','./navigation-ui-controls.js','./navigation-compass.js','./navigation-feedback.js','./navigation-layout-fix.js','./android-back-navigation.js','./etoll-overlay.js','./skip-stop-control.js','./final-stop-ui.js','./stop-map-links.js','./eta-status.js','./next-stop-header.js','./visual-stop-alert.js','./routes.js','./schedule.js','./manifest.json','./Tyliszczak.png'];
