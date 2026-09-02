@@ -23,19 +23,18 @@ test('diagnostyka zapisuje lokalnie GPS i zdarzenia wyboru przystanku',()=>{
   assert.match(source,/visibility-change/);
 });
 
-test('eksport wskazuje uzgodniony email i numer WhatsApp',()=>{
+test('eksport wskazuje uzgodniony email i nie udostępnia WhatsApp',()=>{
   const source=read('diagnostic-recorder.js');
   assert.match(source,/kswiderski\.de@gmail\.com/);
-  assert.match(source,/WHATSAPP_NUMBER='48603666921'/);
   assert.match(source,/exportDiagnostics\('email'\)/);
   assert.match(source,/mailto:\$\{EMAIL\}/);
-  assert.match(source,/https:\/\/wa\.me\/\$\{WHATSAPP_NUMBER\}/);
+  assert.doesNotMatch(source,/WhatsApp|WHATSAPP|whatsapp|wa\.me|48603666921/);
   assert.match(source,/locationDataIncluded:true/);
 });
 
 test('skrypt diagnostyczny jest częścią powłoki offline PWA',()=>{
   const html=read('index.html');
   const sw=read('sw.js');
-  assert.match(html,/src="\.\/diagnostic-recorder\.js\?v=1"/);
+  assert.match(html,/src="\.\/diagnostic-recorder\.js\?v=2"/);
   assert.match(sw,/'\.\/diagnostic-recorder\.js'/);
 });

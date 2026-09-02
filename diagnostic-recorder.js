@@ -4,7 +4,6 @@
   if(!root||root.dataset.testDiagnostics!=='enabled'||!/^TEST\b/i.test(version?.textContent||''))return;
 
   const EMAIL='kswiderski.de@gmail.com';
-  const WHATSAPP_NUMBER='48603666921';
   const DB_NAME='trasy2-test-diagnostics';
   const DB_VERSION=1;
   const STORE='events';
@@ -166,8 +165,7 @@
         userAgent:navigator.userAgent,
         language:navigator.language,
         screen:{width:screen.width,height:screen.height,pixelRatio:devicePixelRatio},
-        recipient:EMAIL,
-        whatsappNumber:`+${WHATSAPP_NUMBER}`
+        recipient:EMAIL
       });
     }else{
       record('recording-stopped');
@@ -192,7 +190,6 @@
       <div class="diagnosticActions">
         <button id="diagnosticToggle" type="button" class="primary"></button>
         <button id="diagnosticSend" type="button">WYŚLIJ E-MAIL</button>
-        <button id="diagnosticWhatsapp" type="button" class="diagnosticWhatsapp">WYŚLIJ PRZEZ WHATSAPP</button>
         <button id="diagnosticDownload" type="button">ZAPISZ PLIK</button>
         <button id="diagnosticClear" type="button" class="danger">USUŃ DANE</button>
         <button type="submit" class="secondary">ZAMKNIJ</button>
@@ -202,7 +199,6 @@
     document.body.append(dialog);
     dialog.querySelector('#diagnosticToggle').onclick=()=>setActive(!active);
     dialog.querySelector('#diagnosticSend').onclick=()=>exportDiagnostics('email');
-    dialog.querySelector('#diagnosticWhatsapp').onclick=()=>exportDiagnostics('whatsapp');
     dialog.querySelector('#diagnosticDownload').onclick=()=>exportDiagnostics('download');
     dialog.querySelector('#diagnosticClear').onclick=async()=>{
       if(confirm('Usunąć wszystkie zapisane dane diagnostyczne z telefonu?'))await clearEvents();
@@ -245,12 +241,7 @@
       };
       const name=`trasy-2.0-diagnostyka-${exportedAt.replace(/[:.]/g,'-')}.json`;
       const file=new File([JSON.stringify(archive,null,2)],name,{type:'application/json'});
-      if(target==='whatsapp'){
-        downloadFile(file);
-        updateUi(`Plik zapisany. Dołącz go w rozmowie WhatsApp z numerem +${WHATSAPP_NUMBER}.`);
-        const text=`Trasy 2.0 — przesyłam plik diagnostyczny ${name}. Plik został zapisany w folderze Pobrane i należy dołączyć go do tej wiadomości.`;
-        setTimeout(()=>{location.href=`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(text)}`},600);
-      }else if(target==='email'){
+      if(target==='email'){
         downloadFile(file);
         updateUi(`Plik zapisany. Dołącz go do wiadomości na ${EMAIL}.`);
         const subject=encodeURIComponent('Diagnostyka Trasy 2.0');
