@@ -80,7 +80,7 @@ test('podczas jazdy bez wiarygodnego kierunku silnik nie wraca odruchowo do pier
   assert.equal(result.reason,'awaiting-heading');
 });
 
-test('tracker odzyskuje właściwy cel gdy aktywny przystanek został daleko za autem',()=>{
+test('tracker odzyskuje najwyżej jeden następny cel gdy aktywny przystanek został daleko za autem',()=>{
   const engine=createStopProgressEngine();
   engine.setIndex(0);
   const position=metersNorth(700);
@@ -89,8 +89,38 @@ test('tracker odzyskuje właściwy cel gdy aktywny przystanek został daleko za 
   assert.equal(first.index,0);
   assert.equal(first.reason,'approaching');
   const recovered=engine.update({stops,position:metersNorth(720),accuracy:10,speedMps:10,heading,headingReliable:true});
-  assert.equal(recovered.index,2);
+  assert.equal(recovered.index,1);
   assert.equal(recovered.reason,'reacquired-target');
+  for(const meters of[740,760,780,800]){
+    const held=engine.update({stops,position:metersNorth(meters),accuracy:10,speedMps:10,heading,headingReliable:true});
+    assert.equal(held.index,1);
+  }
+});
+
+test('powrót TopPoint po Bukowej nie może przeskoczyć czterech przystanków do Planetarium',()=>{
+  const engine=createStopProgressEngine();
+  const returnStops=[
+    ['Toppoint',52.082146,15.588936],
+    ['Sulechów Przemysłowa',52.08531473957974,15.608901596465184],
+    ['Sulechów Odrzańska',52.077468,15.619099],
+    ['Krępa',51.999075,15.536770],
+    ['Bukowa',51.96612263707297,15.5325739779079],
+    ['Strumykowa',51.95457074836676,15.521532232773927],
+    ['Dolina Zielona',51.94969807924597,15.518285996553423],
+    ['Węgierska',51.93568266909441,15.481470511437632],
+    ['Łużycka',51.93454699447857,15.489166906933637],
+    ['Planetarium',51.935762,15.507092]
+  ].map(([key,lat,lng])=>({key,coord:[lat,lng]}));
+  engine.setIndex(4);
+  const position=[51.9638,15.5305];
+  const heading=bearingDegrees(position,returnStops[9].coord);
+  engine.update({stops:returnStops,position,accuracy:10,speedMps:9,heading,headingReliable:true});
+  const recovered=engine.update({stops:returnStops,position:[51.9636,15.5303],accuracy:10,speedMps:9,heading,headingReliable:true});
+  assert.ok(recovered.index<=5,'automat może wybrać najwyżej Strumykową');
+  for(const point of[[51.9634,15.5301],[51.9632,15.5299],[51.9630,15.5297]]){
+    const held=engine.update({stops:returnStops,position:point,accuracy:10,speedMps:9,heading,headingReliable:true});
+    assert.ok(held.index<=5,'bez fizycznego potwierdzenia nie wolno wykonać kolejnego skoku');
+  }
 });
 
 test('przyjazd wymaga potwierdzonego postoju w promieniu przystanku',()=>{

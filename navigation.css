@@ -76,6 +76,15 @@ body:has(#scheduleView:not([hidden])) #scheduleView .tableWrap{flex:1 1 auto!imp
 #routeNextStop .nextStopStatus.late:before{background:#ff3b30!important}
 #routeNextStop .nextStopGuard{display:block;margin-top:5px;padding:7px 10px;border-radius:7px;font-size:14px;line-height:1.15;font-weight:1000;text-align:center;white-space:normal}
 #routeNextStop .nextStopGuard.approach{background:#ffd60a;color:#111}
+
+/* Stały stos przycisków nawigacji. Wcześniej ten sam CSS był wstrzykiwany
+   przez navigation-ui-controls.js podczas działania aplikacji. */
+#routeFunctionStack{position:fixed;left:12px;top:112px;z-index:50120;display:flex;flex-direction:column;align-items:center;gap:7px;width:42px;pointer-events:none}
+#routeFunctionStack>#routeMapClose,#routeFunctionStack>#routeMapCenter,#routeFunctionStack>#routeVoiceToggle,#routeFunctionStack>.maplibregl-ctrl-group,#routeFunctionStack>#routeNorthIndicator{position:static!important;top:auto!important;right:auto!important;bottom:auto!important;left:auto!important;margin:0!important;pointer-events:auto;flex:0 0 auto}
+#routeFunctionStack>#routeMapClose,#routeFunctionStack>#routeMapCenter,#routeFunctionStack>#routeVoiceToggle{transform:none!important}
+#routeFunctionStack>.maplibregl-ctrl-group{display:flex!important;flex-direction:column!important;align-items:stretch!important;overflow:hidden;border-radius:5px!important;box-shadow:0 1px 6px #0008!important}
+#routeFunctionStack>.maplibregl-ctrl-group button,#routeFunctionStack>#routePitchToggle{margin:0!important}
+#routeFunctionStack>#routeNorthIndicator{width:42px!important;height:42px!important}
 #routeNextStop .nextStopGuard.hold{background:#ff3b30;color:#fff}
 #routeNextStop .nextStopGuard.ready{background:#34c759;color:#071407}
 #routeNextStop .nextStopGuard.flash3{animation:trasyHoldFlash .36s ease-in-out 3}

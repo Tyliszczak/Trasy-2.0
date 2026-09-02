@@ -30,7 +30,8 @@ export const DEFAULT_STOP_ENGINE_CONFIG=Object.freeze({
   reacquireFixes:2,
   reacquireMinimumSpeedMps:2,
   reacquireCurrentBehindDegrees:120,
-  reacquireMaximumHeadingDegrees:110
+  reacquireMaximumHeadingDegrees:110,
+  reacquireMaximumIndexAdvance:1
 });
 
 export function createStopProgressEngine(overrides={}){
@@ -44,6 +45,7 @@ export function createStopProgressEngine(overrides={}){
   let lastDistance=Infinity;
   let reacquireCandidate=null;
   let reacquireFixes=0;
+  let reacquireLocked=false;
 
   function resetReacquire(){
     reacquireCandidate=null;
@@ -58,6 +60,7 @@ export function createStopProgressEngine(overrides={}){
     passFixes=0;
     closestDistance=Infinity;
     lastDistance=Infinity;
+    reacquireLocked=false;
     resetReacquire();
   }
 
@@ -102,6 +105,7 @@ export function createStopProgressEngine(overrides={}){
 
   function findReacquireCandidate(stops,position,speedMps,heading,headingReliable,currentDistance){
     if(index===null||index>=stops.length-1)return null;
+    if(reacquireLocked)return null;
     if(!headingReliable||!Number.isFinite(heading))return null;
     if(!Number.isFinite(speedMps)||speedMps<config.reacquireMinimumSpeedMps)return null;
     if(!Number.isFinite(currentDistance)||currentDistance<config.reacquireDistanceMeters)return null;
@@ -109,11 +113,15 @@ export function createStopProgressEngine(overrides={}){
     const currentBearing=bearingDegrees(position,stops[index].coord);
     if(angleDifference(heading,currentBearing)<config.reacquireCurrentBehindDegrees)return null;
 
-    for(let i=index+1;i<stops.length;i+=1){
+    const lastCandidate=Math.min(stops.length-1,index+Math.max(1,Math.trunc(config.reacquireMaximumIndexAdvance)||1));
+    for(let i=index+1;i<=lastCandidate;i+=1){
       const targetBearing=bearingDegrees(position,stops[i].coord);
       if(angleDifference(heading,targetBearing)<=config.reacquireMaximumHeadingDegrees)return i;
     }
-    return null;
+    // Jeśli również kolejny punkt został już za pojazdem, wolno odzyskać
+    // wyłącznie ten jeden punkt. Blokada po przejściu nie pozwoli utworzyć
+    // łańcucha kolejnych automatycznych pominięć.
+    return index+1;
   }
 
   function update({stops,position,accuracy,speedMps=0,heading=null,headingReliable=false,emptyRun=false,minimumIndex=0}){
@@ -170,6 +178,10 @@ export function createStopProgressEngine(overrides={}){
           passFixes=0;
           closestDistance=Infinity;
           lastDistance=Infinity;
+          // Jedno odzyskanie celu może przesunąć nawigację najwyżej o jeden
+          // przystanek. Następne wymaga fizycznego potwierdzenia przejazdu lub
+          // postoju, więc seria odczytów GPS nie usunie kilku punktów naraz.
+          reacquireLocked=true;
           resetReacquire();
           return{...snapshot(),changed:true,reason:'reacquired-target',fromIndex,distance,arrivalRadius,departureRadius};
         }
@@ -183,6 +195,7 @@ export function createStopProgressEngine(overrides={}){
         phase='arrived';
         departureFixes=0;
         passFixes=0;
+        reacquireLocked=false;
         resetReacquire();
         return{...snapshot(),changed:false,reason:'arrival-confirmed',justArrived:true,distance,arrivalRadius,departureRadius};
       }
@@ -206,6 +219,7 @@ export function createStopProgressEngine(overrides={}){
           passFixes=0;
           closestDistance=Infinity;
           lastDistance=Infinity;
+          reacquireLocked=false;
           resetReacquire();
           return{...snapshot(),changed:true,reason:'passed-stop',fromIndex,skippedIndex:fromIndex,justSkipped:true,distance,arrivalRadius,departureRadius};
         }
@@ -239,6 +253,7 @@ export function createStopProgressEngine(overrides={}){
       passFixes=0;
       closestDistance=Infinity;
       lastDistance=Infinity;
+      reacquireLocked=false;
       resetReacquire();
       return{...snapshot(),changed:true,reason:'confirmed-departure',fromIndex,distance,arrivalRadius,departureRadius};
     }

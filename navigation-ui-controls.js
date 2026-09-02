@@ -40,58 +40,6 @@
   northIndicator.innerHTML='<span>N</span><span class="northArrow" aria-hidden="true">↑</span>';
   root.appendChild(northIndicator);
 
-  const layoutStyle=document.createElement('style');
-  layoutStyle.textContent=`
-    #routeFunctionStack{
-      position:fixed;
-      left:12px;
-      top:112px;
-      z-index:50120;
-      display:flex;
-      flex-direction:column;
-      align-items:center;
-      gap:7px;
-      width:42px;
-      pointer-events:none;
-    }
-    #routeFunctionStack>#routeMapClose,
-    #routeFunctionStack>#routeMapCenter,
-    #routeFunctionStack>#routeVoiceToggle,
-    #routeFunctionStack>.maplibregl-ctrl-group,
-    #routeFunctionStack>#routeNorthIndicator{
-      position:static!important;
-      top:auto!important;
-      right:auto!important;
-      bottom:auto!important;
-      left:auto!important;
-      margin:0!important;
-      pointer-events:auto;
-      flex:0 0 auto;
-    }
-    #routeFunctionStack>#routeMapClose,
-    #routeFunctionStack>#routeMapCenter,
-    #routeFunctionStack>#routeVoiceToggle{
-      transform:none!important;
-    }
-    #routeFunctionStack>.maplibregl-ctrl-group{
-      display:flex!important;
-      flex-direction:column!important;
-      align-items:stretch!important;
-      overflow:hidden;
-      border-radius:5px!important;
-      box-shadow:0 1px 6px #0008!important;
-    }
-    #routeFunctionStack>.maplibregl-ctrl-group button,
-    #routeFunctionStack>#routePitchToggle{
-      margin:0!important;
-    }
-    #routeFunctionStack>#routeNorthIndicator{
-      width:42px!important;
-      height:42px!important;
-    }
-  `;
-  document.head.appendChild(layoutStyle);
-
   function ensureFunctionStack(){
     let stack=document.getElementById('routeFunctionStack');
     if(!stack){

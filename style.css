@@ -40,3 +40,9 @@
 .languageChoices button{border:2px solid #555;background:#292929;color:#fff}
 .languageChoices button:hover,.languageChoices button:focus-visible{border-color:#ccff33}
 .languageCancel{margin-top:14px;background:#444;color:#fff}
+.diagnosticButton{display:flex;align-items:center;justify-content:center;gap:8px;width:auto;min-height:38px;margin:12px auto 0;padding:6px 13px;border:1px solid #704040;border-radius:20px;background:#241b1b;color:#ddd;font-size:.76rem;font-weight:900}
+.diagnosticButton>span:first-child{color:#ff453a;font-size:1rem}
+.diagnosticDialog{width:min(480px,calc(100% - 20px));padding:0;border:1px solid #666;border-radius:15px;background:#1c1c1c;color:#fff;box-shadow:0 16px 60px #000d}
+.diagnosticDialog::backdrop{background:#000c}.diagnosticDialog form{padding:18px}.diagnosticDialogHead{display:flex;align-items:center;justify-content:center;gap:9px}.diagnosticDialogHead>span{color:#ff453a;font-size:1.3rem}.diagnosticDialogHead h2{margin:0;font-size:1.15rem}.diagnosticPrivacy{margin-top:14px;color:#ddd;font-size:.88rem;line-height:1.4}.diagnosticState{min-height:22px;margin-top:12px;color:#ccff33;font-weight:800}.diagnosticActions{display:grid;gap:9px;margin-top:12px}.diagnosticActions button{margin:0}.diagnosticActions .secondary{width:100%}.diagnosticActions .diagnosticStop{background:#ff453a;color:#fff}.diagnosticRecipient{display:block;margin-top:12px;color:#aaa;text-align:center;overflow-wrap:anywhere}
+.diagnosticActions .diagnosticWhatsapp{background:#25d366;color:#071b0e}
+body.diagnosticRecording #globalTestVersion::before{content:"● ";color:#ff453a;text-shadow:0 0 8px #ff453a}

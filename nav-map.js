@@ -1135,6 +1135,9 @@
     routeBuildInFlight=true;
     lastRouteBuildAt=Date.now();
     legStartAt=Date.now();
+    document.dispatchEvent(new CustomEvent('trasy:route-build',{detail:{
+      phase:'start',requestId,origin,stops:stops.map(stop=>({key:stop.key,name:stop.name,coord:stop.coord}))
+    }}));
 
     try{
       const coords=[
@@ -1225,8 +1228,16 @@
       status.dataset.routeBase=routeSummary;
       status.textContent=routeSummary;
       status.dataset.state='ready';
+      document.dispatchEvent(new CustomEvent('trasy:route-build',{detail:{
+        phase:'success',requestId,usedStartDirection,distance:route.distance,duration:route.duration,
+        legDurations:legDurations.slice(),routePointCount:routeCoords.length,stopCount:stops.length
+      }}));
     }catch(error){
-      if(error?.name==='AbortError'||requestId!==routeRequestGeneration)return;
+      if(error?.name==='AbortError'||requestId!==routeRequestGeneration){
+        document.dispatchEvent(new CustomEvent('trasy:route-build',{detail:{phase:'aborted',requestId,message:error?.message||''}}));
+        return;
+      }
+      document.dispatchEvent(new CustomEvent('trasy:route-build',{detail:{phase:'error',requestId,name:error?.name||'Error',message:error?.message||String(error)}}));
       throw error;
     }finally{
       if(requestId===routeRequestGeneration){

@@ -97,7 +97,8 @@ import'./geo-core.js';
     const punctuality=etaCore.statusFromEta(etaSecondsLive,plan);const kind=punctuality.kind;const diff=punctuality.diffSeconds;
     const color=kind==='late'?'#ff3b30':kind==='early'?'#ffd60a':'#34c759';
     row.style.setProperty('--gps-status-color',color);
-    setInfo(info,`etaPunctuality ${kind}`,punctuality.text);
+    if(info.className!==`etaPunctuality ${kind}`)info.className=`etaPunctuality ${kind}`;
+    if(info.textContent!==punctuality.text)info.textContent=punctuality.text;
     body.dataset.etaKind=kind;body.dataset.etaDiffSeconds=String(diff);body.dataset.etaSeconds=String(etaSecondsLive);
     body.dispatchEvent(new CustomEvent('eta-status-change',{bubbles:true,detail:{kind,diffSeconds:diff,etaSeconds:etaSecondsLive}}));
   }
