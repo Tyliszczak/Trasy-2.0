@@ -43,6 +43,9 @@
     #routeFunctionStack>#routeMapClose{font-size:0!important;line-height:0!important}
     #routeFunctionStack>#routeMapClose::before{content:"";display:block;width:13px;height:13px;box-sizing:border-box;border-left:3px solid currentColor;border-bottom:3px solid currentColor;border-radius:1px;transform:rotate(45deg);margin-left:4px}
 
+    #scheduleBody tr.gpsNextStop{
+      box-shadow:inset 5px 0 0 var(--gps-status-color,#ccff33)!important;
+    }
     #scheduleBody .etaPunctuality{
       max-width:110px!important;
       margin:6px auto 0!important;
@@ -51,16 +54,18 @@
       line-height:1.08!important;
       font-size:12px!important;
       justify-content:center!important;
+      border:0!important;
+      outline:0!important;
     }
-    #scheduleBody .etaPunctuality.early{color:#ff3b30!important}
-    #scheduleBody .etaPunctuality.late{color:#ff9500!important}
-    #scheduleBody .etaPunctuality.onTime,#scheduleBody .etaPunctuality.arrived{color:#34c759!important}
+    #scheduleBody .etaPunctuality:before,
+    #routeNextStop .nextStopStatus:before{
+      box-shadow:none!important;
+      border:0!important;
+      outline:0!important;
+    }
     #scheduleBody .etaPunctuality.early:before{background:#ff3b30!important}
     #scheduleBody .etaPunctuality.late:before{background:#ff9500!important}
     #scheduleBody .etaPunctuality.onTime:before,#scheduleBody .etaPunctuality.arrived:before{background:#34c759!important}
-    #routeNextStop .nextStopStatus.early{color:#ff3b30!important}
-    #routeNextStop .nextStopStatus.late{color:#ff9500!important}
-    #routeNextStop .nextStopStatus.onTime{color:#34c759!important}
     #routeNextStop .nextStopStatus.early:before{background:#ff3b30!important}
     #routeNextStop .nextStopStatus.late:before{background:#ff9500!important}
     #routeNextStop .nextStopStatus.onTime:before{background:#34c759!important}
