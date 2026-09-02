@@ -14,12 +14,12 @@
     .routeSpeedLimit{width:40px;height:40px;border:4px solid #e11d2e;border-radius:50%;background:#fff;color:#111;display:flex;align-items:center;justify-content:center;font:1000 17px/1 Arial,sans-serif;box-sizing:border-box}
     .routeSpeedStatus{display:none!important}
     .routeCurrentSpeed{min-width:58px;text-align:center;font:1000 22px/1 Arial,sans-serif;color:#fff}
-    .routeCurrentSpeed small{display:block;margin-top:2px;font-size:8px;color:#aaa;letter-spacing:.05em}
-    #routeMapSpeedBox{position:absolute;right:12px;top:12px;left:auto;bottom:auto;z-index:50130;display:flex;align-items:flex-start;gap:8px;padding:7px 8px;border-radius:12px;background:rgba(17,17,17,.5);box-shadow:0 2px 9px #0009;pointer-events:none}
+    .routeCurrentSpeed small{display:block;margin-top:2px;font-size:8px;color:#ddd;letter-spacing:.05em}
+    #routeMapSpeedBox{position:absolute;left:12px;bottom:12px;right:auto;top:auto;z-index:50130;display:flex;align-items:flex-end;gap:8px;padding:7px 8px;border:0;border-radius:12px;background:rgba(68,68,68,.62);box-shadow:0 2px 8px #0007;-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);pointer-events:none}
     #routeMapSpeedBox .routeSpeedLimit{width:48px;height:48px;font-size:20px;border-width:4px}
     #routeMapSpeedBox .routeCurrentSpeed{min-width:58px;font-size:26px;text-shadow:0 1px 2px #000}
     #routeMapSpeedBox .routeCurrentSpeed small{font-size:9px}
-    @media(max-width:520px){#scheduleSpeedBox{gap:7px}#scheduleSpeedBox .routeSpeedLimit{width:48px;height:48px;font-size:20px;border-width:4px}#scheduleSpeedBox .routeCurrentSpeed{min-width:60px;font-size:27px}#routeMapSpeedBox{right:10px;top:10px;left:auto;bottom:auto}}
+    @media(max-width:520px){#scheduleSpeedBox{gap:7px}#scheduleSpeedBox .routeSpeedLimit{width:48px;height:48px;font-size:20px;border-width:4px}#scheduleSpeedBox .routeCurrentSpeed{min-width:60px;font-size:27px}#routeMapSpeedBox{left:10px;bottom:10px;right:auto;top:auto}}
   `;
   document.head.append(style);
 
