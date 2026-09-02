@@ -20,12 +20,12 @@
     const diff=finiteNumber(diffSeconds);
     if(diff===null)return{kind:'neutral',text:'',diffSeconds:null};
     const tolerance=Math.max(0,Number(toleranceSeconds)||0);
-    if(Math.abs(diff)<=tolerance)return{kind:'onTime',text:'👍',diffSeconds:diff};
+    if(Math.abs(diff)<=tolerance)return{kind:'onTime',text:'OK',diffSeconds:diff};
     const minutes=Math.max(1,Math.floor(Math.abs(diff)/60));
     const duration=formatMinutes(minutes);
     return diff<0
-      ?{kind:'early',text:`${duration} za wcześnie`,diffSeconds:diff}
-      :{kind:'late',text:`${duration} opóźnienia`,diffSeconds:diff};
+      ?{kind:'early',text:`${duration}\nZA SZYBKO`,diffSeconds:diff}
+      :{kind:'late',text:`${duration}\nZA PÓŹNO`,diffSeconds:diff};
   }
 
   function statusFromEta(etaSeconds,planSeconds,toleranceSeconds=DEFAULT_TOLERANCE_SECONDS){
