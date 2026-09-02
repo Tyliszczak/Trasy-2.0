@@ -83,6 +83,7 @@ test('podczas jazdy bez wiarygodnego kierunku silnik nie wraca odruchowo do pier
 test('tracker odzyskuje najwyżej jeden następny cel gdy aktywny przystanek został daleko za autem',()=>{
   const engine=createStopProgressEngine();
   engine.setIndex(0);
+  engine.armReacquire();
   const position=metersNorth(700);
   const heading=bearingDegrees(position,stops[2].coord);
   const first=engine.update({stops,position,accuracy:10,speedMps:10,heading,headingReliable:true});
@@ -94,6 +95,57 @@ test('tracker odzyskuje najwyżej jeden następny cel gdy aktywny przystanek zos
   for(const meters of[740,760,780,800]){
     const held=engine.update({stops,position:metersNorth(meters),accuracy:10,speedMps:10,heading,headingReliable:true});
     assert.equal(held.index,1);
+  }
+});
+
+test('zwykły objazd nie może pominąć odległego aktywnego przystanku',()=>{
+  const engine=createStopProgressEngine();
+  engine.setIndex(1);
+  for(const meters of[700,720,740,760,780,800]){
+    const position=metersNorth(meters);
+    const heading=bearingDegrees(position,stops[2].coord);
+    const result=engine.update({stops,position,accuracy:10,speedMps:20,heading,headingReliable:true});
+    assert.equal(result.index,1);
+    assert.notEqual(result.reason,'reacquired-target');
+  }
+});
+
+test('po potwierdzonym odjeździe chwilowy kierunek od celu nie pomija przystanku',()=>{
+  const engine=createStopProgressEngine();
+  confirmStop(engine,0);
+  fix(engine,90,{speedMps:8,headingReliable:true});
+  const departed=fix(engine,105,{speedMps:8,headingReliable:true});
+  assert.equal(departed.index,1);
+  for(const meters of[700,720,740,760]){
+    const position=metersNorth(meters);
+    const heading=bearingDegrees(position,stops[2].coord);
+    const result=engine.update({stops,position,accuracy:10,speedMps:15,heading,headingReliable:true});
+    assert.equal(result.index,1);
+  }
+});
+
+test('zapis 2.0.194 nie może ponownie pominąć Ronda PCK ani Raculki kilka kilometrów przed celem',()=>{
+  const cases=[
+    {
+      stops:[[51.941522358358405,15.49342145767144],[51.94297944434484,15.507793999984717]],
+      fixes:[[51.9617293,15.4960943,301],[51.9617761,15.4959882,311],[51.9618307,15.495892,313]],
+      speedMps:9.14
+    },
+    {
+      stops:[[51.93296407507228,15.549922813493163],[51.94297944434484,15.507793999984717]],
+      fixes:[[51.9574353,15.5354787,279],[51.9574671,15.5351853,280],[51.9574994,15.5348964,280]],
+      speedMps:20.26
+    }
+  ];
+  for(const sample of cases){
+    const routeStops=sample.stops.map((coord,index)=>({key:String(index),coord}));
+    const engine=createStopProgressEngine();
+    engine.setIndex(0);
+    for(const [lat,lng,heading] of sample.fixes){
+      const result=engine.update({stops:routeStops,position:[lat,lng],accuracy:3.79,speedMps:sample.speedMps,heading,headingReliable:true});
+      assert.equal(result.index,0);
+      assert.notEqual(result.reason,'reacquired-target');
+    }
   }
 });
 

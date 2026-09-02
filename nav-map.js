@@ -54,6 +54,7 @@
   const MIN_REROUTE_DISTANCE=85;
   const REROUTE_CONFIRM_FIXES=3;
   const REROUTE_COOLDOWN_MS=30000;
+  const MAX_ROUTE_GPS_AGE_MS=5000;
   const ROUTE_PROGRESS_LOOKAHEAD_M=1200;
   const ROUTE_PROGRESS_BACKTRACK_M=250;
 
@@ -402,7 +403,7 @@
   }
 
   function posOnce(){
-    const cached=cachedPosition();
+    const cached=cachedPosition(MAX_ROUTE_GPS_AGE_MS);
     if(cached){
       window.__trasyGps?.refresh?.({restartWatch:false}).catch(()=>{});
       return Promise.resolve(cached);
@@ -1127,6 +1128,12 @@
 
   async function buildRoute(origin,stops){
     if(!stops.length)return;
+    const gpsAge=Date.now()-Number(lastGpsAt||0);
+    if(document.visibilityState!=='visible'||!lastGpsAt||gpsAge<0||gpsAge>MAX_ROUTE_GPS_AGE_MS){
+      const error=new Error('Czekam na świeżą pozycję GPS przed wyznaczeniem trasy.');
+      error.name='StaleGpsPositionError';
+      throw error;
+    }
 
     routeAbortController?.abort();
     const requestId=++routeRequestGeneration;
@@ -1323,6 +1330,9 @@
     refreshTimer=setInterval(()=>{
       if(
         panel.hidden||
+        document.visibilityState!=='visible'||
+        !lastGpsAt||
+        Date.now()-lastGpsAt>MAX_ROUTE_GPS_AGE_MS||
         !lastGpsPoint||
         !currentStops.length||
         routeBuildInFlight

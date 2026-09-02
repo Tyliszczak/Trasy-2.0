@@ -128,6 +128,8 @@
   function add15(t){return time.addMinutesToTime(t,15)}
   function resolveOutboundCourse(){
     const values=[...forwardTimeSelect.options].map(option=>option.value).filter(Boolean);
+    const pinned=forwardCourseTime||body.dataset.activeCourse||forwardTimeSelect.value||'';
+    if(pinned&&values.includes(pinned))return pinned;
     return time.nearestClockTime?.(values,new Date())||time.nearestFutureTime(values,new Date())||forwardTimeSelect.value||'';
   }
   async function loadRaw(){if(rawData)return rawData;if(loading)return loading;loading=window.__trasyRouteDataService.load().then(data=>(rawData=data?.data??data,rawData)).finally(()=>loading=null);return loading}

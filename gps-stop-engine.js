@@ -45,7 +45,11 @@ export function createStopProgressEngine(overrides={}){
   let lastDistance=Infinity;
   let reacquireCandidate=null;
   let reacquireFixes=0;
-  let reacquireLocked=false;
+  // Automatyczne odzyskanie celu jest domyślnie zablokowane. Sam kierunek
+  // jazdy nie jest dowodem minięcia odległego przystanku (objazd, rondo,
+  // droga serwisowa). Tracker może uzbroić jedną próbę wyłącznie po
+  // kontrolowanym wznowieniu nawigacji.
+  let reacquireLocked=true;
 
   function resetReacquire(){
     reacquireCandidate=null;
@@ -60,13 +64,18 @@ export function createStopProgressEngine(overrides={}){
     passFixes=0;
     closestDistance=Infinity;
     lastDistance=Infinity;
-    reacquireLocked=false;
+    reacquireLocked=true;
     resetReacquire();
   }
 
   function setIndex(nextIndex){
     reset(nextIndex);
     return snapshot();
+  }
+
+  function armReacquire(){
+    reacquireLocked=false;
+    resetReacquire();
   }
 
   function snapshot(){
@@ -195,7 +204,7 @@ export function createStopProgressEngine(overrides={}){
         phase='arrived';
         departureFixes=0;
         passFixes=0;
-        reacquireLocked=false;
+        reacquireLocked=true;
         resetReacquire();
         return{...snapshot(),changed:false,reason:'arrival-confirmed',justArrived:true,distance,arrivalRadius,departureRadius};
       }
@@ -219,7 +228,7 @@ export function createStopProgressEngine(overrides={}){
           passFixes=0;
           closestDistance=Infinity;
           lastDistance=Infinity;
-          reacquireLocked=false;
+          reacquireLocked=true;
           resetReacquire();
           return{...snapshot(),changed:true,reason:'passed-stop',fromIndex,skippedIndex:fromIndex,justSkipped:true,distance,arrivalRadius,departureRadius};
         }
@@ -253,12 +262,12 @@ export function createStopProgressEngine(overrides={}){
       passFixes=0;
       closestDistance=Infinity;
       lastDistance=Infinity;
-      reacquireLocked=false;
+      reacquireLocked=true;
       resetReacquire();
       return{...snapshot(),changed:true,reason:'confirmed-departure',fromIndex,distance,arrivalRadius,departureRadius};
     }
     return{...snapshot(),changed:false,reason:'arrived',distance,arrivalRadius,departureRadius};
   }
 
-  return{reset,setIndex,update,snapshot,config};
+  return{reset,setIndex,armReacquire,update,snapshot,config};
 }

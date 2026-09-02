@@ -25,6 +25,12 @@
   let active=localStorage.getItem(ACTIVE_KEY)==='1';
   let sessionId=localStorage.getItem(SESSION_KEY)||'';
   let uploadTimer=0,uploadInFlight=null,lastSyncMessage='';
+  const eventPolicyState=new Map();
+  const EVENT_MIN_INTERVAL_MS={
+    'eta-status-change':10000,
+    'nav-eta-update':10000,
+    'stop-guard-change':30000
+  };
 
   function randomId(){
     if(crypto.randomUUID)return crypto.randomUUID();
@@ -68,6 +74,9 @@
     if(value instanceof Error)return{name:value.name,message:value.message,stack:String(value.stack||'').slice(0,3000)};
     if(Array.isArray(value))return value.slice(0,80).map(item=>safe(item,depth+1));
     if(typeof value==='object'){
+      if(value.coords&&Number.isFinite(Number(value.coords.latitude))&&Number.isFinite(Number(value.coords.longitude))){
+        return{timestamp:Number(value.timestamp)||0,coords:{latitude:Number(value.coords.latitude),longitude:Number(value.coords.longitude),accuracy:Number(value.coords.accuracy),speed:Number(value.coords.speed),heading:Number(value.coords.heading)}};
+      }
       const result={};
       for(const [key,item] of Object.entries(value).slice(0,80)){
         if(typeof item!=='function'&&key!=='target'&&key!=='currentTarget')result[key]=safe(item,depth+1);
@@ -95,8 +104,27 @@
     };
   }
 
+  function eventFingerprint(type,detail){
+    if(type==='eta-status-change'||type==='nav-eta-update')return String(detail?.kind||'');
+    if(type==='stop-guard-change')return [detail?.state||'',detail?.message||'',detail?.index??'',detail?.plan||''].join('|');
+    return'';
+  }
+
+  function shouldRecord(type,detail,now){
+    if(type==='trasy:gps-speed')return false; // prędkość jest już w każdym gps-fix
+    const interval=EVENT_MIN_INTERVAL_MS[type];
+    if(!interval)return true;
+    const fingerprint=eventFingerprint(type,detail);
+    const previous=eventPolicyState.get(type);
+    if(previous&&previous.fingerprint===fingerprint&&now-previous.at<interval)return false;
+    eventPolicyState.set(type,{fingerprint,at:now});
+    return true;
+  }
+
   function record(type,detail={}){
     if(!active)return;
+    const now=Date.now();
+    if(!shouldRecord(type,detail,now))return;
     queue.push({
       sessionId,
       at:new Date().toISOString(),
@@ -245,6 +273,7 @@
   function setActive(next){
     active=Boolean(next);
     if(active){
+      eventPolicyState.clear();
       sessionId=newSessionId();
       localStorage.setItem(ACTIVE_KEY,'1');
       localStorage.setItem(SESSION_KEY,sessionId);

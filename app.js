@@ -2,7 +2,7 @@ import { ROUTES as FALLBACK_ROUTES } from './routes.js';
 import { getRoute,getSchedule,mapUrl } from './schedule.js';
 import { normalizeClockTime,nearestClockTime,nearestFutureTime } from './schedule-time.js';
 
-const DATA_KEY='trasy2.routes',SYNC_KEY='trasy2.lastSuccessfulSync',FAIL_KEY='trasy2.firstFailedSync',THREE_DAYS=259200000;
+const DATA_KEY='trasy2.routes',SYNC_KEY='trasy2.lastSuccessfulSync',FAIL_KEY='trasy2.firstFailedSync',ACTIVE_COURSE_KEY='trasy2.activeCourse',THREE_DAYS=259200000,ACTIVE_COURSE_MAX_AGE=18*60*60*1000;
 const $=s=>document.querySelector(s);
 const routeSelect=$('#routeSelect'),message=$('#formMessage'),connectionStatus=$('#connectionStatus'),staleWarning=$('#staleWarning');
 let routes=[],syncing=false,offline=true;
@@ -10,14 +10,17 @@ let routes=[],syncing=false,offline=true;
 function showView(id){$('#selectionView').hidden=id!=='#selectionView';$('#scheduleView').hidden=id!=='#scheduleView';scrollTo(0,0)}
 const normalizeTime=normalizeClockTime;
 function nextCourseTime(r){return nearestFutureTime(r?.times||[],new Date())}
-function renderSchedule(r,t){if(!r||!t)return;$('#scheduleRouteName').textContent=r.name;const sel=$('#scheduleTimeSelect');sel.replaceChildren(...r.times.map(x=>new Option(x,x)));sel.value=t;$('#scheduleBody').replaceChildren(...getSchedule(r,t).map(stopRow));lastActiveStop=null;setTimeout(()=>$('#scheduleBody').dispatchEvent(new CustomEvent('schedule-rendered',{bubbles:true})),0)}
+function rememberedCourseTime(r){try{const saved=JSON.parse(localStorage.getItem(ACTIVE_COURSE_KEY)||'null'),age=Date.now()-Number(saved?.savedAt||0);if(!saved||saved.route!==r?.name||age<0||age>ACTIVE_COURSE_MAX_AGE||!r.times.includes(saved.time))return'';return saved.time}catch{return''}}
+function rememberCourse(r,t){if(!r?.name||!t)return;localStorage.setItem(ACTIVE_COURSE_KEY,JSON.stringify({route:r.name,time:t,savedAt:Date.now()}))}
+function courseTimeForOpen(r){return rememberedCourseTime(r)||nextCourseTime(r)}
+function renderSchedule(r,t){if(!r||!t)return;rememberCourse(r,t);$('#scheduleRouteName').textContent=r.name;const sel=$('#scheduleTimeSelect');sel.replaceChildren(...r.times.map(x=>new Option(x,x)));sel.value=t;const body=$('#scheduleBody');body.dataset.activeCourse=t;body.replaceChildren(...getSchedule(r,t).map(stopRow));lastActiveStop=null;setTimeout(()=>body.dispatchEvent(new CustomEvent('schedule-rendered',{bubbles:true})),0)}
 
 let lastActiveStop=null;
 function keepActiveStopVisible(){const view=$('#scheduleView'),active=$('#scheduleBody tr.gpsNextStop');if(!view||view.hidden||!active||active===lastActiveStop)return;lastActiveStop=active;active.scrollIntoView({behavior:'smooth',block:'center',inline:'nearest'})}
 $('#scheduleBody').addEventListener('gps-next-stop-change',keepActiveStopVisible);
 $('#scheduleTimeSelect').onchange=()=>{const r=getRoute(routes,routeSelect.value),t=$('#scheduleTimeSelect').value;if(!r||!t)return;renderSchedule(r,t)};
 routeSelect.onchange=()=>{message.textContent=''};
-$('#showSchedule').onclick=()=>{const r=getRoute(routes,routeSelect.value);if(!r){message.textContent='Wybierz trasę.';return}const t=nextCourseTime(r);if(!t){message.textContent='Ta trasa nie ma dostępnych godzin.';return}renderSchedule(r,t);showView('#scheduleView')};
+$('#showSchedule').onclick=()=>{const r=getRoute(routes,routeSelect.value);if(!r){message.textContent='Wybierz trasę.';return}const t=courseTimeForOpen(r);if(!t){message.textContent='Ta trasa nie ma dostępnych godzin.';return}renderSchedule(r,t);showView('#scheduleView')};
 $('#backFromSchedule').onclick=()=>{showView('#selectionView')};
 function normalize(data){if(!data||typeof data!=='object')return[];if(!Array.isArray(data)){const sheetRoutes=Object.entries(data).map(([name,rows])=>{if(!Array.isArray(rows)||!Array.isArray(rows[0]))return null;const headers=rows[0].map(v=>String(v??'').trim()),courseCols=[];for(let c=4;c<headers.length;c++){const t=normalizeTime(headers[c]);if(t)courseCols.push([c,t])}const times=courseCols.map(x=>x[1]);const stops=rows.slice(1).map((row,index)=>{const stopName=String(row?.[0]??'').trim();if(!stopName)return null;const stopTimes={};courseCols.forEach(([c,t])=>{const v=normalizeTime(row?.[c]);if(v)stopTimes[t]=v});return{id:String(index),name:stopName,coordinates:String(row?.[1]??'').trim(),returnCoordinates:String(row?.[3]??row?.[1]??'').trim(),times:stopTimes}}).filter(Boolean);return{name:String(name).trim(),times,stops}}).filter(r=>r?.name);if(sheetRoutes.length)return sheetRoutes}const arr=Array.isArray(data)?data:Object.entries(data).map(([name,v])=>({...v,name:v.name??name}));return arr.map(v=>{const name=String(v.name??v.nazwa??'').trim(),raw=v.stops??v.przystanki??[],times=[...new Set((v.times??v.godziny??[]).map(String).filter(Boolean))];const stops=raw.map((s,index)=>{const o={},src=s.times??s.godziny??{};if(Array.isArray(src))times.forEach((t,i)=>o[t]=src[i]??null);else Object.entries(src).forEach(([k,val])=>o[String(k)]=val??null);const coordinates=String(s.coordinates??s.lokalizacja??s.coords??s[1]??'');return{id:String(s.id??s.stopId??s.kod??index),name:String(s.name??s.nazwa??s.przystanek??s[0]??''),coordinates,returnCoordinates:String(s.returnCoordinates??s.locationReturn??s.lokalizacjaPowrot??coordinates),times:o}}).filter(s=>s.name);return{id:String(v.id??''),name,times,stops}}).filter(r=>r?.name)}
 function valid(r){return r?.name&&r.times?.length&&r.stops?.length}

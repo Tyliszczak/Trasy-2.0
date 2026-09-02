@@ -6,6 +6,17 @@
   window.__routeMode='osrm';
   window.__routeTrafficDelaySeconds=0;
   window.__routeTrafficAvailable=false;
+  let trafficFallbackWarningShown=false;
+
+  function useTrafficFallback(error){
+    window.__routeProvider='osrm-traffic-fallback';
+    window.__routeTrafficAvailable=false;
+    window.__routeTrafficDelaySeconds=0;
+    if(!trafficFallbackWarningShown){
+      trafficFallbackWarningShown=true;
+      console.info('Google Traffic niedostępne — ETA z OSRM.',error?.message||error||'');
+    }
+  }
 
   function parseOsrmCoordinates(url){
     try{
@@ -139,9 +150,10 @@
     // Tryb OSRM: geometria, manewry i komunikaty zawsze z OSRM.
     // Google uruchamiamy równolegle wyłącznie po czasy z ruchem.
     const osrmPromise=nativeFetch(input,init);
+    let trafficError=null;
     const trafficPromise=coords?.length>=2
-      ?googleTrafficData(coords,init?.signal)
-      :Promise.reject(Error('Brak punktów do Google Traffic'));
+      ?googleTrafficData(coords,init?.signal).catch(error=>{trafficError=error;return null})
+      :Promise.resolve(null);
 
     const osrmResponse=await osrmPromise;
     if(!osrmResponse.ok){
@@ -155,15 +167,17 @@
         trafficPromise
       ]);
 
+      if(!googleData){
+        useTrafficFallback(trafficError);
+        return osrmResponse;
+      }
+
       return jsonResponse(
         mergeTraffic(osrmData,googleData),
         osrmResponse
       );
     }catch(err){
-      console.warn('Google Traffic niedostępne — ETA z OSRM:',err);
-      window.__routeProvider='osrm-traffic-fallback';
-      window.__routeTrafficAvailable=false;
-      window.__routeTrafficDelaySeconds=0;
+      useTrafficFallback(err);
       return osrmResponse;
     }
   };

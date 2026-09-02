@@ -46,6 +46,15 @@ test('eksport wskazuje uzgodniony email i nie udostępnia WhatsApp',()=>{
 test('skrypt diagnostyczny jest częścią powłoki offline PWA',()=>{
   const html=read('index.html');
   const sw=read('sw.js');
-  assert.match(html,/src="\.\/diagnostic-recorder\.js\?v=3"/);
+  assert.match(html,/src="\.\/diagnostic-recorder\.js\?v=4"/);
   assert.match(sw,/'\.\/diagnostic-recorder\.js'/);
+});
+
+test('diagnostyka ogranicza powtarzalne statusy i zachowuje dane pozycji po wznowieniu',()=>{
+  const source=read('diagnostic-recorder.js');
+  assert.match(source,/EVENT_MIN_INTERVAL_MS/);
+  assert.match(source,/'eta-status-change':10000/);
+  assert.match(source,/'stop-guard-change':30000/);
+  assert.match(source,/type==='trasy:gps-speed'\)return false/);
+  assert.match(source,/value\.coords&&Number\.isFinite/);
 });

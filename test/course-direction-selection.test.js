@@ -19,7 +19,11 @@ test('TAM wybiera najbliższy przyszły kurs, a POWRÓT najbliższy kurs w obie 
   ]);
 
   assert.match(app,/function nextCourseTime\(r\)\{return nearestFutureTime\(/);
+  assert.match(app,/rememberedCourseTime\(r\)\|\|nextCourseTime\(r\)/);
+  assert.match(app,/ACTIVE_COURSE_MAX_AGE=18\*60\*60\*1000/);
+  assert.match(app,/body\.dataset\.activeCourse=t/);
   assert.doesNotMatch(app,/function nextCourseTime\(r\)\{return nearestClockTime\(/);
   assert.match(returnRoute,/return time\.nearestClockTime\?\.\(values,new Date\(\)\)\|\|time\.nearestFutureTime/);
+  assert.match(returnRoute,/forwardCourseTime\|\|body\.dataset\.activeCourse\|\|forwardTimeSelect\.value/);
   assert.match(returnRoute,/forwardCourseTime=resolveOutboundCourse\(\)/);
 });
