@@ -47,7 +47,26 @@ import'./geo-core.js';
   function setInfo(info,className,text){
     if(!info)return;
     if(info.className!==className)info.className=className;
-    if(info.textContent!==text)info.textContent=text;
+    const value=String(text??'');
+    const parts=value.split('\n');
+    const twoLine=/\b(?:early|late)\b/.test(className)&&parts.length===2;
+    const key=twoLine?`${parts[0]}|${parts[1]}`:`plain|${value}`;
+    if(info.dataset.renderKey===key)return;
+    info.dataset.renderKey=key;
+    if(twoLine){
+      const textWrap=document.createElement('span');
+      textWrap.className='etaPunctualityText';
+      const timeLine=document.createElement('span');
+      timeLine.className='etaPunctualityTime';
+      timeLine.textContent=parts[0];
+      const statusLine=document.createElement('span');
+      statusLine.className='etaPunctualityLabel';
+      statusLine.textContent=parts[1];
+      textWrap.append(timeLine,statusLine);
+      info.replaceChildren(textWrap);
+      return;
+    }
+    info.textContent=value;
   }
   function hideInfo(row=infoRow){
     const info=row?ensureInfo(row):infoEl;
@@ -104,8 +123,7 @@ import'./geo-core.js';
     const color=statusColor(kind);
     row.style.setProperty('--gps-status-color',color);
     publishStatusKind(kind);
-    if(info.className!==`etaPunctuality ${kind}`)info.className=`etaPunctuality ${kind}`;
-    if(info.textContent!==punctuality.text)info.textContent=punctuality.text;
+    setInfo(info,`etaPunctuality ${kind}`,punctuality.text);
     body.dataset.etaKind=kind;body.dataset.etaDiffSeconds=String(diff);body.dataset.etaSeconds=String(etaSecondsLive);
     body.dispatchEvent(new CustomEvent('eta-status-change',{bubbles:true,detail:{kind,diffSeconds:diff,etaSeconds:etaSecondsLive}}));
   }
