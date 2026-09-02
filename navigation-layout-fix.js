@@ -96,37 +96,50 @@
       top:136px!important;
       right:auto!important;
       bottom:auto!important;
-      display:inline-flex!important;
-      flex-direction:column!important;
-      align-items:center!important;
-      justify-content:center!important;
-      width:fit-content!important;
-      inline-size:fit-content!important;
+      display:block!important;
+      width:min(calc(100vw - 128px),420px)!important;
+      inline-size:min(calc(100vw - 128px),420px)!important;
       max-width:min(calc(100vw - 128px),420px)!important;
       min-width:0!important;
-      padding:6px 10px!important;
+      padding:0!important;
       border:0!important;
-      border-radius:10px!important;
-      background:rgba(68,68,68,.62)!important;
-      box-shadow:0 2px 8px #0007!important;
-      -webkit-backdrop-filter:blur(2px)!important;
-      backdrop-filter:blur(2px)!important;
+      border-radius:0!important;
+      background:transparent!important;
+      box-shadow:none!important;
+      -webkit-backdrop-filter:none!important;
+      backdrop-filter:none!important;
+      text-align:center!important;
       transform:translateX(-50%)!important;
       z-index:80490!important;
     }
     #routeManeuverBubble #routeManeuver{
-      display:inline-block!important;
-      width:auto!important;
+      display:inline!important;
       max-width:100%!important;
       white-space:normal!important;
       overflow-wrap:anywhere!important;
       text-align:center!important;
+      padding:2px 6px 3px!important;
+      border-radius:5px!important;
+      background:rgba(38,38,38,.34)!important;
+      box-shadow:0 1px 4px #0005!important;
+      -webkit-box-decoration-break:clone!important;
+      box-decoration-break:clone!important;
+      font-size:16px!important;
+      line-height:1.34!important;
+      text-shadow:0 1px 2px #000!important;
     }
     #routeManeuverBubble #routeManeuverDistance{
-      display:inline-block!important;
+      display:table!important;
       width:auto!important;
       max-width:100%!important;
+      margin:6px auto 0!important;
+      padding:2px 7px 3px!important;
+      border-radius:5px!important;
+      background:rgba(38,38,38,.34)!important;
+      box-shadow:0 1px 4px #0005!important;
+      font-size:19px!important;
       text-align:center!important;
+      text-shadow:0 1px 2px #000!important;
     }
     #routeMapCanvas .maplibregl-ctrl-bottom-right{
       right:10px!important;

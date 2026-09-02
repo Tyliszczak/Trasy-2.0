@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#1a1a1a">
   <link rel="manifest" href="./manifest.json">
   <link rel="stylesheet" href="./style.css?v=i18n-1">
-  <link rel="stylesheet" href="./navigation.css?v=2">
+  <link rel="stylesheet" href="./navigation.css?v=3">
   <style>
     #routeMapCanvas .maplibregl-marker[style*="clip-path"]{border:0!important;width:39px!important;height:39px!important;filter:drop-shadow(0 0 1.4px #fff) drop-shadow(0 0 1.2px #fff) drop-shadow(0 2px 5px #000b)!important}
     #scheduleBody tr.gpsNextStop{background:rgba(255,255,255,.045)!important;box-shadow:inset 5px 0 0 var(--gps-status-color,#ccff33),inset 0 0 0 1px #ffffff16!important;transition:background-color .28s ease,box-shadow .28s ease!important}
@@ -18,7 +18,7 @@
 
     /* Nawigacja: półprzezroczyste, szare komunikaty z widoczną mapą pod spodem. */
     #routeNavRoot .routeNavInfoShell{background:rgba(68,68,68,.55)!important;border-bottom-color:rgba(255,255,255,.28)!important}
-    #routeManeuverBubble{background:rgba(68,68,68,.55)!important;border-color:rgba(255,255,255,.45)!important;box-shadow:0 4px 14px #0007!important;-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}
+    #routeManeuverBubble{background:transparent!important;border-color:transparent!important;box-shadow:none!important;-webkit-backdrop-filter:none;backdrop-filter:none}
     .routeModeNotice{background:rgba(68,68,68,.55)!important;box-shadow:0 7px 24px #0008!important;-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}
 
     /* Czytelniejszy nagłówek następnego przystanku. */
@@ -40,7 +40,7 @@
   <title>Trasy 2.0</title>
 </head>
 <body data-test-diagnostics="enabled">
-  <div id="globalTestVersion" data-version="2.0.197">TEST 2.0.197</div>
+  <div id="globalTestVersion" data-version="2.0.198">TEST 2.0.198</div>
   <header class="header"><div class="headerActions"><span id="connectionStatus" class="status">Offline</span></div></header>
   <main class="container">
     <aside id="updateNotice" class="notice updateNotice" hidden><span>Nowa wersja aplikacji jest gotowa.</span><button id="updateAppButton">ODŚWIEŻ</button></aside>
@@ -111,6 +111,6 @@
   <script type="module" src="./eta-status.js?v=stable-2"></script>
   <script src="./next-stop-header.js?v=status-14"></script>
   <script src="./visual-stop-alert.js?v=2"></script>
-  <script src="./navigation-layout-fix.js?v=3"></script>
+  <script src="./navigation-layout-fix.js?v=4"></script>
 </body>
 </html>

@@ -31,10 +31,15 @@ test('linia trasy jest nad drogami i wiaduktami, ale pod etykietami mapy',()=>{
   assert.match(source,/map\.moveLayer\(id,beforeId\)/);
 });
 
-test('komunikaty nawigacji są półprzezroczyste, nagłówek większy, a cofanie używa chevronu',()=>{
-  const source=read('index.html');
-  assert.match(source,/#routeManeuverBubble\{background:rgba\(68,68,68,\.55\)!important/);
-  assert.match(source,/#routeNextStop \.nextStopMain\{font-size:19px!important/);
-  assert.match(source,/#routeNextStop \.nextStopStatus\{[^}]*font-size:18px!important/);
-  assert.match(source,/#routeMapClose::before,#backFromSchedule::before\{content:""/);
+test('polecenie ma mniejszy tekst i osobne przezroczyste tło każdej linii',()=>{
+  const [html,layout]=[read('index.html'),read('navigation-layout-fix.js')];
+  assert.match(html,/#routeManeuverBubble\{background:transparent!important/);
+  assert.match(layout,/#routeManeuverBubble #routeManeuver\{[^}]*display:inline!important/s);
+  assert.match(layout,/background:rgba\(38,38,38,\.34\)!important/);
+  assert.match(layout,/-webkit-box-decoration-break:clone!important/);
+  assert.match(layout,/box-decoration-break:clone!important/);
+  assert.match(layout,/font-size:16px!important/);
+  assert.match(layout,/#routeManeuverBubble #routeManeuverDistance\{[^}]*font-size:19px!important/s);
+  assert.match(html,/#routeNextStop \.nextStopMain\{font-size:19px!important/);
+  assert.match(html,/#routeMapClose::before,#backFromSchedule::before\{content:""/);
 });
