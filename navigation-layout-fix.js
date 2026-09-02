@@ -7,7 +7,7 @@
     #routeFunctionStack{
       position:fixed!important;
       left:12px!important;
-      top:112px!important;
+      top:142px!important;
       right:auto!important;
       bottom:auto!important;
       z-index:80510!important;
@@ -46,17 +46,17 @@
       display:flex!important;
       flex-direction:column!important;
       margin:0!important;
-      border-radius:21px!important;
+      border-radius:17px!important;
       overflow:hidden!important;
       background:transparent!important;
       box-shadow:0 2px 8px #0007!important;
     }
     #routeMapCanvas .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group:has(.maplibregl-ctrl-zoom-in) button,
     #routePitchToggle{
-      width:42px!important;
-      min-width:42px!important;
-      height:42px!important;
-      min-height:42px!important;
+      width:34px!important;
+      min-width:34px!important;
+      height:40px!important;
+      min-height:40px!important;
       border:0!important;
       border-radius:0!important;
       background:rgba(68,68,68,.62)!important;
@@ -93,14 +93,20 @@
     #routeManeuverBubble{
       position:fixed!important;
       left:50%!important;
-      top:112px!important;
+      top:136px!important;
+      right:auto!important;
       bottom:auto!important;
-      width:max-content!important;
-      max-width:min(88vw,420px)!important;
+      display:inline-flex!important;
+      flex-direction:column!important;
+      align-items:center!important;
+      justify-content:center!important;
+      width:fit-content!important;
+      inline-size:fit-content!important;
+      max-width:min(calc(100vw - 128px),420px)!important;
       min-width:0!important;
-      padding:8px 12px!important;
+      padding:6px 10px!important;
       border:0!important;
-      border-radius:12px!important;
+      border-radius:10px!important;
       background:rgba(68,68,68,.62)!important;
       box-shadow:0 2px 8px #0007!important;
       -webkit-backdrop-filter:blur(2px)!important;
@@ -108,7 +114,20 @@
       transform:translateX(-50%)!important;
       z-index:80490!important;
     }
-    #routeManeuverBubble #routeManeuver{white-space:normal!important;overflow-wrap:anywhere!important}
+    #routeManeuverBubble #routeManeuver{
+      display:inline-block!important;
+      width:auto!important;
+      max-width:100%!important;
+      white-space:normal!important;
+      overflow-wrap:anywhere!important;
+      text-align:center!important;
+    }
+    #routeManeuverBubble #routeManeuverDistance{
+      display:inline-block!important;
+      width:auto!important;
+      max-width:100%!important;
+      text-align:center!important;
+    }
     #routeMapCanvas .maplibregl-ctrl-bottom-right{
       right:10px!important;
       bottom:10px!important;
@@ -154,11 +173,10 @@
 
   function placeTopUi(){
     const headerBottom=getHeaderBottom();
-    const gap=10;
     const stack=document.getElementById('routeFunctionStack');
-    if(stack)stack.style.top=`${headerBottom+gap}px`;
+    if(stack)stack.style.top=`${Math.max(142,headerBottom+30)}px`;
     const bubble=document.getElementById('routeManeuverBubble');
-    if(bubble)bubble.style.top=`${headerBottom+gap}px`;
+    if(bubble)bubble.style.top=`${Math.max(136,headerBottom+24)}px`;
   }
 
   function restoreRightMapControls(){
@@ -174,8 +192,8 @@
     const zoomGroup=groups.find(group=>group.querySelector('.maplibregl-ctrl-zoom-in')&&group.querySelector('.maplibregl-ctrl-zoom-out'));
     if(!zoomGroup)return;
     const pitch=document.getElementById('routePitchToggle');
-    const zoomIn=zoomGroup.querySelector('.maplibregl-ctrl-zoom-in');
-    if(pitch&&zoomIn&&(pitch.parentElement!==zoomGroup||pitch.nextElementSibling!==zoomIn))zoomGroup.insertBefore(pitch,zoomIn);
+    const zoomOut=zoomGroup.querySelector('.maplibregl-ctrl-zoom-out');
+    if(pitch&&zoomOut&&(pitch.parentElement!==zoomGroup||pitch.nextElementSibling!==zoomOut))zoomGroup.insertBefore(pitch,zoomOut);
     if(zoomGroup.parentElement!==bottomRight)bottomRight.appendChild(zoomGroup);
   }
 
@@ -186,7 +204,7 @@
     if(compass.parentElement!==canvas)canvas.appendChild(compass);
     const canvasRect=canvas.getBoundingClientRect();
     const headerBottom=getHeaderBottom();
-    const top=Math.max(10,Math.round(headerBottom-canvasRect.top+10));
+    const top=Math.max(10,Math.round(headerBottom-canvasRect.top+18));
     compass.style.top=`${top}px`;
     compass.style.right='12px';
   }
