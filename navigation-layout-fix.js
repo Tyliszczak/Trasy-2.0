@@ -42,6 +42,37 @@
     }
     #routeFunctionStack>#routeMapClose{font-size:0!important;line-height:0!important}
     #routeFunctionStack>#routeMapClose::before{content:"";display:block;width:13px;height:13px;box-sizing:border-box;border-left:3px solid currentColor;border-bottom:3px solid currentColor;border-radius:1px;transform:rotate(45deg);margin-left:4px}
+
+    #scheduleBody .etaPunctuality{
+      max-width:110px!important;
+      margin:6px auto 0!important;
+      white-space:pre-line!important;
+      text-align:center!important;
+      line-height:1.08!important;
+      font-size:12px!important;
+      justify-content:center!important;
+    }
+    #scheduleBody .etaPunctuality.early{color:#ff3b30!important}
+    #scheduleBody .etaPunctuality.late{color:#ff9500!important}
+    #scheduleBody .etaPunctuality.onTime,#scheduleBody .etaPunctuality.arrived{color:#34c759!important}
+    #scheduleBody .etaPunctuality.early:before{background:#ff3b30!important}
+    #scheduleBody .etaPunctuality.late:before{background:#ff9500!important}
+    #scheduleBody .etaPunctuality.onTime:before,#scheduleBody .etaPunctuality.arrived:before{background:#34c759!important}
+    #routeNextStop .nextStopStatus.early{color:#ff3b30!important}
+    #routeNextStop .nextStopStatus.late{color:#ff9500!important}
+    #routeNextStop .nextStopStatus.onTime{color:#34c759!important}
+    #routeNextStop .nextStopStatus.early:before{background:#ff3b30!important}
+    #routeNextStop .nextStopStatus.late:before{background:#ff9500!important}
+    #routeNextStop .nextStopStatus.onTime:before{background:#34c759!important}
+
+    #routeMapCanvas .maplibregl-marker[style*="clip-path"]{
+      filter:drop-shadow(0 0 1.5px #000) drop-shadow(0 0 1.5px #000) drop-shadow(0 2px 5px #000b)!important;
+    }
+    html[data-nav-punctuality="early"] #routeMapCanvas .maplibregl-marker[style*="clip-path"]{background:#ff3b30!important}
+    html[data-nav-punctuality="late"] #routeMapCanvas .maplibregl-marker[style*="clip-path"]{background:#ff9500!important}
+    html[data-nav-punctuality="onTime"] #routeMapCanvas .maplibregl-marker[style*="clip-path"],
+    html[data-nav-punctuality="arrived"] #routeMapCanvas .maplibregl-marker[style*="clip-path"]{background:#34c759!important}
+
     #routeMapCanvas .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group:has(.maplibregl-ctrl-zoom-in){
       display:flex!important;
       flex-direction:column!important;
