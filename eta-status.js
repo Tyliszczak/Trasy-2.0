@@ -20,6 +20,8 @@ import'./geo-core.js';
   const coord=value=>geo.parseCoordinate(value);
   function activeRow(){return body.querySelector('tr.gpsNextStop')}
   function routeRows(){return [...body.querySelectorAll('tr')].filter(r=>r.dataset.coordinate)}
+  function navigationOpen(){const nav=document.getElementById('routeMapNav');return Boolean(nav&&!nav.hidden)}
+  function statusVisible(){return !view.hidden||navigationOpen()}
   function returnOriginLocked(){return body.dataset.direction==='return'&&body.dataset.emptyRun!=='1'&&body.dataset.returnOriginActive==='1'}
   function isReturnStartRow(row){const rows=routeRows();return body.dataset.direction==='return'&&!!row&&rows.length>0&&row===rows[0]}
   function isFinalRow(row){const rows=routeRows();return !!row&&rows.length>0&&row===rows[rows.length-1]}
@@ -96,7 +98,7 @@ import'./geo-core.js';
     const c=coord(row.dataset.coordinate);if(!c)return;
     const changed=lastTarget!==row;
     if(!force&&!changed&&Date.now()-lastRouteAt<ROUTE_REFRESH_MS)return;
-    const nav=document.getElementById('routeMapNav');if(nav&&!nav.hidden)return;
+    if(navigationOpen())return;
     requesting=true;lastRouteAt=Date.now();lastTarget=row;
     try{
       const url=`https://router.project-osrm.org/route/v1/driving/${pos.lng},${pos.lat};${c[1]},${c[0]}?overview=false&steps=false`;
@@ -108,7 +110,7 @@ import'./geo-core.js';
   }
 
   function render(){
-    if(view.hidden)return;
+    if(!statusVisible())return;
     if(returnOriginLocked()){if(infoRow)hideInfo(infoRow);publishStatusKind('neutral');return}
     const row=activeRow();
     if(!row){clearInfo();publishStatusKind('neutral');return}
@@ -160,6 +162,6 @@ import'./geo-core.js';
   body.addEventListener('stop-guard-change',()=>render());
   function start(){if(watch!==null)return;watch=window.__trasyGps.subscribe(p=>{pos={lat:p.coords.latitude,lng:p.coords.longitude,accuracy:p.coords.accuracy||999};if(pos.accuracy<=MAX_GPS_ACCURACY){refreshEta().then(render)}},()=>{})}
   start();
-  setInterval(()=>{if(!view.hidden&&pos?.accuracy<=MAX_GPS_ACCURACY){refreshEta();render()}},1000);
+  setInterval(()=>{if(statusVisible()&&pos?.accuracy<=MAX_GPS_ACCURACY){refreshEta();render()}},1000);
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')start()});
 })();
