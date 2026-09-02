@@ -28,6 +28,11 @@ import'./geo-core.js';
   function planSeconds(row){const now=new Date(),plan=planDateForRow(routeRows(),row,now);return plan?(plan.getTime()-now.getTime())/1000:null}
   function liveEta(){if(etaSeconds===null||!etaMeasuredAt)return null;return Math.max(0,etaSeconds-(Date.now()-etaMeasuredAt)/1000)}
   function arrivalClock(seconds){if(!Number.isFinite(seconds))return'';const d=new Date(Date.now()+seconds*1000);return`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`}
+  function statusColor(kind){return kind==='early'?'#ff3b30':kind==='late'?'#ff9500':'#34c759'}
+  function publishStatusKind(kind){
+    const value=['early','late','onTime','arrived'].includes(kind)?kind:'neutral';
+    document.documentElement.dataset.navPunctuality=value;
+  }
 
   function ensureInfo(row){
     if(!row)return null;
@@ -49,7 +54,7 @@ import'./geo-core.js';
     if(info)setInfo(info,'etaPunctuality neutral','');
   }
   function clearInfo(){if(infoEl?.isConnected)infoEl.remove();infoEl=null;infoRow=null}
-  function resetEta(){lastTarget=null;etaSeconds=null;etaMeasuredAt=0;clearInfo()}
+  function resetEta(){lastTarget=null;etaSeconds=null;etaMeasuredAt=0;clearInfo();publishStatusKind('neutral')}
 
   async function refreshEta(force=false){
     if(returnOriginLocked()){resetEta();return}
@@ -73,10 +78,10 @@ import'./geo-core.js';
 
   function render(){
     if(view.hidden)return;
-    if(returnOriginLocked()){if(infoRow)hideInfo(infoRow);return}
+    if(returnOriginLocked()){if(infoRow)hideInfo(infoRow);publishStatusKind('neutral');return}
     const row=activeRow();
-    if(!row){clearInfo();return}
-    if(isReturnStartRow(row)){hideInfo(row);return}
+    if(!row){clearInfo();publishStatusKind('neutral');return}
+    if(isReturnStartRow(row)){hideInfo(row);publishStatusKind('neutral');return}
     const info=ensureInfo(row);if(!info)return;
     if(guardIsShowing()){hideInfo(row);return}
     if(body.dataset.direction==='return'){
@@ -85,18 +90,20 @@ import'./geo-core.js';
       if(etaSecondsLive===null){hideInfo(row);return}
       setInfo(info,'etaPunctuality returnArrival',`Dojazd ${arrivalClock(etaSecondsLive)}`);
       body.dataset.etaKind='returnArrival';body.dataset.etaDiffSeconds='';body.dataset.etaSeconds=String(etaSecondsLive);
+      publishStatusKind('neutral');
       body.dispatchEvent(new CustomEvent('eta-status-change',{bubbles:true,detail:{kind:'returnArrival',diffSeconds:null,etaSeconds:etaSecondsLive}}));
       return;
     }
     if(isFinalArrived(row)){
-      setInfo(info,'etaPunctuality onTime','👍');
-      row.style.setProperty('--gps-status-color','#34c759');body.dataset.etaKind='arrived';body.dataset.etaDiffSeconds='0';body.dataset.etaSeconds='0';body.dispatchEvent(new CustomEvent('eta-status-change',{bubbles:true,detail:{kind:'arrived',diffSeconds:0,etaSeconds:0}}));return
+      setInfo(info,'etaPunctuality onTime','OK');
+      row.style.setProperty('--gps-status-color','#34c759');publishStatusKind('arrived');body.dataset.etaKind='arrived';body.dataset.etaDiffSeconds='0';body.dataset.etaSeconds='0';body.dispatchEvent(new CustomEvent('eta-status-change',{bubbles:true,detail:{kind:'arrived',diffSeconds:0,etaSeconds:0}}));return
     }
     const etaSecondsLive=liveEta();if(etaSecondsLive===null){hideInfo(row);return}
     const plan=planSeconds(row);if(plan===null){hideInfo(row);return}
     const punctuality=etaCore.statusFromEta(etaSecondsLive,plan);const kind=punctuality.kind;const diff=punctuality.diffSeconds;
-    const color=kind==='late'?'#ff3b30':kind==='early'?'#ffd60a':'#34c759';
+    const color=statusColor(kind);
     row.style.setProperty('--gps-status-color',color);
+    publishStatusKind(kind);
     if(info.className!==`etaPunctuality ${kind}`)info.className=`etaPunctuality ${kind}`;
     if(info.textContent!==punctuality.text)info.textContent=punctuality.text;
     body.dataset.etaKind=kind;body.dataset.etaDiffSeconds=String(diff);body.dataset.etaSeconds=String(etaSecondsLive);
@@ -104,6 +111,7 @@ import'./geo-core.js';
   }
 
   body.addEventListener('nav-eta-update',event=>{
+    publishStatusKind(event.detail?.kind);
     if(returnOriginLocked())return;
     const row=activeRow();
     if(row&&isReturnStartRow(row))return;
