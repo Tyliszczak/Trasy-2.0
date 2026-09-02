@@ -48,6 +48,7 @@
     const indicator=document.getElementById('routeNorthIndicator');
     if(!map||!indicator)return;
     ensureFace(indicator);
+    enableOverviewControl(indicator);
     const card=indicator.querySelector('.compassCard');
     const bearing=Number(map.getBearing?.())||0;
     const pitch=Math.max(0,Number(map.getPitch?.())||0);
@@ -58,6 +59,48 @@
     indicator.dataset.compassTilt=String(Math.round(tilt));
     indicator.dataset.compassBearing=String(Math.round((bearing+360)%360));
     if(card)card.style.transform=`rotate(${-bearing}deg)`;
+  }
+
+  function currentRouteBounds(){
+    const geometry=window.__trasyLastRouteGeometry?.geometry;
+    if(geometry?.type!=='LineString'||!Array.isArray(geometry.coordinates))return null;
+    let west=Infinity;
+    let south=Infinity;
+    let east=-Infinity;
+    let north=-Infinity;
+    let points=0;
+    for(const coordinate of geometry.coordinates){
+      const longitude=Number(coordinate?.[0]);
+      const latitude=Number(coordinate?.[1]);
+      if(!Number.isFinite(longitude)||!Number.isFinite(latitude))continue;
+      west=Math.min(west,longitude);
+      south=Math.min(south,latitude);
+      east=Math.max(east,longitude);
+      north=Math.max(north,latitude);
+      points++;
+    }
+    return points>=2?[[west,south],[east,north]]:null;
+  }
+
+  function showWholeRoute(event){
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    const bounds=currentRouteBounds();
+    if(!bounds)return;
+    window.__routeShowOverview?.(bounds);
+  }
+
+  function enableOverviewControl(indicator){
+    if(indicator.dataset.overviewControl==='1')return;
+    indicator.dataset.overviewControl='1';
+    indicator.setAttribute('role','button');
+    indicator.setAttribute('tabindex','0');
+    indicator.setAttribute('aria-label','Pokaż całą trasę w 2D, północ u góry');
+    indicator.title='Pokaż całą trasę w 2D, północ u góry';
+    indicator.addEventListener('click',showWholeRoute);
+    indicator.addEventListener('keydown',event=>{
+      if(event.key==='Enter'||event.key===' ')showWholeRoute(event);
+    });
   }
 
   function attach(nextMap){

@@ -311,6 +311,28 @@
       this.render();
     }
 
+    showRouteOverview(bounds){
+      if(!Array.isArray(bounds)||bounds.length!==2)return false;
+      const container=this.map.getContainer?.();
+      const width=Math.max(320,Number(container?.clientWidth)||window.innerWidth||320);
+      const height=Math.max(480,Number(container?.clientHeight)||window.innerHeight||480);
+      this.enterManual();
+      this.map.fitBounds(bounds,{
+        padding:{
+          top:Math.max(90,Math.round(height*.12)),
+          right:Math.max(42,Math.round(width*.06)),
+          bottom:Math.max(115,Math.round(height*.14)),
+          left:Math.max(42,Math.round(width*.06))
+        },
+        bearing:0,
+        pitch:0,
+        maxZoom:16,
+        duration:650,
+        essential:true
+      },{trasyCamera:true});
+      return true;
+    }
+
     render(){
       center.hidden=this.state!=='manual';
       this.renderNorthIndicator();
@@ -337,6 +359,7 @@
     window.__routeCameraController=controller;
     window.__routeEnterManualView=()=>controller.enterManual();
     window.__routeResumeNavigation=()=>controller.resume();
+    window.__routeShowOverview=bounds=>controller.showRouteOverview(bounds);
     center.onclick=()=>controller.resume();
   }
 

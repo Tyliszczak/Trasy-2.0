@@ -35,8 +35,24 @@ test('kompas wskazuje północ i lekko pochyla się razem z mapą 3D',async()=>{
   assert.match(source,/['"]rotate['"]/);
 });
 
+test('kliknięcie kompasu pokazuje całą trasę w widoku 2D skierowanym na północ',async()=>{
+  const [compass,controls]=await Promise.all([
+    read('navigation-compass.js'),
+    read('navigation-ui-controls.js')
+  ]);
+  assert.match(compass,/__trasyLastRouteGeometry/);
+  assert.match(compass,/currentRouteBounds/);
+  assert.match(compass,/__routeShowOverview\?\.\(bounds\)/);
+  assert.match(compass,/addEventListener\('click',showWholeRoute\)/);
+  assert.match(controls,/showRouteOverview\(bounds\)/);
+  assert.match(controls,/this\.map\.fitBounds\(bounds/);
+  assert.match(controls,/bearing:0/);
+  assert.match(controls,/pitch:0/);
+  assert.match(controls,/this\.enterManual\(\)/);
+});
+
 test('PWA ładuje i cacheuje kontroler kompasu',async()=>{
   const [html,worker]=await Promise.all([read('index.html'),read('sw.js')]);
-  assert.match(html,/navigation-compass\.js\?v=2/);
+  assert.match(html,/navigation-compass\.js\?v=3/);
   assert.match(worker,/\.\/navigation-compass\.js/);
 });
