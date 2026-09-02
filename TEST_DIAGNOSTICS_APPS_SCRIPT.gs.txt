@@ -3,7 +3,8 @@
  *
  * 1. Dodaj ten plik do projektu Apps Script przypisanego do arkusza „Trasy 2.0”.
  * 2. W Script Properties ustaw DIAGNOSTICS_SHARED_SECRET (ta sama wartość co
- *    sekret Cloudflare Pages).
+ *    sekret Cloudflare Pages) oraz DIAGNOSTICS_FOLDER_ID (ID prywatnego folderu
+ *    na Dysku Google przeznaczonego na pliki diagnostyczne).
  * 3. W doPost(e), zaraz po utworzeniu scriptProperties, dodaj:
  *
  *    if (action === 'appendTestDiagnostics') {
@@ -16,9 +17,13 @@
 function appendTestDiagnostics_(p) {
   var properties = PropertiesService.getScriptProperties();
   var expected = String(properties.getProperty('DIAGNOSTICS_SHARED_SECRET') || '');
+  var folderId = String(properties.getProperty('DIAGNOSTICS_FOLDER_ID') || '');
   var received = String(p && p.secret || '');
   if (!expected || !constantTimeEqualsDiagnostics_(expected, received)) {
     return createJsonResponse({status:'error', message:'UNAUTHORIZED'});
+  }
+  if (!/^[A-Za-z0-9_-]{10,180}$/.test(folderId)) {
+    return createJsonResponse({status:'error', message:'STORAGE_NOT_CONFIGURED'});
   }
 
   var batchId = safeDiagnosticsText_(p.batchId, 180);
@@ -51,10 +56,12 @@ function appendTestDiagnostics_(p) {
 
   var lock = LockService.getScriptLock();
   lock.waitLock(10000);
+  var diagnosticFile = null;
   try {
     var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = spreadsheet.getSheetByName('DIAGNOSTYKA TESTÓW');
     if (!sheet) sheet = createTestDiagnosticsSheet_(spreadsheet);
+    sheet.getRange(1, 18).setValue('PLIK_JSON');
 
     var lastRow = sheet.getLastRow();
     if (lastRow > 1) {
@@ -62,6 +69,24 @@ function appendTestDiagnostics_(p) {
         .createTextFinder(batchId).matchEntireCell(true).findNext();
       if (duplicate) return createJsonResponse({status:'success', batchId:batchId, duplicate:true});
     }
+
+    var folder = DriveApp.getFolderById(folderId);
+    var archive = {
+      format: 'trasy-2.0-test-diagnostics-batch',
+      schemaVersion: 1,
+      batchId: batchId,
+      installationId: installationId,
+      appVersion: appVersion,
+      sessionId: sessionId,
+      receivedAt: new Date().toISOString(),
+      locationDataIncluded: true,
+      events: normalized
+    };
+    var fileName = 'trasy-2.0-' + appVersion + '-' +
+      batchId.replace(/[^A-Za-z0-9._-]+/g, '-').slice(0, 140) + '.json';
+    diagnosticFile = folder.createFile(
+      Utilities.newBlob(JSON.stringify(archive, null, 2), 'application/json', fileName)
+    );
 
     var first = normalized[0];
     var last = normalized[normalized.length - 1];
@@ -79,12 +104,19 @@ function appendTestDiagnostics_(p) {
       safeSheetValue_(appVersion), new Date(), safeSheetValue_(first.at), safeSheetValue_(last.at),
       safeSheetValue_(snapshot.route || ''), safeSheetValue_(snapshot.shift || ''),
       safeSheetValue_(snapshot.direction || ''), normalized.length, gpsCount, skippedCount,
-      errorCount, safeSheetValue_(first.at), safeSheetValue_(last.at), safeSheetValue_(chunk), json
+      errorCount, safeSheetValue_(first.at), safeSheetValue_(last.at), safeSheetValue_(chunk),
+      safeSheetValue_(diagnosticFile.getUrl())
     ]];
     sheet.getRange(Math.max(2, lastRow + 1), 1, 1, 18).setValues(row);
     SpreadsheetApp.flush();
-    return createJsonResponse({status:'success', batchId:batchId, duplicate:false});
+    return createJsonResponse({
+      status:'success', batchId:batchId, duplicate:false,
+      fileId:diagnosticFile.getId()
+    });
   } catch (error) {
+    if (diagnosticFile) {
+      try { diagnosticFile.setTrashed(true); } catch (cleanupError) {}
+    }
     return createJsonResponse({status:'error', message:'WRITE_FAILED'});
   } finally {
     lock.releaseLock();
@@ -110,7 +142,7 @@ function createTestDiagnosticsSheet_(spreadsheet) {
   var sheet = spreadsheet.insertSheet('DIAGNOSTYKA TESTÓW');
   sheet.getRange(1, 1, 1, 18).setValues([[
     'BATCH_ID','SESSION_ID','INSTALACJA','WERSJA','WYSŁANO','START','KONIEC','TRASA','ZMIANA','KIERUNEK',
-    'ZDARZENIA','GPS','POMINIĘTE','BŁĘDY','PIERWSZE_ZDARZENIE','OSTATNIE_ZDARZENIE','CZĘŚĆ','DANE_JSON'
+    'ZDARZENIA','GPS','POMINIĘTE','BŁĘDY','PIERWSZE_ZDARZENIE','OSTATNIE_ZDARZENIE','CZĘŚĆ','PLIK_JSON'
   ]]);
   sheet.setFrozenRows(1);
   return sheet;

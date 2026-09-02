@@ -46,8 +46,19 @@ test('eksport wskazuje uzgodniony email i nie udostępnia WhatsApp',()=>{
 test('skrypt diagnostyczny jest częścią powłoki offline PWA',()=>{
   const html=read('index.html');
   const sw=read('sw.js');
-  assert.match(html,/src="\.\/diagnostic-recorder\.js\?v=4"/);
+  assert.match(html,/src="\.\/diagnostic-recorder\.js\?v=5"/);
   assert.match(sw,/'\.\/diagnostic-recorder\.js'/);
+});
+
+test('pełne paczki diagnostyczne trafiają do prywatnego folderu, a arkusz przechowuje indeks',()=>{
+  const backend=read('TEST_DIAGNOSTICS_APPS_SCRIPT.gs.txt');
+  const recorder=read('diagnostic-recorder.js');
+  assert.match(backend,/getProperty\('DIAGNOSTICS_FOLDER_ID'\)/);
+  assert.match(backend,/DriveApp\.getFolderById\(folderId\)/);
+  assert.match(backend,/folder\.createFile\(/);
+  assert.match(backend,/'PLIK_JSON'/);
+  assert.doesNotMatch(backend,/'DANE_JSON'/);
+  assert.match(recorder,/prywatnego archiwum testów/);
 });
 
 test('diagnostyka ogranicza powtarzalne statusy i zachowuje dane pozycji po wznowieniu',()=>{

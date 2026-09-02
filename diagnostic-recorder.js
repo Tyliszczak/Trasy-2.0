@@ -259,7 +259,7 @@
           localStorage.setItem(LAST_UPLOADED_KEY,String(events[events.length-1].id));
           sent+=events.length;
         }
-        lastSyncMessage=sent?`Automatycznie wysłano ${sent} zdarzeń do arkusza.`:'Wszystkie zapisane dane są wysłane.';
+        lastSyncMessage=sent?`Automatycznie wysłano ${sent} zdarzeń do prywatnego archiwum.`:'Wszystkie zapisane dane są wysłane.';
       }catch(error){
         lastSyncMessage=navigator.onLine?'Wysyłka nie powiodła się — aplikacja ponowi ją automatycznie.':'Brak internetu — dane czekają bezpiecznie na telefonie.';
         console.warn('Automatyczna wysyłka diagnostyki:',error);
@@ -302,7 +302,7 @@
     dialog.className='diagnosticDialog';
     dialog.innerHTML=`<form method="dialog">
       <div class="diagnosticDialogHead"><span aria-hidden="true">●</span><h2>Diagnostyka testowa</h2></div>
-      <p class="diagnosticPrivacy">Rejestr obejmuje działanie aplikacji oraz dokładne pozycje GPS. Po włączeniu dane są automatycznie przesyłane do zabezpieczonej karty DIAGNOSTYKA TESTÓW. Przy braku internetu pozostają na telefonie i zostaną wysłane później.</p>
+      <p class="diagnosticPrivacy">Rejestr obejmuje działanie aplikacji oraz dokładne pozycje GPS. Po włączeniu dane są automatycznie przesyłane do prywatnego archiwum testów, a arkusz przechowuje tylko ich indeks. Przy braku internetu pozostają na telefonie i zostaną wysłane później.</p>
       <p id="diagnosticState" class="diagnosticState"></p>
       <p id="diagnosticSync" class="diagnosticSync"></p>
       <div class="diagnosticActions">
