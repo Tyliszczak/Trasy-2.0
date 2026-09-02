@@ -13,7 +13,9 @@
     html[data-nav-punctuality="late"] #routeMapCanvas .maplibregl-marker[style*="clip-path"]{background:#ff9500!important}
     html[data-nav-punctuality="onTime"] #routeMapCanvas .maplibregl-marker[style*="clip-path"],html[data-nav-punctuality="arrived"] #routeMapCanvas .maplibregl-marker[style*="clip-path"]{background:#34c759!important}
     #scheduleBody tr.gpsNextStop{background:rgba(255,255,255,.045)!important;box-shadow:inset 5px 0 0 var(--gps-status-color,#ccff33)!important;transition:background-color .28s ease,box-shadow .28s ease!important}
-    #scheduleBody .etaPunctuality{white-space:pre!important;max-width:none!important;color:#39ff69!important}
+    #scheduleBody .etaPunctuality{white-space:normal!important;max-width:none!important;color:#39ff69!important}
+    #scheduleBody .etaPunctualityText{display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;min-width:max-content!important;white-space:nowrap!important}
+    #scheduleBody .etaPunctualityTime,#scheduleBody .etaPunctualityLabel{display:block!important;white-space:nowrap!important;word-break:keep-all!important;overflow-wrap:normal!important}
     #scheduleBody .etaPunctuality:before{transition:background-color .28s ease!important;box-shadow:none!important}
     #scheduleBody .etaPunctuality.early:before{background:#ff3b30!important}
     #scheduleBody .etaPunctuality.late:before{background:#ff9500!important}
@@ -51,7 +53,7 @@
   <title>Trasy 2.0</title>
 </head>
 <body data-test-diagnostics="enabled">
-  <div id="globalTestVersion" data-version="2.0.199">TEST 2.0.199</div>
+  <div id="globalTestVersion" data-version="2.0.200">TEST 2.0.200</div>
   <header class="header"><div class="headerActions"><span id="connectionStatus" class="status">Offline</span></div></header>
   <main class="container">
     <aside id="updateNotice" class="notice updateNotice" hidden><span>Nowa wersja aplikacji jest gotowa.</span><button id="updateAppButton">ODŚWIEŻ</button></aside>
@@ -119,7 +121,7 @@
   <script src="./skip-stop-control.js?v=5"></script>
   <script src="./final-stop-ui.js?v=4"></script>
   <script src="./stop-map-links.js?v=1"></script>
-  <script type="module" src="./eta-status.js?v=status-colors-1"></script>
+  <script type="module" src="./eta-status.js?v=two-lines-1"></script>
   <script src="./next-stop-header.js?v=status-14"></script>
   <script src="./visual-stop-alert.js?v=2"></script>
   <script src="./navigation-layout-fix.js?v=4"></script>
