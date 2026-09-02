@@ -31,6 +31,12 @@ export function canAutoAdvanceBySchedule({
   const nextMs=dateMs(nextPlan);
   if(nowMs===null||currentMs===null||nextMs===null)return false;
 
+  // Przy pierwszym wyborze celu nigdy nie wolno przeskakiwać do przystanku
+  // położonego bliżej auta. Nawigacja ma zacząć od pierwszego przystanku
+  // wynikającego z kolejności trasy. Kolejne zmiany celu wymagają już
+  // rzeczywistego przejazdu / odjazdu albo ręcznego pominięcia.
+  if(transitionReason==='initial-target')return false;
+
   // Gdy GPS podczas jazdy wiarygodnie potwierdzi fizyczne minięcie celu,
   // bieżący przystanek może zostać zamknięty już od jego planowej godziny.
   // Przed planem nadal go chronimy, aby przejazd obok nie oznaczał pominięcia.
