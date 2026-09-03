@@ -31,11 +31,13 @@ export function canAutoAdvanceBySchedule({
   const nextMs=dateMs(nextPlan);
   if(nowMs===null||currentMs===null||nextMs===null)return false;
 
-  // Przy pierwszym wyborze celu nigdy nie wolno przeskakiwać do przystanku
-  // położonego bliżej auta. Nawigacja ma zacząć od pierwszego przystanku
-  // wynikającego z kolejności trasy. Kolejne zmiany celu wymagają już
-  // rzeczywistego przejazdu / odjazdu albo ręcznego pominięcia.
-  if(transitionReason==='initial-target')return false;
+  // Przy uruchomieniu kursu pierwszy przystanek jest chroniony przed
+  // przypadkowym wyborem dalszego punktu. Ta ochrona nie może jednak
+  // unieważniać pozycji GPS i kierunku jazdy bez końca: po 10 minutach od
+  // planu silnik GPS może wybrać pierwszy przystanek znajdujący się przed
+  // pojazdem. Dzięki temu start aplikacji w środku opóźnionego kursu nie
+  // przykleja prowadzenia do punktu pozostawionego daleko za autobusem.
+  if(transitionReason==='initial-target')return nowMs-currentMs>=SCHEDULE_PRIORITY_GRACE_MS;
 
   // Gdy GPS podczas jazdy wiarygodnie potwierdzi fizyczne minięcie celu,
   // bieżący przystanek może zostać zamknięty już od jego planowej godziny.
