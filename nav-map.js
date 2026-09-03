@@ -1585,7 +1585,7 @@
           zoom:ZOOM,
           pitch:PITCH,
           bearing:0,
-          attributionControl:true,
+          attributionControl:{compact:false},
           maxPitch:60
         });
 

@@ -136,6 +136,10 @@ html[data-map-theme="night"] #routeMapCanvas .maplibregl-popup-tip{border-top-co
 html[data-map-theme="night"] #routeMapCanvas .maplibregl-popup-close-button{color:#f1f3f4!important;background:transparent!important}
 html[data-map-theme="night"] #routeMapCanvas .maplibregl-ctrl-attrib,html[data-map-theme="night"] #routeMapCanvas .maplibregl-ctrl-attrib.maplibregl-compact-show{background:rgba(31,35,39,.9)!important;color:#d8dde2!important}
 html[data-map-theme="night"] #routeMapCanvas .maplibregl-ctrl-attrib a{color:#d8dde2!important}
+#routeMapCanvas .maplibregl-ctrl-bottom-left{left:0!important;right:0!important;bottom:0!important;width:100%!important;max-width:100%!important}
+#routeMapCanvas .maplibregl-ctrl-attrib{box-sizing:border-box;width:100%!important;max-width:100%!important;margin:0!important;padding:1px 5px!important;border-radius:0!important;font-size:clamp(6px,1.9vw,9px)!important;line-height:12px!important;text-align:center!important;white-space:nowrap!important}
+#routeMapCanvas .maplibregl-ctrl-attrib-button{display:none!important}
+#routeMapCanvas .maplibregl-ctrl-attrib-inner{display:block!important;white-space:nowrap!important}
 
 
 /* Statyczny chrom nawigacji — pozycja pionowa jest tylko korygowana przez JS. */

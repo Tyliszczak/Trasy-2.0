@@ -144,6 +144,16 @@ test('przycisk 2D/3D pozostaje kontrolką MapLibre, a północ pokazuje się tyl
   assert.match(controls,/rotate\(\$\{-mapBearing\}deg\)/);
 });
 
+test('informacja o źródle mapy jest stale widoczna w jednej linii przy dolnej krawędzi',async()=>{
+  const [map,layout,css]=await Promise.all([
+    readSource('nav-map.js'),readSource('navigation-layout-fix.js'),readSource('navigation.css')
+  ]);
+  assert.match(map,/attributionControl:\{compact:false\}/);
+  assert.match(layout,/\.maplibregl-ctrl-bottom-left\{[\s\S]*bottom:0!important;[\s\S]*width:100%!important/);
+  assert.match(layout,/\.maplibregl-ctrl-attrib[\s\S]*white-space:nowrap!important/);
+  assert.match(css,/\.maplibregl-ctrl-attrib-button\{display:none!important\}/);
+});
+
 test('kamera ustawia pierwszy kierunek od razu i płynnie reaguje na jazdę',async()=>{
   const [map,controls]=await Promise.all([readSource('nav-map.js'),readSource('navigation-ui-controls.js')]);
   assert.match(map,/headingFromRoute\(origin\)/);
