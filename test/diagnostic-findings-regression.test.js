@@ -24,7 +24,7 @@ test('brak Google Traffic jest obsłużonym fallbackiem, a nie odrzuconą obietn
 
 test('wersja testowa ładuje jawnie poprawki z analizy przejazdu',()=>{
   const html=read('index.html');
-  assert.match(html,/TEST 2\.0\.198/);
+  assert.match(html,/data-version="2\.0\.\d+">TEST 2\.0\.\d+</);
   assert.match(html,/app\.js\?v=active-course-1/);
   assert.match(html,/return-route\.js\?v=pinned-course-1/);
   assert.match(html,/google-routes-provider\.js\?v=handled-fallback-1/);

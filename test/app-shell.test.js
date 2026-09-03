@@ -119,9 +119,12 @@ test('status punktualności ma zielony tekst, a kolor niesie kropka',async()=>{
   ]);
   assert.doesNotMatch(html,/punctuality-text-color-fix\.js/);
   assert.match(header,/statusEl\.textContent=status\.text/);
-  assert.match(eta,/info\.textContent=punctuality\.text/);
-  assert.match(css,/nextStopStatus\.early:before\{background:#ffd60a!important\}/);
-  assert.match(css,/etaPunctuality\.late:before\{background:#ff3b30\}/);
+  assert.match(eta,/setInfo\(info,`etaPunctuality \$\{kind\}`,punctuality\.text\)/);
+  assert.match(eta,/const twoLine=\/\\b\(\?:early\|late\)\\b\/\.test\(className\)&&parts\.length===2/);
+  assert.match(html,/etaPunctuality\.early:before\{background:#ff3b30!important\}/);
+  assert.match(html,/etaPunctuality\.late:before\{background:#ff9500!important\}/);
+  assert.match(html,/etaPunctuality\.onTime:before,#scheduleBody \.etaPunctuality\.arrived:before\{background:#34c759!important\}/);
+  assert.match(css,/etaPunctuality\.early,#scheduleBody \.etaPunctuality\.onTime,#scheduleBody \.etaPunctuality\.late\{color:#39ff69!important\}/);
 });
 
 test('kamera ma jeden jawny kontroler i wraca do prowadzenia po 15 sekundach',async()=>{

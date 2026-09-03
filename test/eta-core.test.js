@@ -5,17 +5,17 @@ import '../eta-core.js';
 const eta=globalThis.__trasyEta;
 
 test('tolerancja punktualności wynosi plus minus 30 sekund',()=>{
-  assert.deepEqual(eta.statusFromDiff(-30),{kind:'onTime',text:'👍',diffSeconds:-30});
-  assert.deepEqual(eta.statusFromDiff(30),{kind:'onTime',text:'👍',diffSeconds:30});
+  assert.deepEqual(eta.statusFromDiff(-30),{kind:'onTime',text:'OK',diffSeconds:-30});
+  assert.deepEqual(eta.statusFromDiff(30),{kind:'onTime',text:'OK',diffSeconds:30});
   assert.equal(eta.statusFromDiff(-31).kind,'early');
   assert.equal(eta.statusFromDiff(31).kind,'late');
 });
 
 test('tekst za wcześnie i opóźnienia powstaje w jednym rdzeniu',()=>{
-  assert.equal(eta.statusFromDiff(-61).text,'1 min za wcześnie');
-  assert.equal(eta.statusFromDiff(121).text,'2 min opóźnienia');
-  assert.equal(eta.statusFromDiff(-97*60).text,'1 godz. 37 min za wcześnie');
-  assert.equal(eta.statusFromDiff(120*60).text,'2 godz. opóźnienia');
+  assert.equal(eta.statusFromDiff(-61).text,'1 min\nZA SZYBKO');
+  assert.equal(eta.statusFromDiff(121).text,'2 min\nZA PÓŹNO');
+  assert.equal(eta.statusFromDiff(-97*60).text,'1 godz. 37 min\nZA SZYBKO');
+  assert.equal(eta.statusFromDiff(120*60).text,'2 godz.\nZA PÓŹNO');
   assert.equal(eta.formatMinutes(60),'60 min');
   assert.equal(eta.formatMinutes(61),'1 godz. 1 min');
 });
