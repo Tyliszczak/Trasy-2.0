@@ -45,6 +45,11 @@ export function createStopProgressEngine(overrides={}){
   let lastDistance=Infinity;
   let reacquireCandidate=null;
   let reacquireFixes=0;
+  // Pierwszy cel wybrany bez wiarygodnego kierunku jazdy jest tylko
+  // tymczasowy. Gdy pojazd ruszy i GPS poda pewny heading, wybieramy go
+  // ponownie. To zapobiega przyklejeniu nawigacji do pierwszego przystanku,
+  // jeśli aplikacja została otwarta na postoju lub w środku trasy.
+  let initialSelectionProvisional=false;
   // Automatyczne odzyskanie celu jest domyślnie zablokowane. Sam kierunek
   // jazdy nie jest dowodem minięcia odległego przystanku (objazd, rondo,
   // droga serwisowa). Tracker może uzbroić jedną próbę wyłącznie po
@@ -64,6 +69,7 @@ export function createStopProgressEngine(overrides={}){
     passFixes=0;
     closestDistance=Infinity;
     lastDistance=Infinity;
+    initialSelectionProvisional=false;
     reacquireLocked=true;
     resetReacquire();
   }
@@ -85,7 +91,7 @@ export function createStopProgressEngine(overrides={}){
   function selectInitial(stops,position,{emptyRun=false,speedMps=0,heading=null,headingReliable=false,minimumIndex=0}={}){
     if(!stops.length)return null;
     if(emptyRun)return stops.length-1;
-    const firstIndex=Math.max(0,Math.min(stops.length-1,Math.trunc(Number(minimumIndex)||0)));
+    const firstIndex=Math.max(0,Math.min(stops.length-1,Math.trunc(Number(minimumIndex)||0));
 
     const moving=Number.isFinite(speedMps)&&speedMps>=config.minimumMovingSpeedMps;
     if(moving){
@@ -144,6 +150,7 @@ export function createStopProgressEngine(overrides={}){
     }
     if(!Number.isFinite(accuracy)||accuracy>config.maxAccuracy)return{...snapshot(),changed:false,reason:'poor-accuracy'};
     if(index===null||index<firstIndex||index>=stops.length){
+      const movingReliable=Number.isFinite(speedMps)&&speedMps>=config.minimumMovingSpeedMps&&headingReliable&&Number.isFinite(heading);
       const selected=selectInitial(stops,position,{emptyRun:false,speedMps,heading,headingReliable,minimumIndex:firstIndex});
       if(selected===null)return{...snapshot(),changed:false,reason:'awaiting-heading'};
       index=selected;
@@ -153,8 +160,31 @@ export function createStopProgressEngine(overrides={}){
       passFixes=0;
       closestDistance=Infinity;
       lastDistance=Infinity;
+      initialSelectionProvisional=!movingReliable;
       resetReacquire();
       return{...snapshot(),changed:true,reason:'initial-target'};
+    }
+
+    const movingReliable=Number.isFinite(speedMps)&&speedMps>=config.minimumMovingSpeedMps&&headingReliable&&Number.isFinite(heading);
+    if(initialSelectionProvisional&&phase==='approaching'&&movingReliable){
+      const selected=selectInitial(stops,position,{emptyRun:false,speedMps,heading,headingReliable:true,minimumIndex:firstIndex});
+      initialSelectionProvisional=false;
+      if(selected!==null&&selected!==index){
+        const fromIndex=index;
+        index=selected;
+        phase='approaching';
+        arrivalFixes=0;
+        departureFixes=0;
+        passFixes=0;
+        closestDistance=Infinity;
+        lastDistance=Infinity;
+        reacquireLocked=true;
+        resetReacquire();
+        const distance=distanceMeters(position,stops[index].coord);
+        const arrivalRadius=Math.min(config.arrivalMaxMeters,config.arrivalBaseMeters+Math.max(0,accuracy)*0.25);
+        const departureRadius=Math.max(config.departureBaseMeters,arrivalRadius+35);
+        return{...snapshot(),changed:true,reason:'initial-motion-target',fromIndex,distance,arrivalRadius,departureRadius};
+      }
     }
 
     const current=stops[index];
@@ -187,6 +217,7 @@ export function createStopProgressEngine(overrides={}){
           passFixes=0;
           closestDistance=Infinity;
           lastDistance=Infinity;
+          initialSelectionProvisional=false;
           // Jedno odzyskanie celu może przesunąć nawigację najwyżej o jeden
           // przystanek. Następne wymaga fizycznego potwierdzenia przejazdu lub
           // postoju, więc seria odczytów GPS nie usunie kilku punktów naraz.
@@ -204,6 +235,7 @@ export function createStopProgressEngine(overrides={}){
         phase='arrived';
         departureFixes=0;
         passFixes=0;
+        initialSelectionProvisional=false;
         reacquireLocked=true;
         resetReacquire();
         return{...snapshot(),changed:false,reason:'arrival-confirmed',justArrived:true,distance,arrivalRadius,departureRadius};
@@ -228,6 +260,7 @@ export function createStopProgressEngine(overrides={}){
           passFixes=0;
           closestDistance=Infinity;
           lastDistance=Infinity;
+          initialSelectionProvisional=false;
           reacquireLocked=true;
           resetReacquire();
           return{...snapshot(),changed:true,reason:'passed-stop',fromIndex,skippedIndex:fromIndex,justSkipped:true,distance,arrivalRadius,departureRadius};
@@ -237,6 +270,7 @@ export function createStopProgressEngine(overrides={}){
       return{...snapshot(),changed:false,reason:'approaching',distance,arrivalRadius,departureRadius,stopped,closestDistance,passFixes,reacquireCandidate,reacquireFixes};
     }
 
+    initialSelectionProvisional=false;
     resetReacquire();
     if(index>=stops.length-1){
       lastDistance=distance;
@@ -262,6 +296,7 @@ export function createStopProgressEngine(overrides={}){
       passFixes=0;
       closestDistance=Infinity;
       lastDistance=Infinity;
+      initialSelectionProvisional=false;
       reacquireLocked=true;
       resetReacquire();
       return{...snapshot(),changed:true,reason:'confirmed-departure',fromIndex,distance,arrivalRadius,departureRadius};
