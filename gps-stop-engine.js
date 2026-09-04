@@ -91,7 +91,7 @@ export function createStopProgressEngine(overrides={}){
   function selectInitial(stops,position,{emptyRun=false,speedMps=0,heading=null,headingReliable=false,minimumIndex=0}={}){
     if(!stops.length)return null;
     if(emptyRun)return stops.length-1;
-    const firstIndex=Math.max(0,Math.min(stops.length-1,Math.trunc(Number(minimumIndex)||0));
+    const firstIndex=Math.max(0,Math.min(stops.length-1,Math.trunc(Number(minimumIndex)||0)));
 
     const moving=Number.isFinite(speedMps)&&speedMps>=config.minimumMovingSpeedMps;
     if(moving){
