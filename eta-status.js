@@ -12,10 +12,11 @@ import'./geo-core.js';
   const ROUTE_REFRESH_MS=180000;
   const MAX_GPS_ACCURACY=120;
   const FINAL_ARRIVAL_RADIUS=70;
+  const ETA_HIDE_GRACE_MS=450;
 
   let pos=null,watch=null,lastRouteAt=0,lastTarget=null;
   let etaSeconds=null,etaMeasuredAt=0,requesting=false;
-  let infoEl=null,infoRow=null;
+  let infoEl=null,infoRow=null,hideInfoTimer=0;
 
   const coord=value=>geo.parseCoordinate(value);
   function activeRow(){return body.querySelector('tr.gpsNextStop')}
@@ -31,6 +32,7 @@ import'./geo-core.js';
   function liveEta(){if(etaSeconds===null||!etaMeasuredAt)return null;return Math.max(0,etaSeconds-(Date.now()-etaMeasuredAt)/1000)}
   function arrivalClock(seconds){if(!Number.isFinite(seconds))return'';const d=new Date(Date.now()+seconds*1000);return`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`}
   function statusColor(kind){return kind==='early'?'#ff3b30':kind==='late'?'#ff9500':'#34c759'}
+  function rowKey(row){return row?(row.dataset.stopId||row.dataset.coordinate||''):''}
   function publishStatusKind(kind){
     const value=['early','late','onTime','arrived'].includes(kind)?kind:'neutral';
     document.documentElement.dataset.navPunctuality=value;
@@ -48,9 +50,15 @@ import'./geo-core.js';
     body.dispatchEvent(new CustomEvent('nav-eta-update',{bubbles:true,detail}));
   }
 
+  function cancelInfoHide(){
+    if(!hideInfoTimer)return;
+    clearTimeout(hideInfoTimer);
+    hideInfoTimer=0;
+  }
   function ensureInfo(row){
     if(!row)return null;
     if(infoEl&&infoRow===row&&infoEl.isConnected)return infoEl;
+    cancelInfoHide();
     if(infoEl?.isConnected)infoEl.remove();
     infoEl=document.createElement('div');
     infoEl.className='etaPunctuality neutral';
@@ -60,6 +68,7 @@ import'./geo-core.js';
   }
   function setInfo(info,className,text){
     if(!info)return;
+    cancelInfoHide();
     if(info.className!==className)info.className=className;
     const value=String(text??'');
     const parts=value.split('\n');
@@ -82,11 +91,19 @@ import'./geo-core.js';
     }
     info.textContent=value;
   }
-  function hideInfo(row=infoRow){
+  function hideInfo(row=infoRow,{defer=false}={}){
     const info=row?ensureInfo(row):infoEl;
-    if(info)setInfo(info,'etaPunctuality neutral','');
+    if(!info)return;
+    cancelInfoHide();
+    if(!defer){setInfo(info,'etaPunctuality neutral','');return}
+    const expectedInfo=info;
+    hideInfoTimer=setTimeout(()=>{
+      hideInfoTimer=0;
+      if(expectedInfo!==infoEl||!expectedInfo.isConnected)return;
+      setInfo(expectedInfo,'etaPunctuality neutral','');
+    },ETA_HIDE_GRACE_MS);
   }
-  function clearInfo(){if(infoEl?.isConnected)infoEl.remove();infoEl=null;infoRow=null}
+  function clearInfo(){cancelInfoHide();if(infoEl?.isConnected)infoEl.remove();infoEl=null;infoRow=null}
   function resetEta(){lastTarget=null;etaSeconds=null;etaMeasuredAt=0;clearInfo();publishStatusKind('neutral')}
 
   async function refreshEta(force=false){
@@ -116,11 +133,11 @@ import'./geo-core.js';
     if(!row){clearInfo();publishStatusKind('neutral');return}
     if(isReturnStartRow(row)){hideInfo(row);publishStatusKind('neutral');return}
     const info=ensureInfo(row);if(!info)return;
-    if(guardIsShowing()){hideInfo(row);return}
+    if(guardIsShowing()){hideInfo(row,{defer:true});return}
     if(body.dataset.direction==='return'){
       if(isFinalArrived(row)){hideInfo(row);return}
       const etaSecondsLive=liveEta();
-      if(etaSecondsLive===null){hideInfo(row);return}
+      if(etaSecondsLive===null){hideInfo(row,{defer:true});return}
       setInfo(info,'etaPunctuality returnArrival',`Dojazd ${arrivalClock(etaSecondsLive)}`);
       broadcastStatus('returnArrival',null,etaSecondsLive);
       return;
@@ -131,8 +148,8 @@ import'./geo-core.js';
       broadcastStatus('arrived',0,0);
       return;
     }
-    const etaSecondsLive=liveEta();if(etaSecondsLive===null){hideInfo(row);return}
-    const plan=planSeconds(row);if(plan===null){hideInfo(row);return}
+    const etaSecondsLive=liveEta();if(etaSecondsLive===null){hideInfo(row,{defer:true});return}
+    const plan=planSeconds(row);if(plan===null){hideInfo(row,{defer:true});return}
     const punctuality=etaCore.statusFromEta(etaSecondsLive,plan);const kind=punctuality.kind;const diff=punctuality.diffSeconds;
     const color=statusColor(kind);
     row.style.setProperty('--gps-status-color',color);
@@ -151,7 +168,12 @@ import'./geo-core.js';
     const seconds=Number(event.detail?.etaSeconds);
     if(Number.isFinite(seconds)){etaSeconds=seconds;etaMeasuredAt=Date.now();render()}
   });
-  body.addEventListener('gps-next-stop-change',()=>{resetEta();refreshEta(true).then(render)});
+  body.addEventListener('gps-next-stop-change',event=>{
+    const row=activeRow();
+    const sameVisibleTarget=Boolean(row&&infoRow===row&&infoEl?.isConnected&&String(event.detail?.key||'')===rowKey(row));
+    if(sameVisibleTarget){refreshEta(true).then(render);return}
+    resetEta();refreshEta(true).then(render);
+  });
   body.addEventListener('route-direction-change',()=>{resetEta();setTimeout(()=>refreshEta(true).then(render),0)});
   body.addEventListener('route-mode-change',()=>{resetEta();setTimeout(()=>refreshEta(true).then(render),0)});
   body.addEventListener('return-origin-change',event=>{
