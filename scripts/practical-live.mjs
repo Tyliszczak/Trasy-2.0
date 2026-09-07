@@ -166,6 +166,11 @@ async function fallbackPage({viewport={width:412,height:915},serviceWorkers='all
 async function openFallbackSchedule(page,routeName='SAS Sulechów'){
   await page.goto(BASE,{waitUntil:'domcontentloaded',timeout:45000});
   await page.waitForFunction(()=>document.querySelectorAll('#routeSelect option').length>1,{timeout:15000});
+  const diagnosticDialog=page.locator('#diagnosticDialog');
+  if(await diagnosticDialog.isVisible()){
+    await diagnosticDialog.locator('button[type="submit"]').click();
+    await diagnosticDialog.waitFor({state:'hidden'});
+  }
   const options=await page.locator('#routeSelect option').allTextContents();
   const wanted=options.includes(routeName)?routeName:options.find(text=>text.trim()&&text!=='Wybierz trasę');
   assert.ok(wanted,'Brak tras na liście');
