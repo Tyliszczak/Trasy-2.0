@@ -50,11 +50,14 @@
   }
   function openMenu(confirmSkip=false){
     const nav=document.getElementById('routeMapNav');
-    if(!nav||nav.hidden)return;
+    const navOpen=Boolean(nav&&!nav.hidden);
+    const scheduleOpen=document.getElementById('scheduleView')?.hidden===false;
+    if(!navOpen&&!scheduleOpen)return;
     const s=currentStop();if(!s)return;
-    window.__routeEnterManualView?.();
+    if(navOpen)window.__routeEnterManualView?.();
     window.__routeStopActionsOpen=true;
     title.textContent=s.name;meta.textContent=s.time?`Plan: ${s.time}`:'';
+    showSegment.hidden=!navOpen;
     previous.hidden=s.idx<=0||body.dataset.emptyRun==='1';
     skip.hidden=s.idx>=s.rs.length-1;
     confirmingSkip=Boolean(confirmSkip&&!skip.hidden);
@@ -120,6 +123,31 @@
     if(s&&!button.hidden)button.setAttribute('aria-label',`Pomiń przystanek ${s.name}`);
   }
 
+  function updateScheduleSkipButton(){
+    body.querySelectorAll('.scheduleSkipStopButton').forEach(button=>button.remove());
+    if(document.getElementById('scheduleView')?.hidden!==false)return;
+    const s=currentStop();
+    if(!s||s.idx>=s.rs.length-1||body.dataset.returnOriginActive==='1')return;
+    const cell=s.row.querySelector('td:first-child');
+    if(!cell)return;
+    const button=document.createElement('button');
+    button.type='button';
+    button.className='scheduleSkipStopButton';
+    button.textContent='POMIŃ';
+    button.setAttribute('aria-label',`Pomiń przystanek ${s.name}`);
+    button.addEventListener('click',event=>{
+      event.preventDefault();
+      event.stopPropagation();
+      openMenu(true);
+    });
+    cell.append(button);
+  }
+
+  function updateSkipControls(){
+    updateQuickSkipButton();
+    updateScheduleSkipButton();
+  }
+
   showSegment.addEventListener('click',showSegmentOnMap);
   skip.addEventListener('click',skipCurrentStop);
   previous.addEventListener('click',selectPreviousStop);
@@ -142,9 +170,9 @@
     window.__routeEnterManualView?.();
     openMenu();
   },true);
-  body.addEventListener('gps-next-stop-change',updateQuickSkipButton);
-  body.addEventListener('return-origin-change',updateQuickSkipButton);
-  body.addEventListener('route-direction-change',()=>setTimeout(updateQuickSkipButton,0));
-  body.addEventListener('schedule-rendered',()=>setTimeout(updateQuickSkipButton,0));
-  setTimeout(ensureQuickSkipButton,0);
+  body.addEventListener('gps-next-stop-change',updateSkipControls);
+  body.addEventListener('return-origin-change',updateSkipControls);
+  body.addEventListener('route-direction-change',()=>setTimeout(updateSkipControls,0));
+  body.addEventListener('schedule-rendered',()=>setTimeout(updateSkipControls,0));
+  setTimeout(()=>{ensureQuickSkipButton();updateSkipControls()},0);
 })();
