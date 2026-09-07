@@ -11,6 +11,8 @@
   const SESSION_KEY='trasy2.diagnostics.session';
   const INSTALLATION_KEY='trasy2.diagnostics.installation';
   const LAST_UPLOADED_KEY='trasy2.diagnostics.lastUploadedId';
+  const CONSENT_KEY='trasy2.diagnostics.consent.v1';
+  const FIRST_USE_PROMPT_KEY='trasy2.diagnostics.firstUsePrompt.v1';
   const UPLOAD_ENDPOINT='/test-diagnostics';
   const UPLOAD_INTERVAL_MS=60000;
   const UPLOAD_BATCH_SIZE=40;
@@ -25,6 +27,7 @@
   let active=localStorage.getItem(ACTIVE_KEY)==='1';
   let sessionId=localStorage.getItem(SESSION_KEY)||'';
   let uploadTimer=0,uploadInFlight=null,lastSyncMessage='';
+  let useEndRecorded=false;
   const eventPolicyState=new Map();
   const EVENT_MIN_INTERVAL_MS={
     'eta-status-change':10000,
@@ -277,6 +280,9 @@
       sessionId=newSessionId();
       localStorage.setItem(ACTIVE_KEY,'1');
       localStorage.setItem(SESSION_KEY,sessionId);
+      localStorage.setItem(CONSENT_KEY,'approved');
+      localStorage.setItem(FIRST_USE_PROMPT_KEY,'shown');
+      useEndRecorded=false;
       record('recording-started',{
         appVersion:version?.dataset.version||'',
         userAgent:navigator.userAgent,
@@ -321,6 +327,7 @@
     dialog.querySelector('#diagnosticClear').onclick=async()=>{
       if(confirm('Usunąć wszystkie zapisane dane diagnostyczne z telefonu?'))await clearEvents();
     };
+    dialog.addEventListener('close',()=>localStorage.setItem(FIRST_USE_PROMPT_KEY,'shown'));
     return dialog;
   }
 
@@ -331,7 +338,8 @@
     const toggle=dialog.querySelector('#diagnosticToggle');
     const state=dialog.querySelector('#diagnosticState');
     const sync=dialog.querySelector('#diagnosticSync');
-    toggle.textContent=active?'ZATRZYMAJ REJESTROWANIE':'ROZPOCZNIJ REJESTROWANIE';
+    const approved=localStorage.getItem(CONSENT_KEY)==='approved';
+    toggle.textContent=active?'ZATRZYMAJ REJESTROWANIE':approved?'ROZPOCZNIJ REJESTROWANIE':'ZGADZAM SIĘ I ROZPOCZYNAM';
     toggle.classList.toggle('diagnosticStop',active);
     state.textContent=message||(active?'Rejestrowanie włączone.':'Rejestrowanie wyłączone.');
     sync.textContent=lastSyncMessage;
@@ -380,6 +388,12 @@
   }
 
   function detailListener(type){return event=>record(type,event.detail||{})}
+  function finishUse(reason){
+    if(!active||useEndRecorded)return;
+    useEndRecorded=true;
+    record('application-use-ended',{reason});
+    flush().then(()=>uploadPending());
+  }
   [
     'trasy:stop-transition','trasy:route-build','trasy:navigation-resumed',
     'trasy:gps-speed','gps-next-stop-change','gps-stop-skipped','gps-stop-arrival',
@@ -393,9 +407,10 @@
   window.addEventListener('offline',()=>record('network-offline'));
   document.addEventListener('visibilitychange',()=>{
     record('visibility-change',{state:document.visibilityState});
-    if(document.visibilityState==='hidden')flush().then(()=>uploadPending());
+    if(document.visibilityState==='hidden')finishUse('hidden');
+    else if(useEndRecorded&&active){useEndRecorded=false;record('application-use-resumed')}
   });
-  window.addEventListener('pagehide',()=>{flush().then(()=>uploadPending())});
+  window.addEventListener('pagehide',()=>finishUse('pagehide'));
   document.addEventListener('click',event=>{
     const control=event.target.closest?.('button,a,select,input');
     if(!control)return;
@@ -427,7 +442,18 @@
     const dialog=makeDialog();updateUi();dialog.showModal();
   });
   root.classList.toggle('diagnosticRecording',active);
-  if(active)record('recording-restored',{appVersion:version?.dataset.version||''});
+  if(active){
+    sessionId=newSessionId();
+    localStorage.setItem(SESSION_KEY,sessionId);
+    record('recording-restored',{appVersion:version?.dataset.version||''});
+  }
   setInterval(()=>{if(active)flush().then(()=>uploadPending())},UPLOAD_INTERVAL_MS);
   if(navigator.onLine)scheduleUpload(1500);
+  if(!active&&localStorage.getItem(FIRST_USE_PROMPT_KEY)!=='shown'){
+    setTimeout(()=>{
+      const dialog=makeDialog();
+      updateUi('Przy pierwszym użyciu możesz od razu zatwierdzić automatyczne rejestrowanie testu. Dane nie są zbierane przed Twoją zgodą.');
+      if(!dialog.open)dialog.showModal();
+    },0);
+  }
 })();

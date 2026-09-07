@@ -30,6 +30,8 @@ test('aktywna diagnostyka automatycznie wysyła kolejkowane paczki przez Cloudfl
   assert.match(source,/keepalive:true/);
   assert.match(source,/visibilityState==='hidden'/);
   assert.match(source,/window\.addEventListener\('pagehide'/);
+  assert.match(source,/application-use-ended/);
+  assert.match(source,/finishUse\('hidden'\)/);
   assert.match(source,/setInterval\(\(\)=>\{if\(active\)flush\(\)\.then\(\(\)=>uploadPending\(\)\)/);
   assert.doesNotMatch(source,/DIAGNOSTICS_SHARED_SECRET/);
 });
@@ -46,8 +48,18 @@ test('eksport wskazuje uzgodniony email i nie udostępnia WhatsApp',()=>{
 test('skrypt diagnostyczny jest częścią powłoki offline PWA',()=>{
   const html=read('index.html');
   const sw=read('sw.js');
-  assert.match(html,/src="\.\/diagnostic-recorder\.js\?v=5"/);
+  assert.match(html,/src="\.\/diagnostic-recorder\.js\?v=6"/);
   assert.match(sw,/'\.\/diagnostic-recorder\.js'/);
+});
+
+test('pierwsze użycie samo otwiera zgodę, a zatwierdzenie uruchamia rejestrowanie',()=>{
+  const source=read('diagnostic-recorder.js');
+  assert.match(source,/FIRST_USE_PROMPT_KEY/);
+  assert.match(source,/CONSENT_KEY/);
+  assert.match(source,/ZGADZAM SIĘ I ROZPOCZYNAM/);
+  assert.match(source,/Dane nie są zbierane przed Twoją zgodą/);
+  assert.match(source,/if\(!active&&localStorage\.getItem\(FIRST_USE_PROMPT_KEY\)!=='shown'\)/);
+  assert.match(source,/localStorage\.setItem\(CONSENT_KEY,'approved'\)/);
 });
 
 test('pełne paczki diagnostyczne trafiają do prywatnego folderu, a arkusz przechowuje indeks',()=>{
