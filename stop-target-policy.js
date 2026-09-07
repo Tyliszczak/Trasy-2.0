@@ -29,7 +29,21 @@ export function canAutoAdvanceBySchedule({
   const nowMs=dateMs(now);
   const currentMs=dateMs(currentPlan);
   const nextMs=dateMs(nextPlan);
-  if(nowMs===null||currentMs===null||nextMs===null)return false;
+  if(nowMs===null)return false;
+
+  // Wiarygodne fizyczne minięcie ma pierwszeństwo przed brakującą godziną
+  // kolejnego wiersza. Wcześniej brak czasu w komórce mapy cofał poprawnie
+  // wykryty przejazd i bezpowrotnie kasował zebrany ślad GPS. Jeśli znamy czas
+  // bieżącego punktu, chronimy go tylko do tej godziny. Jeśli UI chwilowo nie
+  // udostępnia czasu, trzy zgodne odczyty pozycji, ruchu i kierunku są
+  // bezpieczniejszym źródłem niż zatrzymanie nawigacji na miniętym punkcie.
+  const physicalTransition=transitionReason==='passed-stop'||transitionReason==='reacquired-target';
+  if(physicalTransition){
+    if(currentMs===null)return true;
+    return nowMs>=currentMs;
+  }
+
+  if(currentMs===null||nextMs===null)return false;
 
   // Przy uruchomieniu kursu pierwszy przystanek jest chroniony przed
   // przypadkowym wyborem dalszego punktu. Ta ochrona nie może jednak
@@ -42,8 +56,6 @@ export function canAutoAdvanceBySchedule({
   // Gdy GPS podczas jazdy wiarygodnie potwierdzi fizyczne minięcie celu,
   // bieżący przystanek może zostać zamknięty już od jego planowej godziny.
   // Przed planem nadal go chronimy, aby przejazd obok nie oznaczał pominięcia.
-  if(transitionReason==='passed-stop')return nowMs>=currentMs;
-
   // Po wyraźnym minięciu planu bieżącego przystanku harmonogram nie może
   // już przytrzymywać prowadzenia na celu pozostawionym za pojazdem.
   if(nowMs-currentMs>=SCHEDULE_PRIORITY_GRACE_MS)return true;

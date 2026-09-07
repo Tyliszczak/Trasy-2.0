@@ -20,6 +20,7 @@ export const DEFAULT_STOP_ENGINE_CONFIG=Object.freeze({
   initialNearbyMeters:600,
   initialAdvantageMeters:200,
   initialMaximumHeadingDegrees:110,
+  initialBehindDegrees:120,
   passNearBaseMeters:75,
   passNearMaxMeters:100,
   passGrowthMeters:18,
@@ -90,8 +91,16 @@ export function createStopProgressEngine(overrides={}){
 
   function selectInitial(stops,position,{emptyRun=false,speedMps=0,heading=null,headingReliable=false,minimumIndex=0}={}){
     if(!stops.length)return null;
-    if(emptyRun)return stops.length-1;
+    if(emptyRun)return{index:stops.length-1,evidence:'empty-run'};
     const firstIndex=Math.max(0,Math.min(stops.length-1,Math.trunc(Number(minimumIndex)||0)));
+    const distances=stops.map(stop=>distanceMeters(position,stop.coord));
+    let nearest=firstIndex;
+    for(let i=firstIndex+1;i<distances.length;i+=1){
+      if(distances[i]<distances[nearest])nearest=i;
+    }
+    const hasNearbyAnchor=nearest>firstIndex
+      &&distances[nearest]<=config.initialNearbyMeters
+      &&distances[firstIndex]-distances[nearest]>=config.initialAdvantageMeters;
 
     const moving=Number.isFinite(speedMps)&&speedMps>=config.minimumMovingSpeedMps;
     if(moving){
@@ -100,22 +109,37 @@ export function createStopProgressEngine(overrides={}){
       // się jeszcze ustabilizować. Po kilku metrach tracker wyliczy heading.
       if(!headingReliable||!Number.isFinite(heading))return null;
 
-      // Wybieramy pierwszy przystanek w kolejności trasy, który znajduje się
-      // przed autem. Dzięki temu punkt pozostawiony za plecami nie wraca jako
-      // aktywny cel, nawet jeśli kolejny jest jeszcze daleko (>600 m).
+      // Najpierw kotwiczymy pozycję przy najbliższym wiarygodnym punkcie trasy.
+      // To jest ważniejsze od samego kąta: na łuku lub łącznicy odległy początek
+      // trasy może mieścić się w szerokim stożku kierunku mimo że został dawno
+      // za pojazdem. Jeśli najbliższy punkt jest wyraźnie z tyłu, a następny
+      // leży w kierunku jazdy, celem od razu zostaje następny punkt.
+      if(hasNearbyAnchor){
+        const nearestBearing=bearingDegrees(position,stops[nearest].coord);
+        const nearestAngle=angleDifference(heading,nearestBearing);
+        const nextIndex=nearest+1;
+        if(nearestAngle>=config.initialBehindDegrees&&nextIndex<stops.length){
+          const nextBearing=bearingDegrees(position,stops[nextIndex].coord);
+          if(angleDifference(heading,nextBearing)<=config.initialMaximumHeadingDegrees){
+            return{index:nextIndex,evidence:'nearby-point-behind'};
+          }
+        }
+        return{index:nearest,evidence:'nearby-route-anchor'};
+      }
+
+      // Poza bezpośrednim sąsiedztwem wybieramy pierwszy punkt rzeczywiście
+      // znajdujący się przed autem. Kolejność trasy pozostaje rozstrzygająca.
       for(let i=firstIndex;i<stops.length;i+=1){
         const targetBearing=bearingDegrees(position,stops[i].coord);
-        if(angleDifference(heading,targetBearing)<=config.initialMaximumHeadingDegrees)return i;
+        if(angleDifference(heading,targetBearing)<=config.initialMaximumHeadingDegrees){
+          return{index:i,evidence:'forward-bearing'};
+        }
       }
+      return null;
     }
 
-    const distances=stops.map(stop=>distanceMeters(position,stop.coord));
-    let nearest=firstIndex;
-    for(let i=firstIndex+1;i<distances.length;i+=1){
-      if(distances[i]<distances[nearest])nearest=i;
-    }
-    if(nearest>firstIndex&&distances[nearest]<=config.initialNearbyMeters&&distances[firstIndex]-distances[nearest]>=config.initialAdvantageMeters)return nearest;
-    return firstIndex;
+    if(hasNearbyAnchor)return{index:nearest,evidence:'nearby-route-anchor'};
+    return{index:firstIndex,evidence:'stationary-route-start'};
   }
 
   function findReacquireCandidate(stops,position,speedMps,heading,headingReliable,currentDistance){
@@ -153,7 +177,7 @@ export function createStopProgressEngine(overrides={}){
       const movingReliable=Number.isFinite(speedMps)&&speedMps>=config.minimumMovingSpeedMps&&headingReliable&&Number.isFinite(heading);
       const selected=selectInitial(stops,position,{emptyRun:false,speedMps,heading,headingReliable,minimumIndex:firstIndex});
       if(selected===null)return{...snapshot(),changed:false,reason:'awaiting-heading'};
-      index=selected;
+      index=selected.index;
       phase='approaching';
       arrivalFixes=0;
       departureFixes=0;
@@ -161,29 +185,33 @@ export function createStopProgressEngine(overrides={}){
       closestDistance=Infinity;
       lastDistance=Infinity;
       initialSelectionProvisional=!movingReliable;
+      // Po starcie w ruchu zezwalamy na jedną kontrolowaną korektę o jeden
+      // punkt. Chroni to przed przyklejeniem celu do zakrętu właśnie miniętego
+      // podczas uruchamiania, bez otwierania drogi do seryjnego pomijania.
+      reacquireLocked=!movingReliable;
       resetReacquire();
-      return{...snapshot(),changed:true,reason:'initial-target'};
+      return{...snapshot(),changed:true,reason:'initial-target',selectionEvidence:selected.evidence,distance:distanceMeters(position,stops[index].coord)};
     }
 
     const movingReliable=Number.isFinite(speedMps)&&speedMps>=config.minimumMovingSpeedMps&&headingReliable&&Number.isFinite(heading);
     if(initialSelectionProvisional&&phase==='approaching'&&movingReliable){
       const selected=selectInitial(stops,position,{emptyRun:false,speedMps,heading,headingReliable:true,minimumIndex:firstIndex});
       initialSelectionProvisional=false;
-      if(selected!==null&&selected!==index){
+      if(selected!==null&&selected.index!==index){
         const fromIndex=index;
-        index=selected;
+        index=selected.index;
         phase='approaching';
         arrivalFixes=0;
         departureFixes=0;
         passFixes=0;
         closestDistance=Infinity;
         lastDistance=Infinity;
-        reacquireLocked=true;
+        reacquireLocked=false;
         resetReacquire();
         const distance=distanceMeters(position,stops[index].coord);
         const arrivalRadius=Math.min(config.arrivalMaxMeters,config.arrivalBaseMeters+Math.max(0,accuracy)*0.25);
         const departureRadius=Math.max(config.departureBaseMeters,arrivalRadius+35);
-        return{...snapshot(),changed:true,reason:'initial-motion-target',fromIndex,distance,arrivalRadius,departureRadius};
+        return{...snapshot(),changed:true,reason:'initial-motion-target',selectionEvidence:selected.evidence,fromIndex,distance,arrivalRadius,departureRadius};
       }
     }
 

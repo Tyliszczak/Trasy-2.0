@@ -63,7 +63,7 @@ test('dawno minięty przystanek nie blokuje celu nawet przy dużej luce w harmon
   }),true);
 });
 
-test('brak czasu bieżącego lub następnego przystanku blokuje automatyczne pominięcie',()=>{
+test('brak czasu blokuje wybór heurystyczny, ale nie potwierdzone fizyczne minięcie',()=>{
   assert.equal(canAutoAdvanceBySchedule({
     currentPlan:null,
     nextPlan:at('06:40'),
@@ -73,6 +73,36 @@ test('brak czasu bieżącego lub następnego przystanku blokuje automatyczne pom
     currentPlan:at('06:15'),
     nextPlan:null,
     now:at('06:40')
+  }),false);
+  assert.equal(canAutoAdvanceBySchedule({
+    currentPlan:at('06:15'),
+    nextPlan:null,
+    now:at('06:16'),
+    transitionReason:'passed-stop'
+  }),true);
+  assert.equal(canAutoAdvanceBySchedule({
+    currentPlan:null,
+    nextPlan:null,
+    now:at('06:16'),
+    transitionReason:'passed-stop'
+  }),true);
+});
+
+test('potwierdzone odzyskanie celu po planie nie czeka do godziny następnego przystanku',()=>{
+  assert.equal(canAutoAdvanceBySchedule({
+    currentPlan:at('05:23'),
+    nextPlan:at('05:39'),
+    now:at('05:26'),
+    transitionReason:'reacquired-target'
+  }),true);
+});
+
+test('odzyskanie celu przed planem nadal jest chronione przez harmonogram',()=>{
+  assert.equal(canAutoAdvanceBySchedule({
+    currentPlan:at('05:23'),
+    nextPlan:at('05:39'),
+    now:at('05:22'),
+    transitionReason:'reacquired-target'
   }),false);
 });
 

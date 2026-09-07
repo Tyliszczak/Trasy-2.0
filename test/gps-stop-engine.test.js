@@ -73,6 +73,62 @@ test('po ponownym uruchomieniu w środku trasy silnik pomija punkty pozostawione
   assert.equal(result.reason,'initial-target');
 });
 
+test('zapis TopPoint po ponownym wejściu nie wraca z Krępy do Planetarium',()=>{
+  const routeStops=[
+    ['Planetarium',51.936193,15.507740],
+    ['Łużycka',51.934436,15.487795],
+    ['Węgierska',51.93669560176736,15.481252088393937],
+    ['Dolina Zielona',51.94969823541685,15.518704457413836],
+    ['Strumykowa',51.95522900030204,15.522197388092817],
+    ['Bukowa',51.96596812032319,15.53248900107824],
+    ['Krępa',52.00092401632587,15.53803713425898],
+    ['Sulechów Odrzańska',52.077997684488935,15.619947687334712],
+    ['Sulechów Przemysłowa',52.08538589748771,15.608901591719208],
+    ['Toppoint',52.08214,15.589058]
+  ].map(([key,lat,lng])=>({key,coord:[lat,lng]}));
+  const engine=createStopProgressEngine();
+  const result=engine.update({
+    stops:routeStops,
+    position:[51.9981564,15.5451063],
+    accuracy:4.103,
+    speedMps:14.9,
+    heading:113,
+    headingReliable:true
+  });
+  assert.equal(result.index,7,'po minięciu Krępy celem ma być Odrzańska');
+  assert.equal(result.selectionEvidence,'nearby-point-behind');
+});
+
+test('rzeczywisty przejazd przez Bukową bez postoju przełącza cel na Krępę',()=>{
+  const routeStops=[
+    ['Planetarium',51.936193,15.507740],
+    ['Łużycka',51.934436,15.487795],
+    ['Węgierska',51.93669560176736,15.481252088393937],
+    ['Dolina Zielona',51.94969823541685,15.518704457413836],
+    ['Strumykowa',51.95522900030204,15.522197388092817],
+    ['Bukowa',51.96596812032319,15.53248900107824],
+    ['Krępa',52.00092401632587,15.53803713425898]
+  ].map(([key,lat,lng])=>({key,coord:[lat,lng]}));
+  const fixes=[
+    [51.9658742,15.5322566,13.8,46],
+    [51.9659222,15.5323327,14.5,46],
+    [51.9659842,15.5324323,19.9,45],
+    [51.9660764,15.5325709,27.8,43],
+    [51.9661842,15.5327262,30.6,41],
+    [51.9662620,15.5328500,34.5,38],
+    [51.9664132,15.5329886,41.5,34]
+  ];
+  const engine=createStopProgressEngine();
+  engine.setIndex(5);
+  let result;
+  for(const[lat,lng,kmh,heading]of fixes){
+    result=engine.update({stops:routeStops,position:[lat,lng],accuracy:3.9,speedMps:kmh/3.6,heading,headingReliable:true});
+  }
+  assert.equal(result.index,6);
+  assert.equal(result.reason,'passed-stop');
+  assert.equal(result.skippedIndex,5);
+});
+
 test('podczas jazdy bez wiarygodnego kierunku silnik nie wraca odruchowo do pierwszego przystanku',()=>{
   const engine=createStopProgressEngine();
   const result=fix(engine,700,{speedMps:10,headingReliable:false});

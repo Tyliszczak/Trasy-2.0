@@ -29,6 +29,7 @@ import{canAutoAdvanceBySchedule,shouldApplySchedulePriority}from'./stop-target-p
   let headingAt=0;
   let currentIndex=null;
   let reachedBeforeTime=false;
+  let pendingScheduleAdvance=null;
   let earlyWarningTimer=null;
   let missedStopWarningTimer=null;
 
@@ -89,6 +90,7 @@ import{canAutoAdvanceBySchedule,shouldApplySchedulePriority}from'./stop-target-p
     heading=null;
     headingAt=0;
     reachedBeforeTime=false;
+    pendingScheduleAdvance=null;
     engine.reset();
     if(!returnOriginLocked())setTimeout(chooseAndApply,100);
   }
@@ -232,6 +234,28 @@ import{canAutoAdvanceBySchedule,shouldApplySchedulePriority}from'./stop-target-p
       return;
     }
     const routeRows=rows();
+
+    // Zachowujemy raz potwierdzone minięcie także wtedy, gdy harmonogram
+    // chwilowo każe jeszcze czekać. Stary algorytm resetował cały ślad GPS;
+    // po odjechaniu od punktu nie było już możliwości ponownego wykrycia
+    // przejazdu i cel pozostawał zablokowany bez końca.
+    if(pendingScheduleAdvance){
+      const pending=pendingScheduleAdvance;
+      if(!scheduleAllowsAutoAdvance(pending.fromIndex,pending.toIndex,pending.result.reason)){
+        currentIndex=pending.fromIndex;
+        applyIndex(currentIndex,'schedule-priority',pending.result);
+        updateStopGuard();
+        return;
+      }
+      pendingScheduleAdvance=null;
+      currentIndex=pending.toIndex;
+      engine.setIndex(currentIndex);
+      applyIndex(currentIndex,pending.result.reason,pending.result);
+      if(pending.result.justSkipped)emitSkippedStop(routeRows,pending.result);
+      updateStopGuard();
+      return;
+    }
+
     const result=engine.update({
       stops:stops(),
       position:lastPos,
@@ -256,6 +280,7 @@ import{canAutoAdvanceBySchedule,shouldApplySchedulePriority}from'./stop-target-p
           ?result.fromIndex
           :minimumTargetIndex();
       if(!scheduleAllowsAutoAdvance(fromIndex,currentIndex,result.reason)){
+        pendingScheduleAdvance={fromIndex,toIndex:currentIndex,result};
         currentIndex=fromIndex;
         engine.setIndex(currentIndex);
         applyIndex(currentIndex,'schedule-priority',result);
@@ -287,27 +312,30 @@ import{canAutoAdvanceBySchedule,shouldApplySchedulePriority}from'./stop-target-p
       if(eligible&&reachedBeforeTime&&plan&&Date.now()<plan.getTime()&&body.dataset.direction!=='return')showEarlyDepartureWarning(rowPlanText(previousRow));
       reachedBeforeTime=false;
     }
-    if(result.justSkipped&&Number.isInteger(result.skippedIndex)){
-      const skippedRow=routeRows[result.skippedIndex];
-      const skippedName=skippedRow?.children[0]?.innerText.trim()||'Przystanek';
-      reachedBeforeTime=false;
-      showMissedStopWarning(skippedName);
-      body.dispatchEvent(new CustomEvent('gps-stop-skipped',{
-        bubbles:true,
-        detail:{
-          index:result.skippedIndex,
-          name:skippedName,
-          key:skippedRow?.dataset.stopId||`${result.skippedIndex}:${skippedRow?.dataset.coordinate||''}`,
-          coordinate:skippedRow?.dataset.coordinate||'',
-          nextIndex:currentIndex,
-          direction:body.dataset.direction||'forward'
-        }
-      }));
-    }
+    if(result.justSkipped)emitSkippedStop(routeRows,result);
 
     applyIndex(currentIndex,result.reason,result);
     if(arrivalDetail)body.dispatchEvent(new CustomEvent('gps-stop-arrival',{bubbles:true,detail:arrivalDetail}));
     updateStopGuard();
+  }
+
+  function emitSkippedStop(routeRows,result){
+    if(!Number.isInteger(result.skippedIndex))return;
+    const skippedRow=routeRows[result.skippedIndex];
+    const skippedName=skippedRow?.children[0]?.innerText.trim()||'Przystanek';
+    reachedBeforeTime=false;
+    showMissedStopWarning(skippedName);
+    body.dispatchEvent(new CustomEvent('gps-stop-skipped',{
+      bubbles:true,
+      detail:{
+        index:result.skippedIndex,
+        name:skippedName,
+        key:skippedRow?.dataset.stopId||`${result.skippedIndex}:${skippedRow?.dataset.coordinate||''}`,
+        coordinate:skippedRow?.dataset.coordinate||'',
+        nextIndex:currentIndex,
+        direction:body.dataset.direction||'forward'
+      }
+    }));
   }
 
   function onPos(position){
@@ -361,6 +389,7 @@ import{canAutoAdvanceBySchedule,shouldApplySchedulePriority}from'./stop-target-p
     if(!Number.isInteger(index)||index<minimum||index>=routeRows.length)return;
     currentIndex=index;
     reachedBeforeTime=false;
+    pendingScheduleAdvance=null;
     engine.setIndex(index);
     applyIndex(index,source||'manual-target');
     updateStopGuard();
@@ -369,6 +398,7 @@ import{canAutoAdvanceBySchedule,shouldApplySchedulePriority}from'./stop-target-p
   function onReturnOriginChange(event){
     const active=event.detail?.active===true||body.dataset.returnOriginActive==='1';
     if(active){
+      pendingScheduleAdvance=null;
       currentIndex=null;
       engine.reset();
       clearActiveTarget();
