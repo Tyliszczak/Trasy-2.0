@@ -10,6 +10,15 @@ function dateMs(value){
 
 const SCHEDULE_PRIORITY_GRACE_MS=10*60*1000;
 
+export function manualSkipTargetIndex({currentIndex,stopCount,minimumIndex=0}={}){
+  const current=currentIndex;
+  const count=stopCount;
+  const minimum=Math.max(0,Math.trunc(Number(minimumIndex)||0));
+  if(!Number.isInteger(current)||!Number.isInteger(count)||count<=0)return null;
+  if(current<minimum||current>=count-1)return null;
+  return current+1;
+}
+
 export function shouldApplySchedulePriority({
   direction='forward',
   emptyRun=false

@@ -88,6 +88,8 @@ body:has(#scheduleView:not([hidden])) #scheduleView .tableWrap{flex:1 1 auto!imp
 #routeNextStop .nextStopGuard.hold{background:#ff3b30;color:#fff}
 #routeNextStop .nextStopGuard.ready{background:#34c759;color:#071407}
 #routeNextStop .nextStopGuard.flash3{animation:trasyHoldFlash .36s ease-in-out 3}
+#routeSkipCurrentButton{display:inline-flex;align-items:center;justify-content:center;width:auto!important;min-width:70px!important;min-height:30px!important;margin:5px 0 0!important;padding:4px 10px!important;border:1px solid #ff6b76!important;border-radius:7px!important;background:#6f1721!important;color:#fff!important;font-size:12px!important;font-weight:1000!important;line-height:1!important;letter-spacing:.03em!important}
+#routeSkipCurrentButton:focus-visible{outline:3px solid #fff!important;outline-offset:2px!important}
 @keyframes trasyHoldFlash{0%,100%{background:#ff3b30;opacity:1;transform:scale(1)}50%{background:#730000;opacity:.3;transform:scale(.98)}}
 .activeStopEtaBubble{display:none!important}
 #routeNavRoot .maplibregl-popup{display:none!important}

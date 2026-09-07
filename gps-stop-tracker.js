@@ -5,7 +5,7 @@ import{
 }from'./gps-stop-engine.js';
 import{planDateForRow,rowPlanText}from'./schedule-time.js';
 import{stopGuardState}from'./stop-alert-core.js';
-import{canAutoAdvanceBySchedule,shouldApplySchedulePriority}from'./stop-target-policy.js';
+import{canAutoAdvanceBySchedule,manualSkipTargetIndex,shouldApplySchedulePriority}from'./stop-target-policy.js';
 
 (()=>{
   const body=document.getElementById('scheduleBody');
@@ -108,7 +108,7 @@ import{canAutoAdvanceBySchedule,shouldApplySchedulePriority}from'./stop-target-p
     earlyWarningTimer=setTimeout(()=>{el.hidden=true},EARLY_WARNING_MS);
   }
 
-  function showMissedStopWarning(name){
+  function showMissedStopWarning(name,manual=false){
     let el=document.getElementById('missedStopWarning');
     if(!el){
       el=document.createElement('div');
@@ -119,6 +119,7 @@ import{canAutoAdvanceBySchedule,shouldApplySchedulePriority}from'./stop-target-p
       el.querySelector('button').onclick=()=>{clearTimeout(missedStopWarningTimer);el.hidden=true};
       document.body.append(el);
     }
+    el.querySelector('.missedStopText strong').textContent=manual?'POMINIĘTO PRZYSTANEK':'POMINĄŁEŚ PRZYSTANEK';
     el.querySelector('.missedStopText span').textContent=name||'Przystanek';
     el.hidden=false;
     clearTimeout(missedStopWarningTimer);
@@ -324,7 +325,7 @@ import{canAutoAdvanceBySchedule,shouldApplySchedulePriority}from'./stop-target-p
     const skippedRow=routeRows[result.skippedIndex];
     const skippedName=skippedRow?.children[0]?.innerText.trim()||'Przystanek';
     reachedBeforeTime=false;
-    showMissedStopWarning(skippedName);
+    showMissedStopWarning(skippedName,Boolean(result.manual));
     body.dispatchEvent(new CustomEvent('gps-stop-skipped',{
       bubbles:true,
       detail:{
@@ -333,7 +334,9 @@ import{canAutoAdvanceBySchedule,shouldApplySchedulePriority}from'./stop-target-p
         key:skippedRow?.dataset.stopId||`${result.skippedIndex}:${skippedRow?.dataset.coordinate||''}`,
         coordinate:skippedRow?.dataset.coordinate||'',
         nextIndex:currentIndex,
-        direction:body.dataset.direction||'forward'
+        direction:body.dataset.direction||'forward',
+        manual:Boolean(result.manual),
+        reason:result.reason||''
       }
     }));
   }
@@ -395,6 +398,32 @@ import{canAutoAdvanceBySchedule,shouldApplySchedulePriority}from'./stop-target-p
     updateStopGuard();
   }
 
+  function skipCurrentStopManually(expectedIndex){
+    const routeRows=rows();
+    const storedIndex=Number(body.dataset.gpsNextStop);
+    const active=Number.isInteger(currentIndex)
+      ?currentIndex
+      :Number.isInteger(storedIndex)
+        ?storedIndex
+        :Number.isInteger(expectedIndex)
+          ?expectedIndex
+          :minimumTargetIndex();
+    if(Number.isInteger(expectedIndex)&&expectedIndex!==active)return;
+    const nextIndex=manualSkipTargetIndex({
+      currentIndex:active,
+      stopCount:routeRows.length,
+      minimumIndex:minimumTargetIndex()
+    });
+    if(nextIndex===null)return;
+    setManualIndex(nextIndex,'manual-skip');
+    emitSkippedStop(routeRows,{
+      justSkipped:true,
+      skippedIndex:active,
+      manual:true,
+      reason:'manual-skip'
+    });
+  }
+
   function onReturnOriginChange(event){
     const active=event.detail?.active===true||body.dataset.returnOriginActive==='1';
     if(active){
@@ -421,6 +450,7 @@ import{canAutoAdvanceBySchedule,shouldApplySchedulePriority}from'./stop-target-p
   body.addEventListener('schedule-rendered',routeChanged);
   body.addEventListener('return-origin-change',onReturnOriginChange);
   body.addEventListener('gps-skip-stop',event=>setManualIndex(Number(event.detail?.index),event.detail?.source));
+  body.addEventListener('gps-skip-current-stop',event=>skipCurrentStopManually(Number(event.detail?.expectedIndex)));
   setInterval(updateStopGuard,1000);
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')start()});
   start();
