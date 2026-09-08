@@ -11,6 +11,7 @@
   const SESSION_KEY='trasy2.diagnostics.session';
   const INSTALLATION_KEY='trasy2.diagnostics.installation';
   const LAST_UPLOADED_KEY='trasy2.diagnostics.lastUploadedId';
+  const SESSION_UPLOAD_CURSORS_KEY='trasy2.diagnostics.sessionUploadCursors.v1';
   const CONSENT_KEY='trasy2.diagnostics.consent.v1';
   const FIRST_USE_PROMPT_KEY='trasy2.diagnostics.firstUsePrompt.v1';
   const UPLOAD_ENDPOINT='/test-diagnostics';
@@ -47,6 +48,18 @@
       id=randomId();localStorage.setItem(INSTALLATION_KEY,id);
     }
     return id;
+  }
+
+  function deviceLabel(){
+    const userAgent=navigator.userAgent||'';
+    const platform=/iPhone/i.test(userAgent)?'iPhone Safari':
+      /iPad/i.test(userAgent)?'iPad Safari':
+      /Android/i.test(userAgent)?'Android Chrome':
+      /Windows/i.test(userAgent)?'Windows':
+      /Macintosh/i.test(userAgent)?'Mac':'Inne urządzenie';
+    const width=Math.max(0,Math.round(Number(screen.width)||0));
+    const height=Math.max(0,Math.round(Number(screen.height)||0));
+    return [platform,width&&height?`${width}x${height}`:''].filter(Boolean).join(' ').slice(0,80);
   }
 
   function newSessionId(){
@@ -206,6 +219,40 @@
     });
   }
 
+  async function pendingSessionEvents(targetSessionId,afterId,limit=UPLOAD_BATCH_SIZE){
+    await flush();
+    const db=await openDb();
+    return new Promise((resolve,reject)=>{
+      const events=[];
+      const request=db.transaction(STORE,'readonly').objectStore(STORE)
+        .index('sessionId').openCursor(IDBKeyRange.only(targetSessionId));
+      request.onsuccess=()=>{
+        const cursor=request.result;
+        if(!cursor||events.length>=limit){resolve(events);return}
+        if(Number(cursor.value?.id)>Math.max(0,Number(afterId)||0))events.push(cursor.value);
+        if(events.length>=limit){resolve(events);return}
+        cursor.continue();
+      };
+      request.onerror=()=>reject(request.error);
+    });
+  }
+
+  function sessionUploadCursors(){
+    try{
+      const value=JSON.parse(localStorage.getItem(SESSION_UPLOAD_CURSORS_KEY)||'{}');
+      return value&&typeof value==='object'&&!Array.isArray(value)?value:{};
+    }catch{return{}}
+  }
+
+  function rememberSessionUploaded(targetSessionId,eventId){
+    const cursors=sessionUploadCursors();
+    const uploaded=Math.max(Number(cursors[targetSessionId])||0,Number(eventId)||0);
+    delete cursors[targetSessionId];
+    cursors[targetSessionId]=uploaded;
+    const recent=Object.entries(cursors).slice(-20);
+    localStorage.setItem(SESSION_UPLOAD_CURSORS_KEY,JSON.stringify(Object.fromEntries(recent)));
+  }
+
   async function clearEvents(){
     queue=[];
     const db=await openDb();
@@ -215,6 +262,7 @@
       request.onerror=()=>reject(request.error);
     });
     localStorage.removeItem(LAST_UPLOADED_KEY);
+    localStorage.removeItem(SESSION_UPLOAD_CURSORS_KEY);
     updateUi('Dane diagnostyczne zostały usunięte.');
   }
 
@@ -228,6 +276,7 @@
     return{
       batchId:`${installationId()}:${first.id}-${last.id}`,
       installationId:installationId(),
+      deviceLabel:deviceLabel(),
       appVersion:version?.dataset.version||'',
       sessionId:first.sessionId,
       events
@@ -246,19 +295,28 @@
       let sent=0;
       try{
         await flush();
+        if(sessionId){
+          for(let part=0;part<8;part++){
+            const sessionCursor=Math.max(
+              Number(sessionUploadCursors()[sessionId])||0,
+              Number(localStorage.getItem(LAST_UPLOADED_KEY))||0
+            );
+            const pending=await pendingSessionEvents(sessionId,sessionCursor);
+            if(!pending.length)break;
+            const events=boundedBatch(pending);
+            if(!events.length)throw new Error('Nie można przygotować bieżącej paczki diagnostycznej.');
+            await uploadBatch(events);
+            rememberSessionUploaded(sessionId,events[events.length-1].id);
+            sent+=events.length;
+          }
+        }
         for(let part=0;part<8;part++){
           const lastUploaded=Math.max(0,Number(localStorage.getItem(LAST_UPLOADED_KEY))||0);
           const pending=await pendingEvents(lastUploaded);
           if(!pending.length)break;
           const events=boundedBatch(pending);
           if(!events.length)throw new Error('Nie można przygotować paczki diagnostycznej.');
-          const payload=payloadFor(events);
-          const response=await fetch(UPLOAD_ENDPOINT,{
-            method:'POST',cache:'no-store',credentials:'same-origin',keepalive:true,
-            headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)
-          });
-          const result=await response.json().catch(()=>({}));
-          if(!response.ok||result?.status!=='success')throw new Error(result?.message||`HTTP ${response.status}`);
+          await uploadBatch(events);
           localStorage.setItem(LAST_UPLOADED_KEY,String(events[events.length-1].id));
           sent+=events.length;
         }
@@ -271,6 +329,17 @@
       }
     })();
     return uploadInFlight;
+  }
+
+  async function uploadBatch(events){
+    const payload=payloadFor(events);
+    const response=await fetch(UPLOAD_ENDPOINT,{
+      method:'POST',cache:'no-store',credentials:'same-origin',keepalive:true,
+      headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)
+    });
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok||result?.status!=='success')throw new Error(result?.message||`HTTP ${response.status}`);
+    return result;
   }
 
   function setActive(next){

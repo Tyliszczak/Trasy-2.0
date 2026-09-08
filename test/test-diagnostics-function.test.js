@@ -4,7 +4,7 @@ import{onRequest}from'../functions/test-diagnostics.js';
 
 const origin='https://trasy.tyli.pl';
 const event={id:1,sessionId:'session-1',at:'2026-09-02T10:00:00.000Z',type:'gps-fix',elapsedMs:10,snapshot:{route:'TopPoint'},detail:{latitude:51.9,longitude:15.5}};
-const payload={batchId:'install-1:1-1',installationId:'installation-123456',appVersion:'2.0.194',sessionId:'session-1',events:[event]};
+const payload={batchId:'install-1:1-1',installationId:'installation-123456',deviceLabel:'Android Chrome 360x800',appVersion:'2.0.194',sessionId:'session-1',events:[event]};
 const request=(body=payload,headers={})=>new Request('https://trasy.tyli.pl/test-diagnostics',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json',...headers},body:JSON.stringify(body)});
 
 test('endpoint diagnostyki odrzuca obce źródło i brak sekretu serwera',async()=>{
@@ -26,6 +26,7 @@ test('endpoint waliduje paczkę i przekazuje sekret wyłącznie do Apps Script',
     assert.equal((await response.json()).status,'success');
     assert.equal(forwarded.secret,'server-only-secret');
     assert.equal(forwarded.action,'appendTestDiagnostics');
+    assert.equal(forwarded.deviceLabel,'Android Chrome 360x800');
     assert.equal(forwarded.events.length,1);
   }finally{globalThis.fetch=originalFetch}
 });
@@ -35,4 +36,6 @@ test('endpoint nie przyjmuje mieszanych sesji ani zbyt wielu zdarzeń',async()=>
   assert.equal((await onRequest({request:request(mixed),env:{DIAGNOSTICS_SHARED_SECRET:'x'}})).status,400);
   const tooMany={...payload,events:Array.from({length:41},(_,index)=>({...event,id:index+1}))};
   assert.equal((await onRequest({request:request(tooMany),env:{DIAGNOSTICS_SHARED_SECRET:'x'}})).status,400);
+  const invalidDevice={...payload,deviceLabel:'Android\u0000telefon'};
+  assert.equal((await onRequest({request:request(invalidDevice),env:{DIAGNOSTICS_SHARED_SECRET:'x'}})).status,400);
 });

@@ -32,6 +32,9 @@ test('aktywna diagnostyka automatycznie wysyła kolejkowane paczki przez Cloudfl
   assert.match(source,/window\.addEventListener\('pagehide'/);
   assert.match(source,/application-use-ended/);
   assert.match(source,/finishUse\('hidden'\)/);
+  assert.match(source,/pendingSessionEvents/);
+  assert.match(source,/SESSION_UPLOAD_CURSORS_KEY/);
+  assert.match(source,/deviceLabel:deviceLabel\(\)/);
   assert.match(source,/setInterval\(\(\)=>\{if\(active\)flush\(\)\.then\(\(\)=>uploadPending\(\)\)/);
   assert.doesNotMatch(source,/DIAGNOSTICS_SHARED_SECRET/);
 });
@@ -48,7 +51,7 @@ test('eksport wskazuje uzgodniony email i nie udostępnia WhatsApp',()=>{
 test('skrypt diagnostyczny jest częścią powłoki offline PWA',()=>{
   const html=read('index.html');
   const sw=read('sw.js');
-  assert.match(html,/src="\.\/diagnostic-recorder\.js\?v=6"/);
+  assert.match(html,/src="\.\/diagnostic-recorder\.js\?v=7"/);
   assert.match(sw,/'\.\/diagnostic-recorder\.js'/);
 });
 
@@ -65,9 +68,13 @@ test('pierwsze użycie samo otwiera zgodę, a zatwierdzenie uruchamia rejestrowa
 test('pełne paczki diagnostyczne trafiają do prywatnego folderu, a arkusz przechowuje indeks',()=>{
   const backend=read('TEST_DIAGNOSTICS_APPS_SCRIPT.gs.txt');
   const recorder=read('diagnostic-recorder.js');
+  assert.doesNotThrow(()=>new vm.Script(backend));
   assert.match(backend,/getProperty\('DIAGNOSTICS_FOLDER_ID'\)/);
-  assert.match(backend,/DriveApp\.getFolderById\(folderId\)/);
-  assert.match(backend,/folder\.createFile\(/);
+  assert.match(backend,/getDiagnosticsJsonRoot_\(properties\)/);
+  assert.match(backend,/getFoldersByName\('Pliki JSON'\)/);
+  assert.match(backend,/getDiagnosticsDeviceFolder_/);
+  assert.match(backend,/deviceFolder\.createFile\(/);
+  assert.match(backend,/'URZĄDZENIE'/);
   assert.match(backend,/'PLIK_JSON'/);
   assert.doesNotMatch(backend,/'DANE_JSON'/);
   assert.match(recorder,/prywatnego archiwum testów/);

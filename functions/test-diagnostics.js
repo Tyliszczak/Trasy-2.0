@@ -62,9 +62,10 @@ export async function onRequest({request,env}){
     const input=JSON.parse(raw||'{}');
     const batchId=text(input.batchId,180);
     const installationId=text(input.installationId,100);
+    const deviceLabel=text(input.deviceLabel,80);
     const appVersion=text(input.appVersion,24);
     const sessionId=text(input.sessionId,180);
-    if(!validId(batchId)||!validId(installationId,100)||!/^2\.0\.\d+$/.test(appVersion)||!validId(sessionId))return json({status:'error',message:'INVALID_METADATA'},400);
+    if(!validId(batchId)||!validId(installationId,100)||/[\u0000-\u001F\u007F]/.test(deviceLabel)||!/^2\.0\.\d+$/.test(appVersion)||!validId(sessionId))return json({status:'error',message:'INVALID_METADATA'},400);
     if(!Array.isArray(input.events)||!input.events.length||input.events.length>MAX_EVENTS)return json({status:'error',message:'INVALID_EVENT_COUNT'},400);
     const events=input.events.map(sanitizeEvent);
     if(events.some(event=>!event))return json({status:'error',message:'INVALID_EVENT'},400);
@@ -79,7 +80,7 @@ export async function onRequest({request,env}){
         body:JSON.stringify({
           action:'appendTestDiagnostics',
           secret:env.DIAGNOSTICS_SHARED_SECRET,
-          batchId,installationId,appVersion,sessionId,events
+          batchId,installationId,deviceLabel,appVersion,sessionId,events
         }),
         redirect:'follow',signal:controller.signal
       });

@@ -17,7 +17,8 @@
 function appendTestDiagnostics_(p) {
   var properties = PropertiesService.getScriptProperties();
   var expected = String(properties.getProperty('DIAGNOSTICS_SHARED_SECRET') || '');
-  var folderId = String(properties.getProperty('DIAGNOSTICS_FOLDER_ID') || '');
+  var folderId = String(properties.getProperty('DIAGNOSTICS_FOLDER_ID') ||
+    properties.getProperty('DIAGNOSTICS_APP_FOLDER_ID') || '');
   var received = String(p && p.secret || '');
   if (!expected || !constantTimeEqualsDiagnostics_(expected, received)) {
     return createJsonResponse({status:'error', message:'UNAUTHORIZED'});
@@ -28,11 +29,13 @@ function appendTestDiagnostics_(p) {
 
   var batchId = safeDiagnosticsText_(p.batchId, 180);
   var installationId = safeDiagnosticsText_(p.installationId, 100);
+  var deviceLabel = safeDiagnosticsText_(p.deviceLabel, 80);
   var appVersion = safeDiagnosticsText_(p.appVersion, 24);
   var sessionId = safeDiagnosticsText_(p.sessionId, 180);
   var events = Array.isArray(p.events) ? p.events : [];
   if (!/^[A-Za-z0-9:._-]+$/.test(batchId) ||
       !/^[A-Za-z0-9:._-]+$/.test(installationId) ||
+      /[\u0000-\u001F\u007F]/.test(deviceLabel) ||
       !/^2\.0\.\d+$/.test(appVersion) ||
       !/^[A-Za-z0-9:._-]+$/.test(sessionId) ||
       !events.length || events.length > 40) {
@@ -62,6 +65,7 @@ function appendTestDiagnostics_(p) {
     var sheet = spreadsheet.getSheetByName('DIAGNOSTYKA TESTÓW');
     if (!sheet) sheet = createTestDiagnosticsSheet_(spreadsheet);
     sheet.getRange(1, 18).setValue('PLIK_JSON');
+    sheet.getRange(1, 19).setValue('URZĄDZENIE');
 
     var lastRow = sheet.getLastRow();
     if (lastRow > 1) {
@@ -70,12 +74,14 @@ function appendTestDiagnostics_(p) {
       if (duplicate) return createJsonResponse({status:'success', batchId:batchId, duplicate:true});
     }
 
-    var folder = DriveApp.getFolderById(folderId);
+    var folder = getDiagnosticsJsonRoot_(properties);
+    var deviceFolder = getDiagnosticsDeviceFolder_(folder, properties, installationId, deviceLabel);
     var archive = {
       format: 'trasy-2.0-test-diagnostics-batch',
       schemaVersion: 1,
       batchId: batchId,
       installationId: installationId,
+      deviceLabel: deviceLabel,
       appVersion: appVersion,
       sessionId: sessionId,
       receivedAt: new Date().toISOString(),
@@ -84,7 +90,7 @@ function appendTestDiagnostics_(p) {
     };
     var fileName = 'trasy-2.0-' + appVersion + '-' +
       batchId.replace(/[^A-Za-z0-9._-]+/g, '-').slice(0, 140) + '.json';
-    diagnosticFile = folder.createFile(
+    diagnosticFile = deviceFolder.createFile(
       Utilities.newBlob(JSON.stringify(archive, null, 2), 'application/json', fileName)
     );
 
@@ -105,9 +111,9 @@ function appendTestDiagnostics_(p) {
       safeSheetValue_(snapshot.route || ''), safeSheetValue_(snapshot.shift || ''),
       safeSheetValue_(snapshot.direction || ''), normalized.length, gpsCount, skippedCount,
       errorCount, safeSheetValue_(first.at), safeSheetValue_(last.at), safeSheetValue_(chunk),
-      safeSheetValue_(diagnosticFile.getUrl())
+      safeSheetValue_(diagnosticFile.getUrl()), safeSheetValue_(deviceLabel)
     ]];
-    sheet.getRange(Math.max(2, lastRow + 1), 1, 1, 18).setValues(row);
+    sheet.getRange(Math.max(2, lastRow + 1), 1, 1, 19).setValues(row);
     SpreadsheetApp.flush();
     return createJsonResponse({
       status:'success', batchId:batchId, duplicate:false,
@@ -138,11 +144,88 @@ function safeSheetValue_(value) {
   return /^[=+@-]/.test(text) ? "'" + text : text;
 }
 
+function getDiagnosticsJsonRoot_(properties) {
+  var directId = String(properties.getProperty('DIAGNOSTICS_FOLDER_ID') || '');
+  if (directId) {
+    var directFolder = DriveApp.getFolderById(directId);
+    if (directFolder.getName() === 'Pliki JSON') return directFolder;
+    var directJsonFolders = directFolder.getFoldersByName('Pliki JSON');
+    return directJsonFolders.hasNext() ? directJsonFolders.next() : directFolder;
+  }
+
+  var appFolderId = String(properties.getProperty('DIAGNOSTICS_APP_FOLDER_ID') || '');
+  var appFolder = DriveApp.getFolderById(appFolderId);
+  var jsonFolders = appFolder.getFoldersByName('Pliki JSON');
+  return jsonFolders.hasNext() ? jsonFolders.next() : appFolder.createFolder('Pliki JSON');
+}
+
+function getDiagnosticsDeviceFolder_(rootFolder, properties, installationId, deviceLabel) {
+  var propertyKey = 'DIAGNOSTICS_DEVICE_FOLDER_' + installationId;
+  var savedId = String(properties.getProperty(propertyKey) || '');
+  if (savedId) {
+    try {
+      return DriveApp.getFolderById(savedId);
+    } catch (savedFolderError) {}
+  }
+
+  var shortId = installationId.slice(0, 8);
+  var suffix = ' - ' + shortId;
+  var folders = rootFolder.getFolders();
+  while (folders.hasNext()) {
+    var existing = folders.next();
+    var existingName = String(existing.getName() || '');
+    if (existingName.slice(-suffix.length) === suffix) {
+      properties.setProperty(propertyKey, existing.getId());
+      return existing;
+    }
+  }
+
+  var cleanLabel = String(deviceLabel || 'Urządzenie')
+    .replace(/[\\\/:*?"<>|\u0000-\u001F]/g, ' ')
+    .replace(/\s+/g, ' ').trim().slice(0, 80) || 'Urządzenie';
+  var created = rootFolder.createFolder(cleanLabel + suffix);
+  properties.setProperty(propertyKey, created.getId());
+  return created;
+}
+
+function organizeExistingDiagnostics() {
+  var properties = PropertiesService.getScriptProperties();
+  var folderId = String(properties.getProperty('DIAGNOSTICS_FOLDER_ID') ||
+    properties.getProperty('DIAGNOSTICS_APP_FOLDER_ID') || '');
+  if (!/^[A-Za-z0-9_-]{10,180}$/.test(folderId)) throw new Error('STORAGE_NOT_CONFIGURED');
+
+  var labels = {
+    'a1ebd3e5-e4b5-47c3-8039-290b20c23c19': 'Android Chrome 360x800',
+    '887dc03e-6a82-4720-92a9-9e6e887478c1': 'iPhone Safari 430x932',
+    '8795c5b1-97cb-4dda-b058-d5e64c90ad71': 'Android Chrome 384x832',
+    '83592448-5fc1-452c-a22f-94ca7ff54789': 'Android Chrome 360x780'
+  };
+  var rootFolder = getDiagnosticsJsonRoot_(properties);
+  var files = rootFolder.getFiles();
+  var moved = 0;
+  var skipped = 0;
+  while (files.hasNext()) {
+    var file = files.next();
+    var match = String(file.getName() || '').match(/trasy-2\.0-\d+\.\d+\.\d+-([0-9a-f-]{36})-/i);
+    if (!match) {
+      skipped++;
+      continue;
+    }
+    var installationId = match[1].toLowerCase();
+    var deviceFolder = getDiagnosticsDeviceFolder_(
+      rootFolder, properties, installationId, labels[installationId] || 'Urządzenie'
+    );
+    file.moveTo(deviceFolder);
+    moved++;
+  }
+  return {moved:moved, skipped:skipped};
+}
+
 function createTestDiagnosticsSheet_(spreadsheet) {
   var sheet = spreadsheet.insertSheet('DIAGNOSTYKA TESTÓW');
-  sheet.getRange(1, 1, 1, 18).setValues([[
+  sheet.getRange(1, 1, 1, 19).setValues([[
     'BATCH_ID','SESSION_ID','INSTALACJA','WERSJA','WYSŁANO','START','KONIEC','TRASA','ZMIANA','KIERUNEK',
-    'ZDARZENIA','GPS','POMINIĘTE','BŁĘDY','PIERWSZE_ZDARZENIE','OSTATNIE_ZDARZENIE','CZĘŚĆ','PLIK_JSON'
+    'ZDARZENIA','GPS','POMINIĘTE','BŁĘDY','PIERWSZE_ZDARZENIE','OSTATNIE_ZDARZENIE','CZĘŚĆ','PLIK_JSON','URZĄDZENIE'
   ]]);
   sheet.setFrozenRows(1);
   return sheet;
