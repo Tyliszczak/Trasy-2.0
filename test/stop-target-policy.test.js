@@ -129,8 +129,9 @@ test('ręczne pomijanie nie wychodzi poza ostatni przystanek ani początek kieru
 test('ręczne pominięcie ma osobne zdarzenie i omija ochronę harmonogramu',()=>{
   const tracker=fs.readFileSync(new URL('../gps-stop-tracker.js',import.meta.url),'utf8');
   const control=fs.readFileSync(new URL('../skip-stop-control.js',import.meta.url),'utf8');
-  assert.match(control,/POMIŃ TEN PRZYSTANEK/);
-  assert.match(control,/POTWIERDŹ POMINIĘCIE/);
+  assert.match(control,/POMIŃ/);
+  assert.match(control,/ANULUJ/);
+  assert.doesNotMatch(control,/POTWIERDŹ POMINIĘCIE/);
   assert.match(control,/scheduleSkipStopButton/);
   assert.match(control,/scheduleView/);
   assert.match(control,/gps-skip-current-stop/);
