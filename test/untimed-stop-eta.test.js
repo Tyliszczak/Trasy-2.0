@@ -18,12 +18,13 @@ test('dynamiczne ETA w komórce nie może zostać odczytane jako godzina planowa
   assert.doesNotMatch(source,/cell\.textContent\s*\n\s*\]/);
 });
 
-test('górna belka dla przystanku bez godziny ma wyłącznie ETA i tłumi status punktualności',()=>{
+test('górna belka dla przystanku bez godziny ma wyłącznie Dojazd i tłumi status punktualności',()=>{
   const source=read('untimed-stop-eta-ui.js');
   assert.match(source,/const isUntimed=/);
   assert.match(source,/status\.hidden=true/);
   assert.match(source,/guard\.hidden=true/);
-  assert.match(source,/const value=`ETA \$\{arrivalClock\(latestEtaSeconds\)\}`/);
+  assert.match(source,/const value=`Dojazd \$\{arrivalClock\(latestEtaSeconds\)\}`/);
+  assert.match(source,/scheduleInfo&&scheduleInfo\.textContent!==value/);
 });
 
 test('moduł ETA nie używa MutationObservera, który może zapętlić render nagłówka',()=>{
