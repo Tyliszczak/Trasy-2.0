@@ -3,11 +3,14 @@ import assert from'node:assert/strict';
 import fs from'node:fs';
 const read=path=>fs.readFileSync(new URL('../'+path,import.meta.url),'utf8');
 
-test('pytanie o pominięcie ma dokładnie wymagane odpowiedzi kierowcy',()=>{
+test('pytanie o pominięcie ma prostą formę POMIŃ / ANULUJ',()=>{
   const source=read('skip-stop-suggestion.js');
-  assert.match(source,/Czy chcesz ominąć przystanek \$\{stopName\(row,index\)\}\?/);
-  assert.match(source,/>TAK<\/button>/);
-  assert.match(source,/>NIE, JADĘ OBJAZDEM<\/button>/);
+  assert.match(source,/>Pominąć przystanek\?<\/div>/);
+  assert.match(source,/id="skipStopSuggestionName"/);
+  assert.match(source,/>POMIŃ<\/button>/);
+  assert.match(source,/>ANULUJ<\/button>/);
+  assert.doesNotMatch(source,/NIE, JADĘ OBJAZDEM/);
+  assert.doesNotMatch(source,/POTWIERDŹ POMINIĘCIE/);
 });
 
 test('sugestia wymaga kilku zgodnych odczytów: aktualny punkt z tyłu, następny z przodu',()=>{
@@ -28,7 +31,7 @@ test('dla przystanku z planem pytanie nie pojawia się, gdy kierowca jest za wcz
   assert.doesNotMatch(source,/\['early','late','onTime'/);
 });
 
-test('TAK pomija bieżący przystanek, a NIE zapamiętuje objazd i nie pyta ponownie',()=>{
+test('POMIŃ pomija bieżący przystanek, a ANULUJ zapamiętuje odmowę dla tego punktu',()=>{
   const source=read('skip-stop-suggestion.js');
   assert.match(source,/new CustomEvent\('gps-skip-current-stop'/);
   assert.match(source,/source:'skip-suggestion-confirmed'/);
@@ -42,6 +45,15 @@ test('automatyczne odzyskanie następnego celu jest cofane do decyzji kierowcy',
   assert.match(source,/new CustomEvent\('gps-skip-stop'/);
   assert.match(source,/source:'skip-suggestion-hold'/);
   assert.match(source,/queueMicrotask\(\(\)=>openDialog\(previousIndex\)\)/);
+});
+
+test('ręczne pominięcie też używa prostego pytania bez technicznych opisów',()=>{
+  const source=read('skip-stop-control.js');
+  assert.match(source,/title\.textContent='Pominąć przystanek\?'/);
+  assert.match(source,/skip\.textContent='POMIŃ'/);
+  assert.match(source,/cancel\.textContent='ANULUJ'/);
+  assert.doesNotMatch(source,/Nawigacja natychmiast przejdzie/);
+  assert.doesNotMatch(source,/POTWIERDŹ POMINIĘCIE/);
 });
 
 test('moduł pytania jest ładowany i dostępny offline bez zmiany numeru wersji',()=>{
