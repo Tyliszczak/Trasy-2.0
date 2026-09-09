@@ -25,7 +25,7 @@
       <div style="display:grid;gap:10px;margin-top:18px">
         <button id="routeStopShowSegment" type="button" style="min-height:50px;padding:12px;border:1px solid #666;border-radius:12px;background:#393939;color:#fff;font-weight:900">POKAŻ ODCINEK</button>
         <button id="routeStopSkip" type="button" style="min-height:52px;padding:12px;border:0;border-radius:12px;background:#ccff33;color:#111;font-weight:1000">POMIŃ</button>
-        <button id="routeStopPrevious" type="button" style="min-height:50px;padding:12px;border:1px solid #666;border-radius:12px;background:#393939;color:#fff;font-weight:900">POPRZEDNI PRZYSTANEK</button>
+        <button id="routeStopPrevious" type="button" style="min-height:50px;padding:12px;border:1px solid #666;border-radius:12px;background:#393939;color:#fff;font-weight:900">WRÓĆ DO POPRZEDNIEGO</button>
         <button id="routeStopCancel" type="button" style="min-height:50px;padding:12px;border:1px solid #666;border-radius:12px;background:#303030;color:#fff;font-weight:900">ANULUJ</button>
       </div>
     </div>
@@ -42,6 +42,7 @@
 
   function rows(){return [...body.querySelectorAll('tr')].filter(r=>r.dataset.coordinate)}
   function parseCoord(v){const m=String(v||'').match(/(-?\d+(?:\.\d+)?)\s*[,; ]\s*(-?\d+(?:\.\d+)?)/);return m?[+m[1],+m[2]]:null}
+  function minimumTargetIndex(){return body.dataset.direction==='return'&&body.dataset.emptyRun!=='1'?1:0}
   function currentIndex(){const rs=rows();let idx=Number(body.dataset.gpsNextStop);if(Number.isInteger(idx)&&idx>=0&&idx<rs.length)return idx;idx=rs.findIndex(r=>r.classList.contains('gpsNextStop'));return idx>=0?idx:0}
   function currentStop(){
     const rs=rows(),idx=currentIndex(),row=rs[idx];
@@ -60,21 +61,24 @@
     window.__routeStopActionsOpen=true;
     confirmingSkip=Boolean(confirmSkip&&s.idx<s.rs.length-1);
     if(confirmingSkip){
-      title.textContent='Pominąć przystanek?';
-      meta.textContent=s.name;
+      title.hidden=true;
+      meta.hidden=true;
       showSegment.hidden=true;
       previous.hidden=true;
       skip.hidden=false;
-      skip.textContent='POMIŃ';
+      skip.textContent='POTWIERDŹ';
+      cancel.textContent='ANULUJ';
     }else{
+      title.hidden=false;
+      meta.hidden=false;
       title.textContent=s.name;
       meta.textContent=s.time?`Plan: ${s.time}`:'';
       showSegment.hidden=!navOpen;
-      previous.hidden=s.idx<=0||body.dataset.emptyRun==='1';
+      previous.hidden=s.idx<=minimumTargetIndex()||body.dataset.emptyRun==='1';
       skip.hidden=s.idx>=s.rs.length-1;
       skip.textContent='POMIŃ';
+      cancel.textContent='ANULUJ';
     }
-    cancel.textContent='ANULUJ';
     modal.hidden=false;
   }
   function closeMenu(){modal.hidden=true;window.__routeStopActionsOpen=false;confirmingSkip=false}
@@ -89,7 +93,7 @@
 
   function selectPreviousStop(){
     const s=currentStop();
-    if(!s||s.idx<=0)return;
+    if(!s||s.idx<=minimumTargetIndex())return;
     body.dispatchEvent(new CustomEvent('gps-skip-stop',{
       bubbles:true,
       detail:{index:s.idx-1,source:'manual-previous'}
@@ -148,9 +152,37 @@
     cell.append(button);
   }
 
+  function updateScheduleRestoreButton(){
+    body.querySelectorAll('.scheduleRestoreStopButton').forEach(button=>button.remove());
+    if(document.getElementById('scheduleView')?.hidden!==false)return;
+    const s=currentStop();
+    const minimum=minimumTargetIndex();
+    if(!s||s.idx<=minimum||body.dataset.emptyRun==='1'||body.dataset.returnOriginActive==='1')return;
+    const previousRow=s.rs[s.idx-1];
+    const cell=previousRow?.querySelector('td:first-child');
+    if(!cell)return;
+    const name=previousRow.querySelector('td:first-child')?.childNodes[0]?.textContent?.trim()||previousRow.querySelector('td:first-child')?.innerText?.trim()||`Przystanek ${s.idx}`;
+    const button=document.createElement('button');
+    button.type='button';
+    button.className='scheduleRestoreStopButton';
+    button.textContent='PRZYWRÓĆ';
+    button.setAttribute('aria-label',`Przywróć przystanek ${name}`);
+    button.style.cssText='margin-left:8px;padding:5px 9px;border:1px solid #777;border-radius:9px;background:#383838;color:#fff;font-size:12px;font-weight:900';
+    button.addEventListener('click',event=>{
+      event.preventDefault();
+      event.stopPropagation();
+      body.dispatchEvent(new CustomEvent('gps-skip-stop',{
+        bubbles:true,
+        detail:{index:s.idx-1,source:'schedule-restore'}
+      }));
+    });
+    cell.append(button);
+  }
+
   function updateSkipControls(){
     updateQuickSkipButton();
     updateScheduleSkipButton();
+    updateScheduleRestoreButton();
   }
 
   showSegment.addEventListener('click',showSegmentOnMap);
