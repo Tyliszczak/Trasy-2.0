@@ -10,6 +10,7 @@ import'./geo-core.js';
   if(!body||!view||!navigator.geolocation||!etaCore||!geo)return;
 
   const ROUTE_REFRESH_MS=180000;
+  const NAV_ROUTE_REFRESH_MS=30000;
   const MAX_GPS_ACCURACY=120;
   const FINAL_ARRIVAL_RADIUS=70;
 
@@ -46,9 +47,6 @@ import'./geo-core.js';
     body.dataset.etaSeconds=Number.isFinite(etaSecondsValue)?String(etaSecondsValue):'';
     const detail={kind,diffSeconds,etaSeconds:etaSecondsValue,source:'eta-status'};
     body.dispatchEvent(new CustomEvent('eta-status-change',{bubbles:true,detail}));
-    // Górna belka nawigacji historycznie słucha nav-eta-update. Wysyłamy jej
-    // ten sam, już poprawnie wyliczony status, aby harmonogram, belka i marker
-    // pojazdu korzystały z jednego wyniku zamiast dwóch niezależnych obliczeń.
     body.dispatchEvent(new CustomEvent('nav-eta-update',{bubbles:true,detail}));
   }
 
@@ -101,8 +99,8 @@ import'./geo-core.js';
     if(isFinalArrived(row)){etaSeconds=null;etaMeasuredAt=0;lastTarget=row;return}
     const c=coord(row.dataset.coordinate);if(!c)return;
     const changed=lastTarget!==row;
-    if(!force&&!changed&&Date.now()-lastRouteAt<ROUTE_REFRESH_MS)return;
-    if(navigationOpen())return;
+    const refreshMs=navigationOpen()?NAV_ROUTE_REFRESH_MS:ROUTE_REFRESH_MS;
+    if(!force&&!changed&&Date.now()-lastRouteAt<refreshMs)return;
     const requestedTargetKey=rowKey(row);
     requesting=true;lastRouteAt=Date.now();lastTarget=row;
     try{
@@ -125,8 +123,6 @@ import'./geo-core.js';
     if(!row){clearInfo();publishStatusKind('neutral');return}
     if(isReturnStartRow(row)){hideInfo(row);publishStatusKind('neutral');return}
     const info=ensureInfo(row);if(!info)return;
-    // Komunikat HOLD/READY ma własne miejsce. Nie kasuje ostatniego poprawnego
-    // statusu czasu w komórce harmonogramu.
     if(guardIsShowing())return;
     if(body.dataset.direction==='return'){
       if(isFinalArrived(row)){hideInfo(row);return}
@@ -142,9 +138,6 @@ import'./geo-core.js';
       broadcastStatus('arrived',0,0);
       return;
     }
-    // Brak pojedynczej próbki nie jest zmianą stanu. Zachowujemy ostatni
-    // poprawny wynik aż do zmiany celu lub trybu, zamiast chować go pomiędzy
-    // kolejnymi odczytami GPS/ETA.
     const etaSecondsLive=liveEta(row);if(etaSecondsLive===null)return;
     const plan=planSeconds(row);if(plan===null)return;
     const punctuality=etaCore.statusFromEta(etaSecondsLive,plan);const kind=punctuality.kind;const diff=punctuality.diffSeconds;
@@ -155,9 +148,9 @@ import'./geo-core.js';
   }
 
   body.addEventListener('nav-eta-update',event=>{
-    // Zdarzenie z własnego broadcastu jest tylko dla pozostałych modułów.
-    // Nie przeliczamy go ponownie, żeby nie tworzyć pętli zdarzeń.
-    if(event.detail?.source==='eta-status')return;
+    const source=event.detail?.source||'';
+    if(source==='eta-status')return;
+    if(navigationOpen()&&source!=='navigation-live-engine')return;
     if(returnOriginLocked())return;
     const row=activeRow();
     if(row&&isReturnStartRow(row))return;
