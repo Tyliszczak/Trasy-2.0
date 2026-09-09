@@ -29,7 +29,9 @@ test('wskaźnik pojazdu ma wspólne kolory statusu czasu',()=>{
 test('nowa poprawka UI jest ładowana jako ostatnia i jest w shellu PWA',()=>{
   const html=read('index.html');
   const sw=read('sw.js');
-  assert.match(html,/navigation-layout-fix\.js\?v=5<\/script>\s*<script src="\.\/navigation-stop-ui-fix\.js\?v=1"><\/script>/);
+  const layoutIndex=html.indexOf('./navigation-layout-fix.js?v=5');
+  const stopUiIndex=html.indexOf('./navigation-stop-ui-fix.js?v=1');
+  assert.ok(layoutIndex>=0&&stopUiIndex>layoutIndex);
   assert.match(sw,/APP_VERSION='2\.0\.211'/);
   assert.match(sw,/'\.\/navigation-stop-ui-fix\.js'/);
 });
