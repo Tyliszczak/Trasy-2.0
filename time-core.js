@@ -43,7 +43,8 @@
   }
 
   function staticCellText(cell){
-    if(!cell?.childNodes)return'';
+    if(!cell)return'';
+    if(!cell.childNodes)return String(cell.textContent||'').trim();
     return[...cell.childNodes]
       .filter(node=>node?.nodeType===3)
       .map(node=>String(node.textContent||'').trim())
