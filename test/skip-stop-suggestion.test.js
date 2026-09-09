@@ -47,10 +47,13 @@ test('automatyczne odzyskanie następnego celu jest cofane do decyzji kierowcy',
   assert.match(source,/queueMicrotask\(\(\)=>openDialog\(previousIndex\)\)/);
 });
 
-test('ręczne pominięcie też używa prostego pytania bez technicznych opisów',()=>{
+test('ręczne pominięcie po kliknięciu POMIŃ pokazuje tylko POTWIERDŹ i ANULUJ',()=>{
   const source=read('skip-stop-control.js');
-  assert.match(source,/title\.textContent='Pominąć przystanek\?'/);
-  assert.match(source,/skip\.textContent='POMIŃ'/);
+  assert.match(source,/title\.hidden=true/);
+  assert.match(source,/meta\.hidden=true/);
+  assert.match(source,/showSegment\.hidden=true/);
+  assert.match(source,/previous\.hidden=true/);
+  assert.match(source,/skip\.textContent='POTWIERDŹ'/);
   assert.match(source,/cancel\.textContent='ANULUJ'/);
   assert.doesNotMatch(source,/Nawigacja natychmiast przejdzie/);
   assert.doesNotMatch(source,/POTWIERDŹ POMINIĘCIE/);
