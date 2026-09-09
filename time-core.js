@@ -42,6 +42,15 @@
     return{hours,minutes,totalMinutes:hours*60+minutes};
   }
 
+  function staticCellText(cell){
+    if(!cell?.childNodes)return'';
+    return[...cell.childNodes]
+      .filter(node=>node?.nodeType===3)
+      .map(node=>String(node.textContent||'').trim())
+      .filter(Boolean)
+      .join(' ');
+  }
+
   function rowPlanText(row){
     const cell=row?.children?.[1];
     if(!cell)return'';
@@ -50,7 +59,7 @@
       cell.dataset?.finalStopPlan,
       cell.dataset?.forwardTime,
       cell.querySelector?.('.routeRolePlan')?.textContent,
-      cell.textContent
+      staticCellText(cell)
     ];
     for(const candidate of candidates){
       const normalized=normalizeClockTime(candidate);
