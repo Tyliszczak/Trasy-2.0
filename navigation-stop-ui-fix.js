@@ -101,7 +101,9 @@
   }
 
   body?.addEventListener('eta-status-change',event=>applyVehicleStatus(event.detail?.kind));
-  body?.addEventListener('nav-eta-update',event=>applyVehicleStatus(event.detail?.kind));
+  body?.addEventListener('nav-eta-update',event=>{
+    if(event.detail?.source==='navigation-live-engine')applyVehicleStatus(event.detail?.kind);
+  });
   body?.addEventListener('gps-next-stop-change',scheduleSync);
   document.addEventListener('trasy:route-map-ready',scheduleSync);
   window.addEventListener('resize',scheduleSync,{passive:true});
