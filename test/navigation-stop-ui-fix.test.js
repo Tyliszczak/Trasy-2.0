@@ -32,6 +32,6 @@ test('poprawka UI jest ładowana jako ostatnia i jest w shellu PWA',()=>{
   const layoutIndex=html.indexOf('./navigation-layout-fix.js?v=5');
   const stopUiIndex=html.indexOf('./navigation-stop-ui-fix.js?v=2');
   assert.ok(layoutIndex>=0&&stopUiIndex>layoutIndex);
-  assert.match(sw,/APP_VERSION='2\.0\.213'/);
+  assert.match(sw,/APP_VERSION='2\.0\.214'/);
   assert.match(sw,/'\.\/navigation-stop-ui-fix\.js'/);
 });
