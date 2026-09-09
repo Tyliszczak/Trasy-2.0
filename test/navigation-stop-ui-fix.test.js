@@ -18,20 +18,20 @@ test('lewy stos funkcji należy do obszaru mapy, a nie górnej belki',()=>{
   assert.match(source,/top:12px!important/);
 });
 
-test('wskaźnik pojazdu ma wspólne kolory statusu czasu',()=>{
+test('wskaźnik pojazdu ma wspólne kolory statusu czasu i ignoruje stary fallback ETA',()=>{
   const source=read('navigation-stop-ui-fix.js');
   assert.match(source,/if\(kind==='early'\)return'#ff3b30'/);
   assert.match(source,/if\(kind==='late'\)return'#ff9500'/);
   assert.match(source,/if\(kind==='onTime'\|\|kind==='arrived'\)return'#34c759'/);
-  assert.match(source,/addEventListener\('nav-eta-update',event=>applyVehicleStatus/);
+  assert.match(source,/event\.detail\?\.source==='navigation-live-engine'/);
 });
 
-test('nowa poprawka UI jest ładowana jako ostatnia i jest w shellu PWA',()=>{
+test('poprawka UI jest ładowana jako ostatnia i jest w shellu PWA',()=>{
   const html=read('index.html');
   const sw=read('sw.js');
   const layoutIndex=html.indexOf('./navigation-layout-fix.js?v=5');
-  const stopUiIndex=html.indexOf('./navigation-stop-ui-fix.js?v=1');
+  const stopUiIndex=html.indexOf('./navigation-stop-ui-fix.js?v=2');
   assert.ok(layoutIndex>=0&&stopUiIndex>layoutIndex);
-  assert.match(sw,/APP_VERSION='2\.0\.211'/);
+  assert.match(sw,/APP_VERSION='2\.0\.212'/);
   assert.match(sw,/'\.\/navigation-stop-ui-fix\.js'/);
 });
