@@ -38,24 +38,29 @@ function appendTestDiagnostics_(p) {
       /[\u0000-\u001F\u007F]/.test(deviceLabel) ||
       !/^2\.0\.\d+$/.test(appVersion) ||
       !/^[A-Za-z0-9:._-]+$/.test(sessionId) ||
-      !events.length || events.length > 40) {
+      !events.length || events.length > 500) {
     return createJsonResponse({status:'error', message:'INVALID_PAYLOAD'});
   }
 
   var normalized = [];
+  var previousEventId = 0;
   for (var i = 0; i < events.length; i++) {
     var event = events[i] || {};
     if (String(event.sessionId || '') !== sessionId ||
         !isFinite(Number(event.id)) ||
+        Number(event.id) <= previousEventId ||
         !/^\d{4}-\d{2}-\d{2}T/.test(String(event.at || '')) ||
         !/^[A-Za-z0-9:._-]+$/.test(String(event.type || ''))) {
       return createJsonResponse({status:'error', message:'INVALID_EVENT'});
     }
+    previousEventId = Number(event.id);
     normalized.push(event);
   }
 
   var json = JSON.stringify(normalized);
-  if (json.length > 50000) return createJsonResponse({status:'error', message:'PAYLOAD_TOO_LARGE'});
+  if (events.length > 500 || json.length > 480000) {
+    return createJsonResponse({status:'error', message:'PAYLOAD_TOO_LARGE'});
+  }
 
   var lock = LockService.getScriptLock();
   lock.waitLock(10000);
@@ -67,60 +72,50 @@ function appendTestDiagnostics_(p) {
     sheet.getRange(1, 18).setValue('PLIK_JSON');
     sheet.getRange(1, 19).setValue('URZĄDZENIE');
 
-    var lastRow = sheet.getLastRow();
-    if (lastRow > 1) {
-      var duplicate = sheet.getRange(2, 1, lastRow - 1, 1)
-        .createTextFinder(batchId).matchEntireCell(true).findNext();
-      if (duplicate) return createJsonResponse({status:'success', batchId:batchId, duplicate:true});
-    }
-
     var folder = getDiagnosticsJsonRoot_(properties);
     var deviceFolder = getDiagnosticsDeviceFolder_(folder, properties, installationId, deviceLabel);
-    var archive = {
-      format: 'trasy-2.0-test-diagnostics-batch',
-      schemaVersion: 1,
-      batchId: batchId,
-      installationId: installationId,
-      deviceLabel: deviceLabel,
-      appVersion: appVersion,
-      sessionId: sessionId,
-      receivedAt: new Date().toISOString(),
-      locationDataIncluded: true,
-      events: normalized
-    };
-    var fileName = 'trasy-2.0-' + appVersion + '-' +
-      batchId.replace(/[^A-Za-z0-9._-]+/g, '-').slice(0, 140) + '.json';
-    diagnosticFile = deviceFolder.createFile(
-      Utilities.newBlob(JSON.stringify(archive, null, 2), 'application/json', fileName)
-    );
-
-    var first = normalized[0];
-    var last = normalized[normalized.length - 1];
-    var snapshot = last.snapshot || first.snapshot || {};
-    var gpsCount = 0, skippedCount = 0, errorCount = 0;
-    for (var n = 0; n < normalized.length; n++) {
-      var type = String(normalized[n].type || '');
-      if (type === 'gps-fix') gpsCount++;
-      if (type === 'gps-stop-skipped') skippedCount++;
-      if (/error|unhandled-rejection|gps-error/.test(type)) errorCount++;
+    var seenRanges = getDiagnosticsSeenRanges_(properties, sheet, installationId, sessionId);
+    var newEvents = [];
+    for (var u = 0; u < normalized.length; u++) {
+      if (!isDiagnosticsEventSeen_(seenRanges, Number(normalized[u].id))) newEvents.push(normalized[u]);
     }
-    var chunk = String(first.id) + '-' + String(last.id);
+    if (!newEvents.length) {
+      return createJsonResponse({
+        status:'success', batchId:batchId, duplicate:true,
+        acceptedEvents:0, duplicateEvents:normalized.length
+      });
+    }
+
+    var sessionResult = upsertDiagnosticsSessionFile_(
+      deviceFolder, properties, installationId, deviceLabel, appVersion, sessionId, newEvents
+    );
+    diagnosticFile = sessionResult.file;
+    var archive = sessionResult.archive;
+    var first = archive.events[0];
+    var last = archive.events[archive.events.length - 1];
+    var snapshot = last.snapshot || first.snapshot || {};
+    var counts = summarizeDiagnosticsEvents_(archive.events);
+    var rowNumber = findDiagnosticsSessionRow_(sheet, sessionResult.indexKey);
     var row = [[
-      safeSheetValue_(batchId), safeSheetValue_(sessionId), safeSheetValue_(installationId),
-      safeSheetValue_(appVersion), new Date(), safeSheetValue_(first.at), safeSheetValue_(last.at),
+      safeSheetValue_(sessionResult.indexKey), safeSheetValue_(sessionId), safeSheetValue_(installationId),
+      safeSheetValue_(archive.appVersions.join(', ')), new Date(), safeSheetValue_(first.at), safeSheetValue_(last.at),
       safeSheetValue_(snapshot.route || ''), safeSheetValue_(snapshot.shift || ''),
-      safeSheetValue_(snapshot.direction || ''), normalized.length, gpsCount, skippedCount,
-      errorCount, safeSheetValue_(first.at), safeSheetValue_(last.at), safeSheetValue_(chunk),
+      safeSheetValue_(snapshot.direction || ''), archive.events.length, counts.gps, counts.skipped,
+      counts.errors, safeSheetValue_(first.at), safeSheetValue_(last.at), safeSheetValue_(eventRangesText_(archive.events)),
       safeSheetValue_(diagnosticFile.getUrl()), safeSheetValue_(deviceLabel)
     ]];
-    sheet.getRange(Math.max(2, lastRow + 1), 1, 1, 19).setValues(row);
+    sheet.getRange(rowNumber, 1, 1, 19).setValues(row);
     SpreadsheetApp.flush();
+    addDiagnosticsSeenEvents_(seenRanges, normalized);
+    saveDiagnosticsSeenRanges_(properties, installationId, sessionId, seenRanges);
     return createJsonResponse({
-      status:'success', batchId:batchId, duplicate:false,
+      status:'success', batchId:batchId, duplicate:sessionResult.addedEvents === 0,
+      acceptedEvents:sessionResult.addedEvents,
+      duplicateEvents:normalized.length - sessionResult.addedEvents,
       fileId:diagnosticFile.getId()
     });
   } catch (error) {
-    if (diagnosticFile) {
+    if (diagnosticFile && sessionResult && sessionResult.created) {
       try { diagnosticFile.setTrashed(true); } catch (cleanupError) {}
     }
     return createJsonResponse({status:'error', message:'WRITE_FAILED'});
@@ -142,6 +137,254 @@ function safeDiagnosticsText_(value, max) {
 function safeSheetValue_(value) {
   var text = String(value == null ? '' : value);
   return /^[=+@-]/.test(text) ? "'" + text : text;
+}
+
+function diagnosticsSessionHash_(installationId, sessionId) {
+  var bytes = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256,
+    String(installationId) + '|' + String(sessionId)
+  );
+  var hex = '';
+  for (var i = 0; i < bytes.length; i++) {
+    hex += ('0' + ((bytes[i] + 256) % 256).toString(16)).slice(-2);
+  }
+  return hex.slice(0, 32);
+}
+
+function diagnosticsSeenKey_(installationId, sessionId) {
+  return 'DIAGNOSTICS_SEEN_' + diagnosticsSessionHash_(installationId, sessionId);
+}
+
+function normalizeDiagnosticsRanges_(ranges) {
+  var sorted = (ranges || []).map(function(range) {
+    return [Number(range[0]), Number(range[1])];
+  }).filter(function(range) {
+    return isFinite(range[0]) && isFinite(range[1]) && range[0] > 0 && range[1] >= range[0];
+  }).sort(function(a, b) { return a[0] - b[0]; });
+  var merged = [];
+  for (var i = 0; i < sorted.length; i++) {
+    var last = merged[merged.length - 1];
+    if (!last || sorted[i][0] > last[1] + 1) merged.push(sorted[i]);
+    else last[1] = Math.max(last[1], sorted[i][1]);
+  }
+  return merged;
+}
+
+function parseDiagnosticsRanges_(value) {
+  var ranges = [];
+  String(value || '').split(',').forEach(function(part) {
+    var match = part.trim().match(/^(\d+)(?:-(\d+))?$/);
+    if (match) ranges.push([Number(match[1]), Number(match[2] || match[1])]);
+  });
+  return normalizeDiagnosticsRanges_(ranges);
+}
+
+function getDiagnosticsSeenRanges_(properties, sheet, installationId, sessionId) {
+  var key = diagnosticsSeenKey_(installationId, sessionId);
+  var saved = properties.getProperty(key);
+  if (saved !== null) {
+    try { return normalizeDiagnosticsRanges_(JSON.parse(saved)); } catch (savedError) {}
+  }
+
+  var ranges = [];
+  var lastRow = sheet.getLastRow();
+  if (lastRow > 1) {
+    var identities = sheet.getRange(2, 2, lastRow - 1, 2).getValues();
+    var chunks = sheet.getRange(2, 17, lastRow - 1, 1).getValues();
+    for (var i = 0; i < identities.length; i++) {
+      if (String(identities[i][0]) === sessionId && String(identities[i][1]) === installationId) {
+        ranges = ranges.concat(parseDiagnosticsRanges_(chunks[i][0]));
+      }
+    }
+  }
+  ranges = normalizeDiagnosticsRanges_(ranges);
+  properties.setProperty(key, JSON.stringify(ranges));
+  return ranges;
+}
+
+function isDiagnosticsEventSeen_(ranges, eventId) {
+  for (var i = 0; i < ranges.length; i++) {
+    if (eventId < ranges[i][0]) return false;
+    if (eventId <= ranges[i][1]) return true;
+  }
+  return false;
+}
+
+function addDiagnosticsSeenEvents_(ranges, events) {
+  for (var i = 0; i < events.length; i++) ranges.push([Number(events[i].id), Number(events[i].id)]);
+  var merged = normalizeDiagnosticsRanges_(ranges);
+  ranges.length = 0;
+  for (var n = 0; n < merged.length; n++) ranges.push(merged[n]);
+}
+
+function saveDiagnosticsSeenRanges_(properties, installationId, sessionId, ranges) {
+  properties.setProperty(diagnosticsSeenKey_(installationId, sessionId), JSON.stringify(ranges));
+}
+
+function newDiagnosticsSessionArchive_(installationId, deviceLabel, sessionId) {
+  var now = new Date().toISOString();
+  return {
+    format: 'trasy-2.0-test-diagnostics-session',
+    schemaVersion: 2,
+    installationId: installationId,
+    deviceLabel: deviceLabel,
+    sessionId: sessionId,
+    appVersions: [],
+    receivedFirstAt: now,
+    receivedLastAt: now,
+    locationDataIncluded: true,
+    events: []
+  };
+}
+
+function safeDiagnosticsFilePart_(value, maxLength) {
+  var safe = String(value || '').replace(/[\\\/:*?"<>|\u0000-\u001F\u007F]+/g, '-')
+    .replace(/\s+/g, '-').replace(/^-+|-+$/g, '');
+  return (safe || 'nieznane').slice(0, maxLength);
+}
+
+function diagnosticsFileTime_(value) {
+  var date = new Date(value);
+  if (!value || isNaN(date.getTime())) return 'czas-nieznany';
+  var timezone = Session.getScriptTimeZone() || 'Europe/Warsaw';
+  return Utilities.formatDate(date, timezone, 'yyyy-MM-dd_HH-mm-ss');
+}
+
+function diagnosticsSessionFileSuffix_(sessionHash, part) {
+  return '-' + String(sessionHash).slice(0, 8) + (part > 1 ? '-czesc-' + part : '') + '.json';
+}
+
+function diagnosticsSessionFileName_(archive, sessionHash, part) {
+  var events = archive && Array.isArray(archive.events) ? archive.events : [];
+  var first = events.length ? events[0] : {};
+  var last = events.length ? events[events.length - 1] : first;
+  var start = diagnosticsFileTime_(first.at || archive.receivedFirstAt);
+  var end = diagnosticsFileTime_(last.at || archive.receivedLastAt);
+  var device = safeDiagnosticsFilePart_(archive.deviceLabel, 55);
+  var installation = safeDiagnosticsFilePart_(archive.installationId, 8);
+  return 'trasy-2.0-' + start + '--' + end + '-' + device + '-' + installation +
+    diagnosticsSessionFileSuffix_(sessionHash, part);
+}
+
+function readDiagnosticsSessionArchive_(file, fallback) {
+  if (!file) return fallback;
+  try {
+    var parsed = JSON.parse(file.getBlob().getDataAsString('UTF-8'));
+    if (parsed && parsed.format === 'trasy-2.0-test-diagnostics-session' && Array.isArray(parsed.events)) {
+      return parsed;
+    }
+  } catch (readError) {}
+  return fallback;
+}
+
+function getDiagnosticsSessionFile_(deviceFolder, properties, stateKey, sessionHash, part) {
+  var state = {};
+  try { state = JSON.parse(properties.getProperty(stateKey) || '{}') || {}; } catch (stateError) {}
+  if (Number(state.part) === part && state.fileId) {
+    try { return DriveApp.getFileById(String(state.fileId)); } catch (savedFileError) {}
+  }
+  var suffix = diagnosticsSessionFileSuffix_(sessionHash, part);
+  var files = deviceFolder.getFiles();
+  while (files.hasNext()) {
+    var candidate = files.next();
+    if (String(candidate.getName()).slice(-suffix.length) === suffix) return candidate;
+  }
+  return null;
+}
+
+function upsertDiagnosticsSessionFile_(deviceFolder, properties, installationId, deviceLabel, appVersion, sessionId, events) {
+  var sessionHash = diagnosticsSessionHash_(installationId, sessionId);
+  var stateKey = 'DIAGNOSTICS_SESSION_' + sessionHash;
+  var state = {};
+  try { state = JSON.parse(properties.getProperty(stateKey) || '{}') || {}; } catch (stateError) {}
+  var part = Math.max(1, Number(state.part) || 1);
+  var file = getDiagnosticsSessionFile_(deviceFolder, properties, stateKey, sessionHash, part);
+  var archive = readDiagnosticsSessionArchive_(file, newDiagnosticsSessionArchive_(installationId, deviceLabel, sessionId));
+  var existingIds = {};
+  for (var i = 0; i < archive.events.length; i++) existingIds[String(archive.events[i].id)] = true;
+  var addedEvents = 0;
+  for (var n = 0; n < events.length; n++) {
+    var id = String(events[n].id);
+    if (!existingIds[id]) {
+      archive.events.push(events[n]);
+      existingIds[id] = true;
+      addedEvents++;
+    }
+  }
+  archive.events.sort(function(a, b) { return Number(a.id) - Number(b.id); });
+  if (archive.appVersions.indexOf(appVersion) < 0) archive.appVersions.push(appVersion);
+  archive.deviceLabel = deviceLabel || archive.deviceLabel;
+  archive.receivedLastAt = new Date().toISOString();
+  var serialized = JSON.stringify(archive);
+  var maxBytes = 8 * 1024 * 1024;
+
+  if (Utilities.newBlob(serialized).getBytes().length > maxBytes && file && archive.events.length > events.length) {
+    part++;
+    file = getDiagnosticsSessionFile_(deviceFolder, properties, stateKey, sessionHash, part);
+    archive = readDiagnosticsSessionArchive_(file, newDiagnosticsSessionArchive_(installationId, deviceLabel, sessionId));
+    existingIds = {};
+    for (var p = 0; p < archive.events.length; p++) existingIds[String(archive.events[p].id)] = true;
+    addedEvents = 0;
+    for (var q = 0; q < events.length; q++) {
+      var nextId = String(events[q].id);
+      if (!existingIds[nextId]) {
+        archive.events.push(events[q]);
+        existingIds[nextId] = true;
+        addedEvents++;
+      }
+    }
+    archive.events.sort(function(a, b) { return Number(a.id) - Number(b.id); });
+    if (archive.appVersions.indexOf(appVersion) < 0) archive.appVersions.push(appVersion);
+    archive.receivedLastAt = new Date().toISOString();
+    serialized = JSON.stringify(archive);
+  }
+  if (Utilities.newBlob(serialized).getBytes().length > maxBytes) throw new Error('SESSION_PART_TOO_LARGE');
+
+  var created = false;
+  if (file) {
+    file.setContent(serialized);
+    file.setName(diagnosticsSessionFileName_(archive, sessionHash, part));
+  }
+  else {
+    file = deviceFolder.createFile(
+      Utilities.newBlob(serialized, 'application/json', diagnosticsSessionFileName_(archive, sessionHash, part))
+    );
+    created = true;
+  }
+  properties.setProperty(stateKey, JSON.stringify({part:part, fileId:file.getId()}));
+  return {
+    file:file, archive:archive, created:created, addedEvents:addedEvents,
+    indexKey:'session:' + sessionHash + ':' + part
+  };
+}
+
+function summarizeDiagnosticsEvents_(events) {
+  var result = {gps:0, skipped:0, errors:0};
+  for (var i = 0; i < events.length; i++) {
+    var type = String(events[i].type || '');
+    if (type === 'gps-fix') result.gps++;
+    if (type === 'gps-stop-skipped') result.skipped++;
+    if (/error|unhandled-rejection|gps-error/.test(type)) result.errors++;
+  }
+  return result;
+}
+
+function eventRangesText_(events) {
+  var ranges = [];
+  for (var i = 0; i < events.length; i++) ranges.push([Number(events[i].id), Number(events[i].id)]);
+  return normalizeDiagnosticsRanges_(ranges).map(function(range) {
+    return range[0] === range[1] ? String(range[0]) : String(range[0]) + '-' + String(range[1]);
+  }).join(',');
+}
+
+function findDiagnosticsSessionRow_(sheet, indexKey) {
+  var lastRow = sheet.getLastRow();
+  if (lastRow > 1) {
+    var found = sheet.getRange(2, 1, lastRow - 1, 1)
+      .createTextFinder(indexKey).matchEntireCell(true).findNext();
+    if (found) return found.getRow();
+  }
+  return Math.max(2, lastRow + 1);
 }
 
 function getDiagnosticsJsonRoot_(properties) {

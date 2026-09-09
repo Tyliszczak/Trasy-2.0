@@ -18,7 +18,7 @@ test('endpoint waliduje paczkę i przekazuje sekret wyłącznie do Apps Script',
   let forwarded=null;
   globalThis.fetch=async(_url,options)=>{
     forwarded=JSON.parse(options.body);
-    return new Response(JSON.stringify({status:'success',duplicate:false}),{status:200,headers:{'Content-Type':'application/json'}});
+    return new Response(JSON.stringify({status:'success',duplicate:false,acceptedEvents:1,duplicateEvents:0}),{status:200,headers:{'Content-Type':'application/json'}});
   };
   try{
     const response=await onRequest({request:request(),env:{DIAGNOSTICS_SHARED_SECRET:'server-only-secret',DIAGNOSTICS_SHEETS_URL:'https://script.google.test/exec'}});
@@ -34,8 +34,10 @@ test('endpoint waliduje paczkę i przekazuje sekret wyłącznie do Apps Script',
 test('endpoint nie przyjmuje mieszanych sesji ani zbyt wielu zdarzeń',async()=>{
   const mixed={...payload,events:[event,{...event,id:2,sessionId:'other'}]};
   assert.equal((await onRequest({request:request(mixed),env:{DIAGNOSTICS_SHARED_SECRET:'x'}})).status,400);
-  const tooMany={...payload,events:Array.from({length:41},(_,index)=>({...event,id:index+1}))};
+  const tooMany={...payload,events:Array.from({length:501},(_,index)=>({...event,id:index+1}))};
   assert.equal((await onRequest({request:request(tooMany),env:{DIAGNOSTICS_SHARED_SECRET:'x'}})).status,400);
   const invalidDevice={...payload,deviceLabel:'Android\u0000telefon'};
   assert.equal((await onRequest({request:request(invalidDevice),env:{DIAGNOSTICS_SHARED_SECRET:'x'}})).status,400);
+  const unordered={...payload,events:[{...event,id:2},{...event,id:1}]};
+  assert.equal((await onRequest({request:request(unordered),env:{DIAGNOSTICS_SHARED_SECRET:'x'}})).status,400);
 });

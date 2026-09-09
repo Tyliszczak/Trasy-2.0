@@ -1,8 +1,8 @@
 const DEFAULT_SHEETS_URL='https://script.google.com/macros/s/AKfycbyQcnU6xvvrUZNVUJRhQ293L47hZwlvsc6i3n9s9hiYqhLUAoKSqGbPohe_lSB0apfUcw/exec';
 const ALLOWED_ORIGINS=new Set(['https://trasy.tyli.pl','https://trasy-2-0.pages.dev']);
-const MAX_REQUEST_BYTES=64*1024;
+const MAX_REQUEST_BYTES=512*1024;
 const MAX_UPSTREAM_BYTES=32*1024;
-const MAX_EVENTS=40;
+const MAX_EVENTS=500;
 
 function json(body,status=200){
   return new Response(JSON.stringify(body),{status,headers:{
@@ -70,9 +70,10 @@ export async function onRequest({request,env}){
     const events=input.events.map(sanitizeEvent);
     if(events.some(event=>!event))return json({status:'error',message:'INVALID_EVENT'},400);
     if(events.some(event=>event.sessionId!==sessionId))return json({status:'error',message:'MIXED_SESSION'},400);
+    if(events.some((event,index)=>index>0&&event.id<=events[index-1].id))return json({status:'error',message:'EVENT_IDS_NOT_INCREASING'},400);
 
     const controller=new AbortController();
-    const timeout=setTimeout(()=>controller.abort(),10000);
+    const timeout=setTimeout(()=>controller.abort(),25000);
     try{
       const upstream=await fetch(env.DIAGNOSTICS_SHEETS_URL||DEFAULT_SHEETS_URL,{
         method:'POST',
@@ -87,7 +88,11 @@ export async function onRequest({request,env}){
       if(!upstream.ok)return json({status:'error',message:'SHEETS_UPSTREAM_ERROR'},502);
       const result=await readJsonLimited(upstream);
       if(result?.status!=='success')return json({status:'error',message:'SHEETS_REJECTED'},502);
-      return json({status:'success',batchId,duplicate:Boolean(result.duplicate)});
+      return json({
+        status:'success',batchId,duplicate:Boolean(result.duplicate),
+        acceptedEvents:Number(result.acceptedEvents)||0,
+        duplicateEvents:Number(result.duplicateEvents)||0
+      });
     }finally{clearTimeout(timeout)}
   }catch(error){
     const code=error?.name==='AbortError'?'SHEETS_TIMEOUT':'DIAGNOSTICS_UPLOAD_FAILED';

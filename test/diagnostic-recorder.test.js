@@ -26,16 +26,23 @@ test('diagnostyka zapisuje lokalnie GPS i zdarzenia wyboru przystanku',()=>{
 test('aktywna diagnostyka automatycznie wysyła kolejkowane paczki przez Cloudflare',()=>{
   const source=read('diagnostic-recorder.js');
   assert.match(source,/UPLOAD_ENDPOINT='\/test-diagnostics'/);
-  assert.match(source,/LAST_UPLOADED_KEY/);
-  assert.match(source,/keepalive:true/);
+  assert.match(source,/index\('uploadState'\)/);
+  assert.match(source,/markEventsUploaded/);
+  assert.doesNotMatch(source,/keepalive:true/);
   assert.match(source,/visibilityState==='hidden'/);
   assert.match(source,/window\.addEventListener\('pagehide'/);
   assert.match(source,/application-use-ended/);
   assert.match(source,/finishUse\('hidden'\)/);
   assert.match(source,/pendingSessionEvents/);
-  assert.match(source,/SESSION_UPLOAD_CURSORS_KEY/);
+  assert.match(source,/UPLOAD_WINDOW_KEY/);
+  assert.match(source,/dueUploadWindow/);
+  assert.match(source,/getHours\(\)>=12/);
+  assert.match(source,/getHours\(\)>=18/);
   assert.match(source,/deviceLabel:deviceLabel\(\)/);
-  assert.match(source,/setInterval\(\(\)=>\{if\(active\)flush\(\)\.then\(\(\)=>uploadPending\(\)\)/);
+  assert.match(source,/DEVICE_NAME_KEY/);
+  assert.match(source,/id="diagnosticDeviceName"/);
+  assert.match(source,/runScheduledUpload\(\)/);
+  assert.doesNotMatch(source,/UPLOAD_INTERVAL_MS=60000/);
   assert.doesNotMatch(source,/DIAGNOSTICS_SHARED_SECRET/);
 });
 
@@ -46,12 +53,14 @@ test('eksport wskazuje uzgodniony email i nie udostępnia WhatsApp',()=>{
   assert.match(source,/mailto:\$\{EMAIL\}/);
   assert.doesNotMatch(source,/WhatsApp|WHATSAPP|whatsapp|wa\.me|48603666921/);
   assert.match(source,/locationDataIncluded:true/);
+  assert.match(source,/localFileTime\(firstAt\)/);
+  assert.match(source,/safeFilePart\(deviceLabel\(\)\)/);
 });
 
 test('skrypt diagnostyczny jest częścią powłoki offline PWA',()=>{
   const html=read('index.html');
   const sw=read('sw.js');
-  assert.match(html,/src="\.\/diagnostic-recorder\.js\?v=7"/);
+  assert.match(html,/src="\.\/diagnostic-recorder\.js\?v=8"/);
   assert.match(sw,/'\.\/diagnostic-recorder\.js'/);
 });
 
@@ -63,6 +72,7 @@ test('pierwsze użycie samo otwiera zgodę, a zatwierdzenie uruchamia rejestrowa
   assert.match(source,/Dane nie są zbierane przed Twoją zgodą/);
   assert.match(source,/if\(!active&&localStorage\.getItem\(FIRST_USE_PROMPT_KEY\)!=='shown'\)/);
   assert.match(source,/localStorage\.setItem\(CONSENT_KEY,'approved'\)/);
+  assert.match(source,/event\.oldVersion<2/);
 });
 
 test('pełne paczki diagnostyczne trafiają do prywatnego folderu, a arkusz przechowuje indeks',()=>{
@@ -74,10 +84,48 @@ test('pełne paczki diagnostyczne trafiają do prywatnego folderu, a arkusz prze
   assert.match(backend,/getFoldersByName\('Pliki JSON'\)/);
   assert.match(backend,/getDiagnosticsDeviceFolder_/);
   assert.match(backend,/deviceFolder\.createFile\(/);
+  assert.match(backend,/trasy-2\.0-test-diagnostics-session/);
+  assert.match(backend,/file\.setContent\(serialized\)/);
+  assert.match(backend,/file\.setName\(diagnosticsSessionFileName_/);
+  assert.match(backend,/Utilities\.formatDate/);
+  assert.match(backend,/archive\.deviceLabel/);
+  assert.match(backend,/isDiagnosticsEventSeen_/);
+  assert.match(backend,/acceptedEvents/);
+  assert.doesNotMatch(backend,/createTextFinder\(batchId\)/);
   assert.match(backend,/'URZĄDZENIE'/);
   assert.match(backend,/'PLIK_JSON'/);
   assert.doesNotMatch(backend,/'DANE_JSON'/);
-  assert.match(recorder,/prywatnego archiwum testów/);
+  assert.match(recorder,/prywatnym archiwum/);
+});
+
+test('zakresy wysłanych zdarzeń są scalane i blokują częściowe duplikaty',()=>{
+  const backend=read('TEST_DIAGNOSTICS_APPS_SCRIPT.gs.txt');
+  const context={};
+  vm.runInNewContext(backend,context);
+  const ranges=context.normalizeDiagnosticsRanges_([[10,20],[1,5],[5,9],[30,30]]);
+  assert.deepEqual(JSON.parse(JSON.stringify(ranges)),[[1,20],[30,30]]);
+  assert.equal(context.isDiagnosticsEventSeen_(ranges,15),true);
+  assert.equal(context.isDiagnosticsEventSeen_(ranges,25),false);
+  context.addDiagnosticsSeenEvents_(ranges,[{id:21},{id:22},{id:29}]);
+  assert.deepEqual(JSON.parse(JSON.stringify(ranges)),[[1,22],[29,30]]);
+});
+
+test('nazwa pliku sesji zawiera czas i czytelną nazwę telefonu',()=>{
+  const backend=read('TEST_DIAGNOSTICS_APPS_SCRIPT.gs.txt');
+  const context={
+    Session:{getScriptTimeZone:()=>'Europe/Warsaw'},
+    Utilities:{formatDate:date=>date.toISOString().slice(0,19).replace('T','_').replaceAll(':','-')}
+  };
+  vm.runInNewContext(backend,context);
+  const archive={
+    installationId:'83592448-5fc1-452c-a22f-94ca7ff54789',
+    deviceLabel:'Telefon Krzysztofa',
+    events:[{at:'2026-09-09T06:12:25.000Z'},{at:'2026-09-09T08:31:34.000Z'}]
+  };
+  assert.equal(
+    context.diagnosticsSessionFileName_(archive,'1234567890abcdef',1),
+    'trasy-2.0-2026-09-09_06-12-25--2026-09-09_08-31-34-Telefon-Krzysztofa-83592448-12345678.json'
+  );
 });
 
 test('diagnostyka ogranicza powtarzalne statusy i zachowuje dane pozycji po wznowieniu',()=>{

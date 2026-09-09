@@ -5,19 +5,22 @@
 
   const EMAIL='kswiderski.de@gmail.com';
   const DB_NAME='trasy2-test-diagnostics';
-  const DB_VERSION=1;
+  const DB_VERSION=2;
   const STORE='events';
   const ACTIVE_KEY='trasy2.diagnostics.active';
   const SESSION_KEY='trasy2.diagnostics.session';
   const INSTALLATION_KEY='trasy2.diagnostics.installation';
-  const LAST_UPLOADED_KEY='trasy2.diagnostics.lastUploadedId';
-  const SESSION_UPLOAD_CURSORS_KEY='trasy2.diagnostics.sessionUploadCursors.v1';
+  const DEVICE_NAME_KEY='trasy2.diagnostics.deviceName.v1';
+  const LEGACY_LAST_UPLOADED_KEY='trasy2.diagnostics.lastUploadedId';
+  const LEGACY_SESSION_UPLOAD_CURSORS_KEY='trasy2.diagnostics.sessionUploadCursors.v1';
+  const UPLOAD_WINDOW_KEY='trasy2.diagnostics.uploadWindow.v1';
   const CONSENT_KEY='trasy2.diagnostics.consent.v1';
   const FIRST_USE_PROMPT_KEY='trasy2.diagnostics.firstUsePrompt.v1';
   const UPLOAD_ENDPOINT='/test-diagnostics';
-  const UPLOAD_INTERVAL_MS=60000;
-  const UPLOAD_BATCH_SIZE=40;
-  const UPLOAD_MAX_BYTES=56*1024;
+  const UPLOAD_CHECK_INTERVAL_MS=15*60*1000;
+  const UPLOAD_BATCH_SIZE=500;
+  const UPLOAD_MAX_BYTES=460*1024;
+  const UPLOAD_MAX_PARTS=32;
   const MAX_EVENTS=50000;
   const GPS_MIN_INTERVAL_MS=900;
   let dbPromise=null;
@@ -51,6 +54,9 @@
   }
 
   function deviceLabel(){
+    const configured=String(localStorage.getItem(DEVICE_NAME_KEY)||'')
+      .replace(/[\u0000-\u001F\u007F]/g,' ').replace(/\s+/g,' ').trim().slice(0,80);
+    if(configured)return configured;
     const userAgent=navigator.userAgent||'';
     const platform=/iPhone/i.test(userAgent)?'iPhone Safari':
       /iPad/i.test(userAgent)?'iPad Safari':
@@ -62,6 +68,19 @@
     return [platform,width&&height?`${width}x${height}`:''].filter(Boolean).join(' ').slice(0,80);
   }
 
+  function safeFilePart(value,maxLength=55){
+    return String(value||'nieznane').replace(/[\\\/:*?"<>|\u0000-\u001F\u007F]+/g,'-')
+      .replace(/\s+/g,'-').replace(/^-+|-+$/g,'').slice(0,maxLength)||'nieznane';
+  }
+
+  function localFileTime(value){
+    const date=new Date(value);
+    if(Number.isNaN(date.getTime()))return'czas-nieznany';
+    const parts=[date.getFullYear(),String(date.getMonth()+1).padStart(2,'0'),String(date.getDate()).padStart(2,'0')];
+    const time=[String(date.getHours()).padStart(2,'0'),String(date.getMinutes()).padStart(2,'0'),String(date.getSeconds()).padStart(2,'0')];
+    return`${parts.join('-')}_${time.join('-')}`;
+  }
+
   function newSessionId(){
     return `${new Date().toISOString().replace(/[:.]/g,'-')}-${randomId()}`;
   }
@@ -70,15 +89,41 @@
     if(dbPromise)return dbPromise;
     dbPromise=new Promise((resolve,reject)=>{
       const request=indexedDB.open(DB_NAME,DB_VERSION);
-      request.onupgradeneeded=()=>{
+      request.onupgradeneeded=event=>{
         const db=request.result;
-        if(!db.objectStoreNames.contains(STORE)){
-          const store=db.createObjectStore(STORE,{keyPath:'id',autoIncrement:true});
+        const store=db.objectStoreNames.contains(STORE)
+          ?request.transaction.objectStore(STORE)
+          :db.createObjectStore(STORE,{keyPath:'id',autoIncrement:true});
+        if(!store.indexNames.contains('sessionId')){
           store.createIndex('sessionId','sessionId');
+        }
+        if(!store.indexNames.contains('at')){
           store.createIndex('at','at');
         }
+        if(!store.indexNames.contains('uploadState')){
+          store.createIndex('uploadState','uploadState');
+        }
+        if(event.oldVersion<2){
+          const globalCursor=Math.max(0,Number(localStorage.getItem(LEGACY_LAST_UPLOADED_KEY))||0);
+          let sessionCursors={};
+          try{sessionCursors=JSON.parse(localStorage.getItem(LEGACY_SESSION_UPLOAD_CURSORS_KEY)||'{}')||{}}catch{}
+          const cursorRequest=store.openCursor();
+          cursorRequest.onsuccess=()=>{
+            const cursor=cursorRequest.result;
+            if(!cursor)return;
+            const event=cursor.value;
+            const sessionCursor=Math.max(0,Number(sessionCursors[event.sessionId])||0);
+            event.uploadState=Number(event.id)<=Math.max(globalCursor,sessionCursor)?1:0;
+            cursor.update(event);
+            cursor.continue();
+          };
+        }
       };
-      request.onsuccess=()=>resolve(request.result);
+      request.onsuccess=()=>{
+        localStorage.removeItem(LEGACY_LAST_UPLOADED_KEY);
+        localStorage.removeItem(LEGACY_SESSION_UPLOAD_CURSORS_KEY);
+        resolve(request.result);
+      };
       request.onerror=()=>reject(request.error||new Error('Nie można otworzyć pamięci diagnostycznej.'));
     });
     return dbPromise;
@@ -164,6 +209,19 @@
     });
     let remove=Math.max(0,count-MAX_EVENTS);
     if(!remove)return;
+    const removeUploaded=await new Promise((resolve,reject)=>{
+      const transaction=db.transaction(STORE,'readwrite');
+      const request=transaction.objectStore(STORE).index('uploadState').openCursor(IDBKeyRange.only(1));
+      request.onsuccess=()=>{
+        const cursor=request.result;
+        if(!cursor||remove<=0)return;
+        cursor.delete();remove-=1;cursor.continue();
+      };
+      transaction.oncomplete=()=>resolve(remove);
+      transaction.onerror=()=>reject(transaction.error);
+    });
+    remove=removeUploaded;
+    if(!remove)return;
     await new Promise((resolve,reject)=>{
       const transaction=db.transaction(STORE,'readwrite');
       const request=transaction.objectStore(STORE).openCursor();
@@ -186,7 +244,7 @@
       await new Promise((resolve,reject)=>{
         const transaction=db.transaction(STORE,'readwrite');
         const store=transaction.objectStore(STORE);
-        batch.forEach(item=>store.add(item));
+        batch.forEach(item=>store.add({...item,uploadState:0}));
         transaction.oncomplete=resolve;
         transaction.onerror=()=>reject(transaction.error);
       });
@@ -208,18 +266,18 @@
     });
   }
 
-  async function pendingEvents(afterId,limit=UPLOAD_BATCH_SIZE){
+  async function pendingEvents(limit=UPLOAD_BATCH_SIZE){
     await flush();
     const db=await openDb();
     return new Promise((resolve,reject)=>{
-      const range=IDBKeyRange.lowerBound(Math.max(0,Number(afterId)||0),true);
-      const request=db.transaction(STORE,'readonly').objectStore(STORE).getAll(range,limit);
+      const request=db.transaction(STORE,'readonly').objectStore(STORE)
+        .index('uploadState').getAll(IDBKeyRange.only(0),limit);
       request.onsuccess=()=>resolve(request.result||[]);
       request.onerror=()=>reject(request.error);
     });
   }
 
-  async function pendingSessionEvents(targetSessionId,afterId,limit=UPLOAD_BATCH_SIZE){
+  async function pendingSessionEvents(targetSessionId,limit=UPLOAD_BATCH_SIZE){
     await flush();
     const db=await openDb();
     return new Promise((resolve,reject)=>{
@@ -229,7 +287,7 @@
       request.onsuccess=()=>{
         const cursor=request.result;
         if(!cursor||events.length>=limit){resolve(events);return}
-        if(Number(cursor.value?.id)>Math.max(0,Number(afterId)||0))events.push(cursor.value);
+        if(cursor.value?.uploadState!==1)events.push(cursor.value);
         if(events.length>=limit){resolve(events);return}
         cursor.continue();
       };
@@ -237,20 +295,22 @@
     });
   }
 
-  function sessionUploadCursors(){
-    try{
-      const value=JSON.parse(localStorage.getItem(SESSION_UPLOAD_CURSORS_KEY)||'{}');
-      return value&&typeof value==='object'&&!Array.isArray(value)?value:{};
-    }catch{return{}}
-  }
-
-  function rememberSessionUploaded(targetSessionId,eventId){
-    const cursors=sessionUploadCursors();
-    const uploaded=Math.max(Number(cursors[targetSessionId])||0,Number(eventId)||0);
-    delete cursors[targetSessionId];
-    cursors[targetSessionId]=uploaded;
-    const recent=Object.entries(cursors).slice(-20);
-    localStorage.setItem(SESSION_UPLOAD_CURSORS_KEY,JSON.stringify(Object.fromEntries(recent)));
+  async function markEventsUploaded(events){
+    if(!events.length)return;
+    const db=await openDb();
+    await new Promise((resolve,reject)=>{
+      const transaction=db.transaction(STORE,'readwrite');
+      const store=transaction.objectStore(STORE);
+      events.forEach(event=>{
+        const request=store.get(event.id);
+        request.onsuccess=()=>{
+          const stored=request.result;
+          if(stored){stored.uploadState=1;store.put(stored)}
+        };
+      });
+      transaction.oncomplete=resolve;
+      transaction.onerror=()=>reject(transaction.error);
+    });
   }
 
   async function clearEvents(){
@@ -261,14 +321,18 @@
       request.onsuccess=resolve;
       request.onerror=()=>reject(request.error);
     });
-    localStorage.removeItem(LAST_UPLOADED_KEY);
-    localStorage.removeItem(SESSION_UPLOAD_CURSORS_KEY);
+    localStorage.removeItem(LEGACY_LAST_UPLOADED_KEY);
+    localStorage.removeItem(LEGACY_SESSION_UPLOAD_CURSORS_KEY);
+    localStorage.removeItem(UPLOAD_WINDOW_KEY);
     updateUi('Dane diagnostyczne zostały usunięte.');
   }
 
   function scheduleUpload(delay=1000){
     clearTimeout(uploadTimer);
-    uploadTimer=setTimeout(()=>{uploadTimer=0;uploadPending()},delay);
+    uploadTimer=setTimeout(()=>{
+      uploadTimer=0;
+      runScheduledUpload().catch(error=>console.warn('Harmonogram wysyłki diagnostyki:',error));
+    },delay);
   }
 
   function payloadFor(events){
@@ -279,7 +343,7 @@
       deviceLabel:deviceLabel(),
       appVersion:version?.dataset.version||'',
       sessionId:first.sessionId,
-      events
+      events:events.map(({uploadState,...event})=>event)
     };
   }
 
@@ -297,33 +361,33 @@
         await flush();
         if(sessionId){
           for(let part=0;part<8;part++){
-            const sessionCursor=Math.max(
-              Number(sessionUploadCursors()[sessionId])||0,
-              Number(localStorage.getItem(LAST_UPLOADED_KEY))||0
-            );
-            const pending=await pendingSessionEvents(sessionId,sessionCursor);
+            const pending=await pendingSessionEvents(sessionId);
             if(!pending.length)break;
             const events=boundedBatch(pending);
             if(!events.length)throw new Error('Nie można przygotować bieżącej paczki diagnostycznej.');
             await uploadBatch(events);
-            rememberSessionUploaded(sessionId,events[events.length-1].id);
+            await markEventsUploaded(events);
             sent+=events.length;
           }
         }
-        for(let part=0;part<8;part++){
-          const lastUploaded=Math.max(0,Number(localStorage.getItem(LAST_UPLOADED_KEY))||0);
-          const pending=await pendingEvents(lastUploaded);
+        for(let part=8;part<UPLOAD_MAX_PARTS;part++){
+          const pending=await pendingEvents();
           if(!pending.length)break;
           const events=boundedBatch(pending);
           if(!events.length)throw new Error('Nie można przygotować paczki diagnostycznej.');
           await uploadBatch(events);
-          localStorage.setItem(LAST_UPLOADED_KEY,String(events[events.length-1].id));
+          await markEventsUploaded(events);
           sent+=events.length;
         }
-        lastSyncMessage=sent?`Automatycznie wysłano ${sent} zdarzeń do prywatnego archiwum.`:'Wszystkie zapisane dane są wysłane.';
+        const complete=(await pendingEvents(1)).length===0;
+        lastSyncMessage=sent
+          ?`Wysłano ${sent} nowych zdarzeń i scalono je z plikami sesji${complete?'.':'; pozostałe wyśle kolejne okno.'}`
+          :'Wszystkie zapisane dane są wysłane.';
+        return{sent,complete};
       }catch(error){
         lastSyncMessage=navigator.onLine?'Wysyłka nie powiodła się — aplikacja ponowi ją automatycznie.':'Brak internetu — dane czekają bezpiecznie na telefonie.';
         console.warn('Automatyczna wysyłka diagnostyki:',error);
+        return{sent,complete:false,error:true};
       }finally{
         uploadInFlight=null;updateUi();
       }
@@ -334,12 +398,35 @@
   async function uploadBatch(events){
     const payload=payloadFor(events);
     const response=await fetch(UPLOAD_ENDPOINT,{
-      method:'POST',cache:'no-store',credentials:'same-origin',keepalive:true,
+      method:'POST',cache:'no-store',credentials:'same-origin',
       headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)
     });
     const result=await response.json().catch(()=>({}));
     if(!response.ok||result?.status!=='success')throw new Error(result?.message||`HTTP ${response.status}`);
     return result;
+  }
+
+  function dueUploadWindow(now=new Date()){
+    const boundary=new Date(now);
+    let name='wieczór';
+    if(now.getHours()>=18){boundary.setHours(18,0,0,0)}
+    else if(now.getHours()>=12){name='południe';boundary.setHours(12,0,0,0)}
+    else{boundary.setDate(boundary.getDate()-1);boundary.setHours(18,0,0,0)}
+    const day=[boundary.getFullYear(),String(boundary.getMonth()+1).padStart(2,'0'),String(boundary.getDate()).padStart(2,'0')].join('-');
+    return{key:`${day}:${name}`,boundary};
+  }
+
+  async function runScheduledUpload(){
+    if(!navigator.onLine||localStorage.getItem(CONSENT_KEY)!=='approved')return;
+    const due=dueUploadWindow();
+    if(localStorage.getItem(UPLOAD_WINDOW_KEY)===due.key)return;
+    const oldest=(await pendingEvents(1))[0];
+    if(!oldest||new Date(oldest.at)>due.boundary){
+      localStorage.setItem(UPLOAD_WINDOW_KEY,due.key);
+      return;
+    }
+    const result=await uploadPending();
+    if(result?.complete)localStorage.setItem(UPLOAD_WINDOW_KEY,due.key);
   }
 
   function setActive(next){
@@ -363,7 +450,7 @@
       record('recording-stopped');
       active=false;
       localStorage.removeItem(ACTIVE_KEY);
-      flush().then(()=>uploadPending());
+      flush();
     }
     root.classList.toggle('diagnosticRecording',active);
     updateUi(active?'Rejestrowanie jest włączone. Wykonaj przejazd testowy.':'Rejestrowanie zostało zatrzymane.');
@@ -377,7 +464,11 @@
     dialog.className='diagnosticDialog';
     dialog.innerHTML=`<form method="dialog">
       <div class="diagnosticDialogHead"><span aria-hidden="true">●</span><h2>Diagnostyka testowa</h2></div>
-      <p class="diagnosticPrivacy">Rejestr obejmuje działanie aplikacji oraz dokładne pozycje GPS. Po włączeniu dane są automatycznie przesyłane do prywatnego archiwum testów, a arkusz przechowuje tylko ich indeks. Przy braku internetu pozostają na telefonie i zostaną wysłane później.</p>
+      <p class="diagnosticPrivacy">Rejestr obejmuje działanie aplikacji oraz dokładne pozycje GPS. Po włączeniu dane są automatycznie wysyłane najwyżej dwa razy dziennie i scalane w prywatnym archiwum do jednego pliku na sesję. Przy braku internetu pozostają na telefonie i zostaną wysłane w kolejnym oknie.</p>
+      <label class="diagnosticDeviceLabel" for="diagnosticDeviceName">Nazwa tego telefonu (opcjonalnie)
+        <input id="diagnosticDeviceName" type="text" maxlength="80" autocomplete="off" placeholder="np. Telefon Krzysztofa">
+      </label>
+      <small class="diagnosticDeviceHint">Przeglądarka nie udostępnia nazwy Wi‑Fi ani Bluetooth. Wpisz własną nazwę raz; będzie używana w nazwach kolejnych plików.</small>
       <p id="diagnosticState" class="diagnosticState"></p>
       <p id="diagnosticSync" class="diagnosticSync"></p>
       <div class="diagnosticActions">
@@ -390,6 +481,15 @@
       <small class="diagnosticRecipient">Odbiorca: ${EMAIL}</small>
     </form>`;
     document.body.append(dialog);
+    const deviceName=dialog.querySelector('#diagnosticDeviceName');
+    deviceName.value=localStorage.getItem(DEVICE_NAME_KEY)||'';
+    deviceName.addEventListener('change',()=>{
+      const value=String(deviceName.value||'').replace(/[\u0000-\u001F\u007F]/g,' ').replace(/\s+/g,' ').trim().slice(0,80);
+      deviceName.value=value;
+      if(value)localStorage.setItem(DEVICE_NAME_KEY,value);
+      else localStorage.removeItem(DEVICE_NAME_KEY);
+      updateUi(value?`Zapisano nazwę urządzenia: ${value}.`:'Będzie używana automatyczna nazwa urządzenia.');
+    });
     dialog.querySelector('#diagnosticToggle').onclick=()=>setActive(!active);
     dialog.querySelector('#diagnosticSend').onclick=()=>exportDiagnostics('email');
     dialog.querySelector('#diagnosticDownload').onclick=()=>exportDiagnostics('download');
@@ -436,7 +536,9 @@
         locationDataIncluded:true,
         events
       };
-      const name=`trasy-2.0-diagnostyka-${exportedAt.replace(/[:.]/g,'-')}.json`;
+      const firstAt=events[0]?.at||exportedAt;
+      const lastAt=events[events.length-1]?.at||exportedAt;
+      const name=`trasy-2.0-${localFileTime(firstAt)}--${localFileTime(lastAt)}-${safeFilePart(deviceLabel())}-${installationId().slice(0,8)}.json`;
       const file=new File([JSON.stringify(archive,null,2)],name,{type:'application/json'});
       if(target==='email'){
         downloadFile(file);
@@ -461,7 +563,7 @@
     if(!active||useEndRecorded)return;
     useEndRecorded=true;
     record('application-use-ended',{reason});
-    flush().then(()=>uploadPending());
+    flush();
   }
   [
     'trasy:stop-transition','trasy:route-build','trasy:navigation-resumed',
@@ -516,7 +618,10 @@
     localStorage.setItem(SESSION_KEY,sessionId);
     record('recording-restored',{appVersion:version?.dataset.version||''});
   }
-  setInterval(()=>{if(active)flush().then(()=>uploadPending())},UPLOAD_INTERVAL_MS);
+  setInterval(()=>{
+    if(active)flush();
+    runScheduledUpload().catch(error=>console.warn('Harmonogram wysyłki diagnostyki:',error));
+  },UPLOAD_CHECK_INTERVAL_MS);
   if(navigator.onLine)scheduleUpload(1500);
   if(!active&&localStorage.getItem(FIRST_USE_PROMPT_KEY)!=='shown'){
     setTimeout(()=>{

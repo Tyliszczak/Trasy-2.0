@@ -59,11 +59,11 @@ test('ręczne pominięcie po kliknięciu POMIŃ pokazuje tylko POTWIERDŹ i ANUL
   assert.doesNotMatch(source,/POTWIERDŹ POMINIĘCIE/);
 });
 
-test('moduł pytania jest ładowany i dostępny offline bez zmiany numeru wersji',()=>{
+test('moduł pytania jest ładowany i dostępny offline w bieżącej wersji',()=>{
   const html=read('index.html');
   const sw=read('sw.js');
   assert.match(html,/skip-stop-suggestion\.js\?v=1/);
   assert.match(sw,/'\.\/skip-stop-suggestion\.js'/);
-  assert.match(html,/data-version="2\.0\.215"/);
-  assert.match(sw,/APP_VERSION='2\.0\.215'/);
+  assert.match(html,/data-version="2\.0\.216"/);
+  assert.match(sw,/APP_VERSION='2\.0\.216'/);
 });
