@@ -30,7 +30,21 @@
   let applying=false;
   let handledArrivalKey='';
 
+  const genericEndNames=new Set(['przystanek końcowy','koniec trasy']);
   function rows(){return [...body.querySelectorAll('tr')].filter(r=>r.dataset.coordinate)}
+  function replaceGenericEndNames(rs){
+    const routeName=String(document.getElementById('scheduleRouteName')?.textContent||'').trim();
+    if(!routeName)return;
+    rs.forEach(row=>{
+      const cell=row?.children?.[0];
+      if(!cell)return;
+      const textNode=[...(cell.childNodes||[])].find(node=>node?.nodeType===3);
+      const current=String(textNode?.textContent||cell.textContent||'').trim().toLocaleLowerCase('pl-PL');
+      if(!genericEndNames.has(current))return;
+      if(textNode)textNode.textContent=routeName;
+      else cell.prepend(document.createTextNode(routeName));
+    });
+  }
   function restore(row){
     const cell=row?.children?.[1];
     if(!cell||!cell.dataset.routeRole)return;
@@ -65,6 +79,7 @@
     try{
       const rs=rows();
       if(!rs.length)return;
+      replaceGenericEndNames(rs);
       const isReturn=body.dataset.direction==='return';
       rs.forEach((r,i)=>{
         if(isReturn&&i===0)mark(r,'START','start');
