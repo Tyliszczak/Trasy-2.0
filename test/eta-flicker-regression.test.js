@@ -8,7 +8,7 @@ test('status ETA pozostaje widoczny przy przejściowym braku danych',async()=>{
   const source=await readSource('eta-status.js');
   assert.doesNotMatch(source,/ETA_HIDE_GRACE_MS|hideInfoTimer/);
   assert.match(source,/etaSecondsLive===null\)return/);
-  assert.match(source,/plan===null\)return/);
+  assert.match(source,/if\(plan===null\)\{[\s\S]*setInfo\(info,'etaPunctuality etaOnly',`ETA \$\{arrivalClock\(etaSecondsLive\)\}`\)[\s\S]*broadcastStatus\('neutral',null,etaSecondsLive\)/);
   assert.doesNotMatch(source,/etaSecondsLive===null\)[^{;]*\{?hideInfo/);
   assert.match(source,/if\(guardIsShowing\(\)\)return/);
 });
