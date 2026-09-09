@@ -9,22 +9,24 @@
     position:fixed;
     inset:0;
     z-index:70100;
-    background:#0009;
+    background:#0008;
     display:flex;
     align-items:flex-end;
     justify-content:center;
     padding:14px;
-    box-sizing:border-box
+    box-sizing:border-box;
+    backdrop-filter:blur(3px);
+    -webkit-backdrop-filter:blur(3px)
   `;
   modal.innerHTML=`
-    <div style="width:min(100%,520px);background:#1d1d1d;border:1px solid #555;border-radius:16px;padding:16px;box-shadow:0 8px 30px #000b">
-      <div id="routeStopActionsTitle" style="font-size:20px;font-weight:900;color:#ccff33"></div>
-      <div id="routeStopActionsMeta" style="margin-top:5px;color:#ddd;font-size:14px"></div>
-      <div style="display:grid;gap:9px;margin-top:16px">
-        <button id="routeStopShowSegment" type="button" style="padding:13px;font-weight:900">POKAŻ ODCINEK DO PRZYSTANKU</button>
-        <button id="routeStopSkip" type="button" style="padding:13px;font-weight:1000;background:#9f1d2c;color:#fff">POMIŃ TEN PRZYSTANEK</button>
-        <button id="routeStopPrevious" type="button" style="padding:13px;font-weight:900;background:#2d5f94;color:#fff">WRÓĆ DO POPRZEDNIEGO PRZYSTANKU</button>
-        <button id="routeStopCancel" type="button" style="padding:13px;font-weight:900">ANULUJ</button>
+    <div style="width:min(100%,520px);background:#242424;border:1px solid #ffffff33;border-radius:20px;padding:18px;box-shadow:0 16px 44px #000a">
+      <div id="routeStopActionsTitle" style="font-size:20px;font-weight:900;color:#fff"></div>
+      <div id="routeStopActionsMeta" style="margin-top:6px;color:#ccff33;font-size:16px;font-weight:800"></div>
+      <div style="display:grid;gap:10px;margin-top:18px">
+        <button id="routeStopShowSegment" type="button" style="min-height:50px;padding:12px;border:1px solid #666;border-radius:12px;background:#393939;color:#fff;font-weight:900">POKAŻ ODCINEK</button>
+        <button id="routeStopSkip" type="button" style="min-height:52px;padding:12px;border:0;border-radius:12px;background:#ccff33;color:#111;font-weight:1000">POMIŃ</button>
+        <button id="routeStopPrevious" type="button" style="min-height:50px;padding:12px;border:1px solid #666;border-radius:12px;background:#393939;color:#fff;font-weight:900">POPRZEDNI PRZYSTANEK</button>
+        <button id="routeStopCancel" type="button" style="min-height:50px;padding:12px;border:1px solid #666;border-radius:12px;background:#303030;color:#fff;font-weight:900">ANULUJ</button>
       </div>
     </div>
   `;
@@ -56,14 +58,23 @@
     const s=currentStop();if(!s)return;
     if(navOpen)window.__routeEnterManualView?.();
     window.__routeStopActionsOpen=true;
-    title.textContent=s.name;meta.textContent=s.time?`Plan: ${s.time}`:'';
-    showSegment.hidden=!navOpen;
-    previous.hidden=s.idx<=0||body.dataset.emptyRun==='1';
-    skip.hidden=s.idx>=s.rs.length-1;
-    confirmingSkip=Boolean(confirmSkip&&!skip.hidden);
-    skip.textContent=confirmingSkip?`POTWIERDŹ POMINIĘCIE: ${s.name}`:'POMIŃ TEN PRZYSTANEK';
-    skip.style.background=confirmingSkip?'#e11d2e':'#9f1d2c';
-    if(confirmingSkip)meta.textContent='Nawigacja natychmiast przejdzie do kolejnego przystanku.';
+    confirmingSkip=Boolean(confirmSkip&&s.idx<s.rs.length-1);
+    if(confirmingSkip){
+      title.textContent='Pominąć przystanek?';
+      meta.textContent=s.name;
+      showSegment.hidden=true;
+      previous.hidden=true;
+      skip.hidden=false;
+      skip.textContent='POMIŃ';
+    }else{
+      title.textContent=s.name;
+      meta.textContent=s.time?`Plan: ${s.time}`:'';
+      showSegment.hidden=!navOpen;
+      previous.hidden=s.idx<=0||body.dataset.emptyRun==='1';
+      skip.hidden=s.idx>=s.rs.length-1;
+      skip.textContent='POMIŃ';
+    }
+    cancel.textContent='ANULUJ';
     modal.hidden=false;
   }
   function closeMenu(){modal.hidden=true;window.__routeStopActionsOpen=false;confirmingSkip=false}
@@ -89,13 +100,7 @@
   function skipCurrentStop(){
     const s=currentStop();
     if(!s||s.idx>=s.rs.length-1)return;
-    if(!confirmingSkip){
-      confirmingSkip=true;
-      meta.textContent='Nawigacja natychmiast przejdzie do kolejnego przystanku.';
-      skip.textContent=`POTWIERDŹ POMINIĘCIE: ${s.name}`;
-      skip.style.background='#e11d2e';
-      return;
-    }
+    if(!confirmingSkip){openMenu(true);return}
     body.dispatchEvent(new CustomEvent('gps-skip-current-stop',{
       bubbles:true,
       detail:{expectedIndex:s.idx,source:'manual-skip'}
