@@ -1,60 +1,83 @@
 (()=>{
   const body=document.getElementById('scheduleBody');
   const time=globalThis.__trasyTime;
-  if(!body)return;
+  const header=document.getElementById('routeNextStop');
+  if(!body||!header)return;
 
   const style=document.createElement('style');
-  style.textContent=`
-    #scheduleBody .etaPunctuality.etaOnly{color:#ccff33!important}
-    #scheduleBody .etaPunctuality.etaOnly:before{display:none!important;content:none!important}
-    #routeNextStop .nextStopPlan[data-eta-only="1"]{color:#ccff33!important;font-weight:900!important}
-  `;
+  style.textContent=`#scheduleBody .etaPunctuality.etaOnly{color:#ccff33!important}#scheduleBody .etaPunctuality.etaOnly:before{display:none!important;content:none!important}#routeNextStop .nextStopPlan[data-eta-only="1"]{color:#ccff33!important;font-weight:900!important}`;
   document.head.appendChild(style);
+
+  let latestEtaSeconds=null;
+  let applying=false;
+  let queued=false;
 
   function rows(){return[...body.querySelectorAll('tr')].filter(row=>row.dataset.coordinate)}
   function activeRow(){
-    const routeRows=rows();
+    const list=rows();
     const index=Number(body.dataset.gpsNextStop);
-    if(Number.isInteger(index)&&index>=0&&index<routeRows.length)return routeRows[index];
-    return routeRows.find(row=>row.classList.contains('gpsNextStop'))||routeRows[0]||null;
+    if(Number.isInteger(index)&&index>=0&&index<list.length)return list[index];
+    return list.find(row=>row.classList.contains('gpsNextStop'))||list[0]||null;
   }
   function planText(row){
     if(!row)return'';
     if(typeof time?.rowPlanText==='function')return String(time.rowPlanText(row)||'').trim();
     const cell=row.children?.[1];
-    return String(cell?.dataset?.routeRolePlan||cell?.dataset?.finalStopPlan||cell?.textContent||'').trim();
+    const direct=[...(cell?.childNodes||[])].filter(node=>node?.nodeType===3).map(node=>String(node.textContent||'').trim()).join(' ');
+    return /^\d{1,2}:\d{2}$/.test(direct)?direct:'';
   }
   function arrivalClock(seconds){
     if(!Number.isFinite(seconds))return'';
     const date=new Date(Date.now()+Math.max(0,seconds)*1000);
     return`${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`;
   }
-  function planElement(){return document.querySelector('#routeNextStop .nextStopPlan')}
-  function clearEtaOnly(){
-    const plan=planElement();
-    if(plan?.dataset.etaOnly==='1'){
-      plan.textContent='';
-      delete plan.dataset.etaOnly;
-    }
-  }
-  function renderEta(detail){
-    const row=activeRow();
-    const plan=planElement();
-    if(!row||!plan)return;
-    if(planText(row)){
-      delete plan.dataset.etaOnly;
-      return;
-    }
-    const seconds=Number(detail?.etaSeconds);
-    if(!Number.isFinite(seconds)||seconds<0)return;
-    plan.textContent=`ETA ${arrivalClock(seconds)}`;
-    plan.dataset.etaOnly='1';
-  }
+  const planElement=()=>header.querySelector('.nextStopPlan');
+  const statusElement=()=>header.querySelector('.nextStopStatus');
+  const guardElement=()=>header.querySelector('.nextStopGuard');
+  const isUntimed=()=>{const row=activeRow();return Boolean(row&&!planText(row))};
 
-  body.addEventListener('nav-eta-update',event=>renderEta(event.detail));
-  body.addEventListener('eta-status-change',event=>renderEta(event.detail));
-  body.addEventListener('gps-next-stop-change',()=>{clearEtaOnly();setTimeout(()=>renderEta({etaSeconds:Number(body.dataset.etaSeconds)}),0)});
-  body.addEventListener('route-direction-change',clearEtaOnly);
-  body.addEventListener('route-mode-change',clearEtaOnly);
-  body.addEventListener('schedule-rendered',clearEtaOnly);
+  function render(){
+    queued=false;
+    if(applying)return;
+    applying=true;
+    try{
+      const row=activeRow();
+      const plan=planElement();
+      if(!row||!plan)return;
+      if(planText(row)){
+        delete plan.dataset.etaOnly;
+        return;
+      }
+      const status=statusElement();
+      if(status){status.hidden=true;status.className='nextStopStatus';status.textContent=''}
+      const guard=guardElement();
+      if(guard){guard.hidden=true;guard.classList.remove('approach','hold','ready','flash3');guard.textContent=''}
+      if(Number.isFinite(latestEtaSeconds)&&latestEtaSeconds>=0){
+        const value=`ETA ${arrivalClock(latestEtaSeconds)}`;
+        if(plan.textContent!==value)plan.textContent=value;
+      }else if(plan.textContent){
+        plan.textContent='';
+      }
+      plan.dataset.etaOnly='1';
+    }finally{applying=false}
+  }
+  function queueRender(){if(queued)return;queued=true;queueMicrotask(render)}
+  function acceptEta(detail){
+    const seconds=Number(detail?.etaSeconds);
+    if(Number.isFinite(seconds)&&seconds>=0)latestEtaSeconds=seconds;
+    if(isUntimed())queueRender();
+  }
+  function reset(){latestEtaSeconds=null;queueRender()}
+
+  body.addEventListener('nav-eta-update',event=>acceptEta(event.detail));
+  body.addEventListener('eta-status-change',event=>acceptEta(event.detail));
+  body.addEventListener('gps-next-stop-change',reset);
+  body.addEventListener('route-direction-change',reset);
+  body.addEventListener('route-mode-change',reset);
+  body.addEventListener('schedule-rendered',reset);
+
+  new MutationObserver(()=>{if(!applying&&isUntimed())queueRender()}).observe(header,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['hidden','class']});
+  const initial=Number(body.dataset.etaSeconds);
+  if(Number.isFinite(initial)&&initial>=0)latestEtaSeconds=initial;
+  render();
 })();
