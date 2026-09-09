@@ -74,18 +74,19 @@
   const modal=document.createElement('div');
   modal.id='skipStopSuggestion';
   modal.hidden=true;
-  modal.style.cssText='position:fixed;inset:0;z-index:71000;background:#000b;display:flex;align-items:center;justify-content:center;padding:18px;box-sizing:border-box';
+  modal.style.cssText='position:fixed;inset:0;z-index:71000;background:#0008;display:flex;align-items:center;justify-content:center;padding:18px;box-sizing:border-box;backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)';
   modal.innerHTML=`
-    <div role="dialog" aria-modal="true" aria-labelledby="skipStopSuggestionQuestion" style="width:min(100%,520px);background:#202020;border:2px solid #ccff33;border-radius:16px;padding:20px 18px;box-shadow:0 14px 44px #000;text-align:center">
-      <div id="skipStopSuggestionQuestion" style="font-size:21px;line-height:1.3;font-weight:1000;color:#fff"></div>
-      <div style="display:grid;gap:10px;margin-top:20px">
-        <button id="skipStopSuggestionYes" type="button" style="min-height:54px;margin:0;padding:10px 14px;border:1px solid #ccff33;border-radius:9px;background:#ccff33;color:#111;font-size:17px;font-weight:1000">TAK</button>
-        <button id="skipStopSuggestionNo" type="button" style="min-height:54px;margin:0;padding:10px 14px;border:1px solid #777;border-radius:9px;background:#333;color:#fff;font-size:17px;font-weight:1000">NIE, JADĘ OBJAZDEM</button>
+    <div role="dialog" aria-modal="true" aria-labelledby="skipStopSuggestionQuestion" style="width:min(100%,460px);background:#242424;border:1px solid #ffffff33;border-radius:20px;padding:22px 18px 18px;box-shadow:0 18px 50px #000a;text-align:center">
+      <div id="skipStopSuggestionQuestion" style="font-size:21px;line-height:1.25;font-weight:900;color:#fff">Pominąć przystanek?</div>
+      <div id="skipStopSuggestionName" style="margin-top:8px;font-size:18px;line-height:1.25;font-weight:800;color:#ccff33"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:22px">
+        <button id="skipStopSuggestionYes" type="button" style="min-height:54px;margin:0;padding:10px 14px;border:0;border-radius:12px;background:#ccff33;color:#111;font-size:17px;font-weight:1000">POMIŃ</button>
+        <button id="skipStopSuggestionNo" type="button" style="min-height:54px;margin:0;padding:10px 14px;border:1px solid #666;border-radius:12px;background:#3a3a3a;color:#fff;font-size:17px;font-weight:900">ANULUJ</button>
       </div>
     </div>`;
   document.body.appendChild(modal);
 
-  const question=modal.querySelector('#skipStopSuggestionQuestion');
+  const nameEl=modal.querySelector('#skipStopSuggestionName');
   const yesButton=modal.querySelector('#skipStopSuggestionYes');
   const noButton=modal.querySelector('#skipStopSuggestionNo');
 
@@ -101,7 +102,7 @@
     const key=rowKey(row,index);
     if(!key||declinedKey===key||!routeAllowsSuggestion()||!timingAllowsSuggestion(row))return;
     dialogIndex=index;
-    question.textContent=`Czy chcesz ominąć przystanek ${stopName(row,index)}?`;
+    nameEl.textContent=stopName(row,index);
     modal.hidden=false;
     yesButton.focus({preventScroll:true});
   }
