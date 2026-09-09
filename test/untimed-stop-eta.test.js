@@ -24,16 +24,21 @@ test('górna belka dla przystanku bez godziny ma wyłącznie ETA i tłumi status
   assert.match(source,/status\.hidden=true/);
   assert.match(source,/guard\.hidden=true/);
   assert.match(source,/const value=`ETA \$\{arrivalClock\(latestEtaSeconds\)\}`/);
-  assert.match(source,/new MutationObserver/);
 });
 
-test('wersja z poprawką ETA ładuje świeży parser i stabilizator nagłówka',()=>{
+test('moduł ETA nie używa MutationObservera, który może zapętlić render nagłówka',()=>{
+  const source=read('untimed-stop-eta-ui.js');
+  assert.doesNotMatch(source,/MutationObserver/);
+  assert.match(source,/function queueRender\(\)\{if\(queued\)return;queued=true;queueMicrotask\(render\)\}/);
+});
+
+test('wersja z poprawką zamrożenia ładuje świeży moduł ETA',()=>{
   const html=read('index.html');
   const sw=read('sw.js');
-  assert.match(html,/data-version="2\.0\.214"/);
+  assert.match(html,/data-version="2\.0\.215"/);
   assert.match(html,/time-core\.js\?v=4/);
-  assert.match(html,/untimed-stop-eta-ui\.js\?v=2/);
-  assert.match(sw,/APP_VERSION='2\.0\.214'/);
-  assert.match(sw,/CACHE_NAME='trasy-2\.0-v247'/);
+  assert.match(html,/untimed-stop-eta-ui\.js\?v=3/);
+  assert.match(sw,/APP_VERSION='2\.0\.215'/);
+  assert.match(sw,/CACHE_NAME='trasy-2\.0-v248'/);
   assert.match(sw,/'\.\/untimed-stop-eta-ui\.js'/);
 });
