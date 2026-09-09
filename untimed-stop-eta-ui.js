@@ -57,7 +57,7 @@
       if(guard.textContent)guard.textContent='';
     }
     if(Number.isFinite(latestEtaSeconds)&&latestEtaSeconds>=0){
-      const value=`ETA ${arrivalClock(latestEtaSeconds)}`;
+      const value=`Dojazd ${arrivalClock(latestEtaSeconds)}`;
       if(plan.textContent!==value)plan.textContent=value;
     }else if(plan.textContent){
       plan.textContent='';
