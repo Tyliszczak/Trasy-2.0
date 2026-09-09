@@ -139,7 +139,13 @@ import'./geo-core.js';
       return;
     }
     const etaSecondsLive=liveEta(row);if(etaSecondsLive===null)return;
-    const plan=planSeconds(row);if(plan===null)return;
+    const plan=planSeconds(row);
+    if(plan===null){
+      row.style.setProperty('--gps-status-color','#078df0');
+      setInfo(info,'etaPunctuality etaOnly',`ETA ${arrivalClock(etaSecondsLive)}`);
+      broadcastStatus('neutral',null,etaSecondsLive);
+      return;
+    }
     const punctuality=etaCore.statusFromEta(etaSecondsLive,plan);const kind=punctuality.kind;const diff=punctuality.diffSeconds;
     const color=statusColor(kind);
     row.style.setProperty('--gps-status-color',color);
