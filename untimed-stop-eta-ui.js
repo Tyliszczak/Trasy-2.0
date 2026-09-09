@@ -58,6 +58,8 @@
     }
     if(Number.isFinite(latestEtaSeconds)&&latestEtaSeconds>=0){
       const value=`Dojazd ${arrivalClock(latestEtaSeconds)}`;
+      const scheduleInfo=row.querySelector('.etaPunctuality.etaOnly');
+      if(scheduleInfo&&scheduleInfo.textContent!==value)scheduleInfo.textContent=value;
       if(plan.textContent!==value)plan.textContent=value;
     }else if(plan.textContent){
       plan.textContent='';
