@@ -3,7 +3,6 @@
   const version=document.getElementById('globalTestVersion');
   if(!root||root.dataset.testDiagnostics!=='enabled'||!/^TEST\b/i.test(version?.textContent||''))return;
 
-  const EMAIL='kswiderski.de@gmail.com';
   const DB_NAME='trasy2-test-diagnostics';
   const DB_VERSION=2;
   const STORE='events';
@@ -66,19 +65,6 @@
     const width=Math.max(0,Math.round(Number(screen.width)||0));
     const height=Math.max(0,Math.round(Number(screen.height)||0));
     return [platform,width&&height?`${width}x${height}`:''].filter(Boolean).join(' ').slice(0,80);
-  }
-
-  function safeFilePart(value,maxLength=55){
-    return String(value||'nieznane').replace(/[\\\/:*?"<>|\u0000-\u001F\u007F]+/g,'-')
-      .replace(/\s+/g,'-').replace(/^-+|-+$/g,'').slice(0,maxLength)||'nieznane';
-  }
-
-  function localFileTime(value){
-    const date=new Date(value);
-    if(Number.isNaN(date.getTime()))return'czas-nieznany';
-    const parts=[date.getFullYear(),String(date.getMonth()+1).padStart(2,'0'),String(date.getDate()).padStart(2,'0')];
-    const time=[String(date.getHours()).padStart(2,'0'),String(date.getMinutes()).padStart(2,'0'),String(date.getSeconds()).padStart(2,'0')];
-    return`${parts.join('-')}_${time.join('-')}`;
   }
 
   function newSessionId(){
@@ -254,16 +240,6 @@
       console.error('Zapis diagnostyki:',error);
       queue.unshift(...batch.slice(-200));
     }
-  }
-
-  async function allEvents(){
-    await flush();
-    const db=await openDb();
-    return new Promise((resolve,reject)=>{
-      const request=db.transaction(STORE,'readonly').objectStore(STORE).getAll();
-      request.onsuccess=()=>resolve(request.result||[]);
-      request.onerror=()=>reject(request.error);
-    });
   }
 
   async function pendingEvents(limit=UPLOAD_BATCH_SIZE){
@@ -443,8 +419,7 @@
         appVersion:version?.dataset.version||'',
         userAgent:navigator.userAgent,
         language:navigator.language,
-        screen:{width:screen.width,height:screen.height,pixelRatio:devicePixelRatio},
-        recipient:EMAIL
+        screen:{width:screen.width,height:screen.height,pixelRatio:devicePixelRatio}
       });
     }else{
       record('recording-stopped');
@@ -463,22 +438,20 @@
     dialog.id='diagnosticDialog';
     dialog.className='diagnosticDialog';
     dialog.innerHTML=`<form method="dialog">
-      <div class="diagnosticDialogHead"><span aria-hidden="true">●</span><h2>Diagnostyka testowa</h2></div>
-      <p class="diagnosticPrivacy">Rejestr obejmuje działanie aplikacji oraz dokładne pozycje GPS. Po włączeniu dane są automatycznie wysyłane najwyżej dwa razy dziennie i scalane w prywatnym archiwum do jednego pliku na sesję. Przy braku internetu pozostają na telefonie i zostaną wysłane w kolejnym oknie.</p>
-      <label class="diagnosticDeviceLabel" for="diagnosticDeviceName">Nazwa tego telefonu (opcjonalnie)
+      <div class="diagnosticDialogHead"><span aria-hidden="true">●</span><h2 id="diagnosticTitle">Zgoda na diagnostykę</h2></div>
+      <p class="diagnosticPrivacy">Dane pomagają wykrywać i naprawiać błędy harmonogramu, prowadzenia do przystanków oraz GPS podczas rzeczywistych przejazdów.</p>
+      <p class="diagnosticPrivacy diagnosticConsentInfo">Po wyrażeniu zgody aplikacja będzie zapisywać sposób działania i dokładną lokalizację. Dane zostaną automatycznie przesłane do prywatnego folderu diagnostycznego najwyżej dwa razy dziennie. Rejestrowanie można później wyłączyć.</p>
+      <label class="diagnosticDeviceLabel" for="diagnosticDeviceName">Nazwa telefonu (opcjonalnie)
         <input id="diagnosticDeviceName" type="text" maxlength="80" autocomplete="off" placeholder="np. Telefon Krzysztofa">
       </label>
-      <small class="diagnosticDeviceHint">Przeglądarka nie udostępnia nazwy Wi‑Fi ani Bluetooth. Wpisz własną nazwę raz; będzie używana w nazwach kolejnych plików.</small>
+      <small class="diagnosticDeviceHint">Ułatwia rozpoznanie plików z różnych urządzeń.</small>
       <p id="diagnosticState" class="diagnosticState"></p>
       <p id="diagnosticSync" class="diagnosticSync"></p>
       <div class="diagnosticActions">
         <button id="diagnosticToggle" type="button" class="primary"></button>
-        <button id="diagnosticSend" type="button">WYŚLIJ E-MAIL</button>
-        <button id="diagnosticDownload" type="button">ZAPISZ PLIK</button>
-        <button id="diagnosticClear" type="button" class="danger">USUŃ DANE</button>
-        <button type="submit" class="secondary">ZAMKNIJ</button>
+        <button id="diagnosticClear" type="button" class="danger">USUŃ ZAPISANE DANE</button>
+        <button id="diagnosticClose" type="submit" class="secondary"></button>
       </div>
-      <small class="diagnosticRecipient">Odbiorca: ${EMAIL}</small>
     </form>`;
     document.body.append(dialog);
     const deviceName=dialog.querySelector('#diagnosticDeviceName');
@@ -490,9 +463,11 @@
       else localStorage.removeItem(DEVICE_NAME_KEY);
       updateUi(value?`Zapisano nazwę urządzenia: ${value}.`:'Będzie używana automatyczna nazwa urządzenia.');
     });
-    dialog.querySelector('#diagnosticToggle').onclick=()=>setActive(!active);
-    dialog.querySelector('#diagnosticSend').onclick=()=>exportDiagnostics('email');
-    dialog.querySelector('#diagnosticDownload').onclick=()=>exportDiagnostics('download');
+    dialog.querySelector('#diagnosticToggle').onclick=()=>{
+      const accepting=localStorage.getItem(CONSENT_KEY)!=='approved'&&!active;
+      setActive(!active);
+      if(accepting&&active)dialog.close();
+    };
     dialog.querySelector('#diagnosticClear').onclick=async()=>{
       if(confirm('Usunąć wszystkie zapisane dane diagnostyczne z telefonu?'))await clearEvents();
     };
@@ -507,55 +482,19 @@
     const toggle=dialog.querySelector('#diagnosticToggle');
     const state=dialog.querySelector('#diagnosticState');
     const sync=dialog.querySelector('#diagnosticSync');
+    const title=dialog.querySelector('#diagnosticTitle');
+    const clear=dialog.querySelector('#diagnosticClear');
+    const close=dialog.querySelector('#diagnosticClose');
     const approved=localStorage.getItem(CONSENT_KEY)==='approved';
-    toggle.textContent=active?'ZATRZYMAJ REJESTROWANIE':approved?'ROZPOCZNIJ REJESTROWANIE':'ZGADZAM SIĘ I ROZPOCZYNAM';
+    title.textContent=approved?'Diagnostyka testowa':'Zgoda na diagnostykę';
+    toggle.textContent=active?'ZATRZYMAJ REJESTROWANIE':approved?'ROZPOCZNIJ REJESTROWANIE':'WYRAŻAM ZGODĘ';
     toggle.classList.toggle('diagnosticStop',active);
+    state.hidden=!approved;
+    sync.hidden=!approved;
+    clear.hidden=!approved;
+    close.textContent=approved?'ZAMKNIJ':'NIE TERAZ';
     state.textContent=message||(active?'Rejestrowanie włączone.':'Rejestrowanie wyłączone.');
     sync.textContent=lastSyncMessage;
-  }
-
-  function downloadFile(file){
-    const url=URL.createObjectURL(file);
-    const link=document.createElement('a');
-    link.href=url;link.download=file.name;document.body.append(link);link.click();link.remove();
-    setTimeout(()=>URL.revokeObjectURL(url),30000);
-  }
-
-  async function exportDiagnostics(target='download'){
-    try{
-      record('diagnostics-export-requested',{target});
-      const events=await allEvents();
-      if(!events.length){updateUi('Brak zapisanych danych do eksportu.');return}
-      const exportedAt=new Date().toISOString();
-      const archive={
-        format:'trasy-2.0-test-diagnostics',
-        schemaVersion:1,
-        exportedAt,
-        intendedRecipient:EMAIL,
-        appVersion:version?.dataset.version||'',
-        locationDataIncluded:true,
-        events
-      };
-      const firstAt=events[0]?.at||exportedAt;
-      const lastAt=events[events.length-1]?.at||exportedAt;
-      const name=`trasy-2.0-${localFileTime(firstAt)}--${localFileTime(lastAt)}-${safeFilePart(deviceLabel())}-${installationId().slice(0,8)}.json`;
-      const file=new File([JSON.stringify(archive,null,2)],name,{type:'application/json'});
-      if(target==='email'){
-        downloadFile(file);
-        updateUi(`Plik zapisany. Dołącz go do wiadomości na ${EMAIL}.`);
-        const subject=encodeURIComponent('Diagnostyka Trasy 2.0');
-        const body=encodeURIComponent(`W załączniku przesyłam plik diagnostyczny ${name}. Plik został zapisany w folderze Pobrane i należy dołączyć go do tej wiadomości.`);
-        setTimeout(()=>{location.href=`mailto:${EMAIL}?subject=${subject}&body=${body}`},500);
-      }else{
-        downloadFile(file);
-        updateUi(`Plik zapisany. Dołącz go do wiadomości na ${EMAIL}.`);
-      }
-    }catch(error){
-      if(error?.name!=='AbortError'){
-        console.error('Eksport diagnostyki:',error);
-        updateUi(`Nie udało się wyeksportować danych: ${error?.message||error}`);
-      }
-    }
   }
 
   function detailListener(type){return event=>record(type,event.detail||{})}

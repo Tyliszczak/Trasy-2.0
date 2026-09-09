@@ -46,21 +46,22 @@ test('aktywna diagnostyka automatycznie wysyła kolejkowane paczki przez Cloudfl
   assert.doesNotMatch(source,/DIAGNOSTICS_SHARED_SECRET/);
 });
 
-test('eksport wskazuje uzgodniony email i nie udostępnia WhatsApp',()=>{
+test('okno zgody wyjaśnia cel i nie pokazuje ręcznej wysyłki ani zapisu pliku',()=>{
   const source=read('diagnostic-recorder.js');
-  assert.match(source,/kswiderski\.de@gmail\.com/);
-  assert.match(source,/exportDiagnostics\('email'\)/);
-  assert.match(source,/mailto:\$\{EMAIL\}/);
-  assert.doesNotMatch(source,/WhatsApp|WHATSAPP|whatsapp|wa\.me|48603666921/);
-  assert.match(source,/locationDataIncluded:true/);
-  assert.match(source,/localFileTime\(firstAt\)/);
-  assert.match(source,/safeFilePart\(deviceLabel\(\)\)/);
+  assert.match(source,/wykrywać i naprawiać błędy harmonogramu, prowadzenia do przystanków oraz GPS/);
+  assert.match(source,/dokładną lokalizację/);
+  assert.match(source,/prywatnego folderu diagnostycznego/);
+  assert.match(source,/Rejestrowanie można później wyłączyć/);
+  assert.match(source,/WYRAŻAM ZGODĘ/);
+  assert.match(source,/NIE TERAZ/);
+  assert.match(source,/clear\.hidden=!approved/);
+  assert.doesNotMatch(source,/diagnosticSend|diagnosticDownload|exportDiagnostics|downloadFile|mailto:/);
 });
 
 test('skrypt diagnostyczny jest częścią powłoki offline PWA',()=>{
   const html=read('index.html');
   const sw=read('sw.js');
-  assert.match(html,/src="\.\/diagnostic-recorder\.js\?v=8"/);
+  assert.match(html,/src="\.\/diagnostic-recorder\.js\?v=9"/);
   assert.match(sw,/'\.\/diagnostic-recorder\.js'/);
 });
 
@@ -68,10 +69,11 @@ test('pierwsze użycie samo otwiera zgodę, a zatwierdzenie uruchamia rejestrowa
   const source=read('diagnostic-recorder.js');
   assert.match(source,/FIRST_USE_PROMPT_KEY/);
   assert.match(source,/CONSENT_KEY/);
-  assert.match(source,/ZGADZAM SIĘ I ROZPOCZYNAM/);
+  assert.match(source,/WYRAŻAM ZGODĘ/);
   assert.match(source,/Dane nie są zbierane przed Twoją zgodą/);
   assert.match(source,/if\(!active&&localStorage\.getItem\(FIRST_USE_PROMPT_KEY\)!=='shown'\)/);
   assert.match(source,/localStorage\.setItem\(CONSENT_KEY,'approved'\)/);
+  assert.match(source,/if\(accepting&&active\)dialog\.close\(\)/);
   assert.match(source,/event\.oldVersion<2/);
 });
 
@@ -95,7 +97,7 @@ test('pełne paczki diagnostyczne trafiają do prywatnego folderu, a arkusz prze
   assert.match(backend,/'URZĄDZENIE'/);
   assert.match(backend,/'PLIK_JSON'/);
   assert.doesNotMatch(backend,/'DANE_JSON'/);
-  assert.match(recorder,/prywatnym archiwum/);
+  assert.match(recorder,/prywatnego folderu diagnostycznego/);
 });
 
 test('zakresy wysłanych zdarzeń są scalane i blokują częściowe duplikaty',()=>{

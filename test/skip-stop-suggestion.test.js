@@ -64,6 +64,6 @@ test('moduł pytania jest ładowany i dostępny offline w bieżącej wersji',()=
   const sw=read('sw.js');
   assert.match(html,/skip-stop-suggestion\.js\?v=1/);
   assert.match(sw,/'\.\/skip-stop-suggestion\.js'/);
-  assert.match(html,/data-version="2\.0\.216"/);
-  assert.match(sw,/APP_VERSION='2\.0\.216'/);
+  assert.match(html,/data-version="2\.0\.217"/);
+  assert.match(sw,/APP_VERSION='2\.0\.217'/);
 });
