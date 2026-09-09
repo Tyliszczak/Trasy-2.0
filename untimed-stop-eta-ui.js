@@ -9,7 +9,6 @@
   document.head.appendChild(style);
 
   let latestEtaSeconds=null;
-  let applying=false;
   let queued=false;
 
   function rows(){return[...body.querySelectorAll('tr')].filter(row=>row.dataset.coordinate)}
@@ -38,28 +37,32 @@
 
   function render(){
     queued=false;
-    if(applying)return;
-    applying=true;
-    try{
-      const row=activeRow();
-      const plan=planElement();
-      if(!row||!plan)return;
-      if(planText(row)){
-        delete plan.dataset.etaOnly;
-        return;
-      }
-      const status=statusElement();
-      if(status){status.hidden=true;status.className='nextStopStatus';status.textContent=''}
-      const guard=guardElement();
-      if(guard){guard.hidden=true;guard.classList.remove('approach','hold','ready','flash3');guard.textContent=''}
-      if(Number.isFinite(latestEtaSeconds)&&latestEtaSeconds>=0){
-        const value=`ETA ${arrivalClock(latestEtaSeconds)}`;
-        if(plan.textContent!==value)plan.textContent=value;
-      }else if(plan.textContent){
-        plan.textContent='';
-      }
-      plan.dataset.etaOnly='1';
-    }finally{applying=false}
+    const row=activeRow();
+    const plan=planElement();
+    if(!row||!plan)return;
+    if(planText(row)){
+      delete plan.dataset.etaOnly;
+      return;
+    }
+    const status=statusElement();
+    if(status){
+      if(!status.hidden)status.hidden=true;
+      if(status.className!=='nextStopStatus')status.className='nextStopStatus';
+      if(status.textContent)status.textContent='';
+    }
+    const guard=guardElement();
+    if(guard){
+      if(!guard.hidden)guard.hidden=true;
+      guard.classList.remove('approach','hold','ready','flash3');
+      if(guard.textContent)guard.textContent='';
+    }
+    if(Number.isFinite(latestEtaSeconds)&&latestEtaSeconds>=0){
+      const value=`ETA ${arrivalClock(latestEtaSeconds)}`;
+      if(plan.textContent!==value)plan.textContent=value;
+    }else if(plan.textContent){
+      plan.textContent='';
+    }
+    if(plan.dataset.etaOnly!=='1')plan.dataset.etaOnly='1';
   }
   function queueRender(){if(queued)return;queued=true;queueMicrotask(render)}
   function acceptEta(detail){
@@ -76,7 +79,6 @@
   body.addEventListener('route-mode-change',reset);
   body.addEventListener('schedule-rendered',reset);
 
-  new MutationObserver(()=>{if(!applying&&isUntimed())queueRender()}).observe(header,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['hidden','class']});
   const initial=Number(body.dataset.etaSeconds);
   if(Number.isFinite(initial)&&initial>=0)latestEtaSeconds=initial;
   render();
