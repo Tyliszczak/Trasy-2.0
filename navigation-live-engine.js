@@ -202,8 +202,12 @@ function nearestPlanDate(row,predicted){
 
 if(body){
   body.addEventListener('nav-eta-update',event=>{
+    if(!event.detail||event.detail.source==='eta-status')return;
     const seconds=liveEtaNow();
-    if(!Number.isFinite(seconds)||!event.detail)return;
+    if(!Number.isFinite(seconds)){
+      event.detail.source='nav-map-fallback';
+      return;
+    }
     event.detail.etaSeconds=seconds;
     const predicted=new Date(Date.now()+seconds*1000);
     const plan=nearestPlanDate(activeRow(),predicted);
@@ -212,6 +216,7 @@ if(body){
       event.detail.diffSeconds=diff;
       event.detail.kind=diff>TOLERANCE_SECONDS?'late':diff<-TOLERANCE_SECONDS?'early':'onTime';
     }
+    event.detail.source='navigation-live-engine';
   },true);
 
   body.addEventListener('gps-next-stop-change',()=>{
@@ -224,4 +229,3 @@ if(body){
 if(window.__trasyGps?.subscribe){
   window.__trasyGps.subscribe(updateLiveEta,()=>{});
 }
-
