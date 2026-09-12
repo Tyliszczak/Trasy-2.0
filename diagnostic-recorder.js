@@ -12,11 +12,11 @@
   const DEVICE_NAME_KEY='trasy2.diagnostics.deviceName.v1';
   const LEGACY_LAST_UPLOADED_KEY='trasy2.diagnostics.lastUploadedId';
   const LEGACY_SESSION_UPLOAD_CURSORS_KEY='trasy2.diagnostics.sessionUploadCursors.v1';
-  const UPLOAD_WINDOW_KEY='trasy2.diagnostics.uploadWindow.v1';
+  const LEGACY_UPLOAD_WINDOW_KEY='trasy2.diagnostics.uploadWindow.v1';
   const CONSENT_KEY='trasy2.diagnostics.consent.v1';
   const FIRST_USE_PROMPT_KEY='trasy2.diagnostics.firstUsePrompt.v1';
   const UPLOAD_ENDPOINT='/test-diagnostics';
-  const UPLOAD_CHECK_INTERVAL_MS=15*60*1000;
+  const UPLOAD_CHECK_INTERVAL_MS=5*60*1000;
   const UPLOAD_BATCH_SIZE=500;
   const UPLOAD_MAX_BYTES=460*1024;
   const UPLOAD_MAX_PARTS=32;
@@ -71,6 +71,10 @@
     return `${new Date().toISOString().replace(/[:.]/g,'-')}-${randomId()}`;
   }
 
+  function validSessionId(value){
+    return /^[A-Za-z0-9:._-]{16,180}$/.test(String(value||''));
+  }
+
   function openDb(){
     if(dbPromise)return dbPromise;
     dbPromise=new Promise((resolve,reject)=>{
@@ -108,6 +112,7 @@
       request.onsuccess=()=>{
         localStorage.removeItem(LEGACY_LAST_UPLOADED_KEY);
         localStorage.removeItem(LEGACY_SESSION_UPLOAD_CURSORS_KEY);
+        localStorage.removeItem(LEGACY_UPLOAD_WINDOW_KEY);
         resolve(request.result);
       };
       request.onerror=()=>reject(request.error||new Error('Nie można otworzyć pamięci diagnostycznej.'));
@@ -299,7 +304,7 @@
     });
     localStorage.removeItem(LEGACY_LAST_UPLOADED_KEY);
     localStorage.removeItem(LEGACY_SESSION_UPLOAD_CURSORS_KEY);
-    localStorage.removeItem(UPLOAD_WINDOW_KEY);
+    localStorage.removeItem(LEGACY_UPLOAD_WINDOW_KEY);
     updateUi('Dane diagnostyczne zostały usunięte.');
   }
 
@@ -307,7 +312,7 @@
     clearTimeout(uploadTimer);
     uploadTimer=setTimeout(()=>{
       uploadTimer=0;
-      runScheduledUpload().catch(error=>console.warn('Harmonogram wysyłki diagnostyki:',error));
+      runScheduledUpload().catch(error=>console.warn('Automatyczna wysyłka diagnostyki:',error));
     },delay);
   }
 
@@ -357,7 +362,7 @@
         }
         const complete=(await pendingEvents(1)).length===0;
         lastSyncMessage=sent
-          ?`Wysłano ${sent} nowych zdarzeń i scalono je z plikami sesji${complete?'.':'; pozostałe wyśle kolejne okno.'}`
+          ?`Wysłano ${sent} nowych zdarzeń i scalono je z plikiem sesji${complete?'.':'; pozostałe wyśle kolejna automatyczna próba.'}`
           :'Wszystkie zapisane dane są wysłane.';
         return{sent,complete};
       }catch(error){
@@ -382,27 +387,16 @@
     return result;
   }
 
-  function dueUploadWindow(now=new Date()){
-    const boundary=new Date(now);
-    let name='wieczór';
-    if(now.getHours()>=18){boundary.setHours(18,0,0,0)}
-    else if(now.getHours()>=12){name='południe';boundary.setHours(12,0,0,0)}
-    else{boundary.setDate(boundary.getDate()-1);boundary.setHours(18,0,0,0)}
-    const day=[boundary.getFullYear(),String(boundary.getMonth()+1).padStart(2,'0'),String(boundary.getDate()).padStart(2,'0')].join('-');
-    return{key:`${day}:${name}`,boundary};
-  }
-
   async function runScheduledUpload(){
     if(!navigator.onLine||localStorage.getItem(CONSENT_KEY)!=='approved')return;
-    const due=dueUploadWindow();
-    if(localStorage.getItem(UPLOAD_WINDOW_KEY)===due.key)return;
     const oldest=(await pendingEvents(1))[0];
-    if(!oldest||new Date(oldest.at)>due.boundary){
-      localStorage.setItem(UPLOAD_WINDOW_KEY,due.key);
-      return;
-    }
-    const result=await uploadPending();
-    if(result?.complete)localStorage.setItem(UPLOAD_WINDOW_KEY,due.key);
+    if(!oldest)return;
+    return uploadPending();
+  }
+
+  function sendPendingSoon(delay=100){
+    if(!navigator.onLine||localStorage.getItem(CONSENT_KEY)!=='approved')return;
+    scheduleUpload(delay);
   }
 
   function setActive(next){
@@ -425,10 +419,10 @@
       record('recording-stopped');
       active=false;
       localStorage.removeItem(ACTIVE_KEY);
-      flush();
+      flush().then(()=>sendPendingSoon(100)).catch(error=>console.warn('Końcowy zapis diagnostyki:',error));
     }
     root.classList.toggle('diagnosticRecording',active);
-    updateUi(active?'Rejestrowanie jest włączone. Wykonaj przejazd testowy.':'Rejestrowanie zostało zatrzymane.');
+    updateUi(active?'Rejestrowanie jest włączone. Wykonaj przejazd testowy.':'Rejestrowanie zostało zatrzymane. Trwa wysyłanie ostatniej paczki.');
   }
 
   function makeDialog(){
@@ -440,7 +434,7 @@
     dialog.innerHTML=`<form method="dialog">
       <div class="diagnosticDialogHead"><span aria-hidden="true">●</span><h2 id="diagnosticTitle">Zgoda na diagnostykę</h2></div>
       <p class="diagnosticPrivacy">Dane pomagają wykrywać i naprawiać błędy harmonogramu, prowadzenia do przystanków oraz GPS podczas rzeczywistych przejazdów.</p>
-      <p class="diagnosticPrivacy diagnosticConsentInfo">Po wyrażeniu zgody aplikacja będzie zapisywać sposób działania i dokładną lokalizację. Dane zostaną automatycznie przesłane do prywatnego folderu diagnostycznego najwyżej dwa razy dziennie. Rejestrowanie można później wyłączyć.</p>
+      <p class="diagnosticPrivacy diagnosticConsentInfo">Po wyrażeniu zgody aplikacja będzie zapisywać sposób działania i dokładną lokalizację. Dane są automatycznie wysyłane do prywatnego folderu diagnostycznego w małych paczkach co kilka minut i scalane w jeden plik sesji. Rejestrowanie można później wyłączyć.</p>
       <label class="diagnosticDeviceLabel" for="diagnosticDeviceName">Nazwa telefonu (opcjonalnie)
         <input id="diagnosticDeviceName" type="text" maxlength="80" autocomplete="off" placeholder="np. Telefon Krzysztofa">
       </label>
@@ -502,7 +496,7 @@
     if(!active||useEndRecorded)return;
     useEndRecorded=true;
     record('application-use-ended',{reason});
-    flush();
+    flush().then(()=>sendPendingSoon(0)).catch(error=>console.warn('Końcowy zapis diagnostyki:',error));
   }
   [
     'trasy:stop-transition','trasy:route-build','trasy:navigation-resumed',
@@ -513,7 +507,7 @@
 
   window.addEventListener('error',event=>record('window-error',{message:event.message,filename:event.filename,line:event.lineno,column:event.colno,error:event.error}));
   window.addEventListener('unhandledrejection',event=>record('unhandled-rejection',{reason:event.reason}));
-  window.addEventListener('online',()=>{record('network-online');scheduleUpload(500)});
+  window.addEventListener('online',()=>{record('network-online');sendPendingSoon(500)});
   window.addEventListener('offline',()=>record('network-offline'));
   document.addEventListener('visibilitychange',()=>{
     record('visibility-change',{state:document.visibilityState});
@@ -552,16 +546,19 @@
     const dialog=makeDialog();updateUi();dialog.showModal();
   });
   root.classList.toggle('diagnosticRecording',active);
+  localStorage.removeItem(LEGACY_UPLOAD_WINDOW_KEY);
   if(active){
-    sessionId=newSessionId();
-    localStorage.setItem(SESSION_KEY,sessionId);
+    if(!validSessionId(sessionId)){
+      sessionId=newSessionId();
+      localStorage.setItem(SESSION_KEY,sessionId);
+    }
     record('recording-restored',{appVersion:version?.dataset.version||''});
   }
   setInterval(()=>{
     if(active)flush();
-    runScheduledUpload().catch(error=>console.warn('Harmonogram wysyłki diagnostyki:',error));
+    runScheduledUpload().catch(error=>console.warn('Automatyczna wysyłka diagnostyki:',error));
   },UPLOAD_CHECK_INTERVAL_MS);
-  if(navigator.onLine)scheduleUpload(1500);
+  if(navigator.onLine)sendPendingSoon(1500);
   if(!active&&localStorage.getItem(FIRST_USE_PROMPT_KEY)!=='shown'){
     setTimeout(()=>{
       const dialog=makeDialog();
