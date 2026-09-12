@@ -12,6 +12,9 @@
  *    }
  *
  * 4. Utwórz nową wersję istniejącego wdrożenia aplikacji internetowej.
+ *
+ * Każda sesja diagnostyczna jest zapisywana w jednym pliku JSON. Kolejne
+ * paczki są scalane z tym samym plikiem; backend nie tworzy już części 2, 3 itd.
  */
 
 function appendTestDiagnostics_(p) {
@@ -65,10 +68,12 @@ function appendTestDiagnostics_(p) {
   var lock = LockService.getScriptLock();
   lock.waitLock(10000);
   var diagnosticFile = null;
+  var sessionResult = null;
   try {
     var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = spreadsheet.getSheetByName('DIAGNOSTYKA TESTÓW');
     if (!sheet) sheet = createTestDiagnosticsSheet_(spreadsheet);
+    sheet.getRange(1, 17).setValue('ZAKRES_ID');
     sheet.getRange(1, 18).setValue('PLIK_JSON');
     sheet.getRange(1, 19).setValue('URZĄDZENIE');
 
@@ -86,7 +91,7 @@ function appendTestDiagnostics_(p) {
       });
     }
 
-    var sessionResult = upsertDiagnosticsSessionFile_(
+    sessionResult = upsertDiagnosticsSessionFile_(
       deviceFolder, properties, installationId, deviceLabel, appVersion, sessionId, newEvents
     );
     diagnosticFile = sessionResult.file;
@@ -250,11 +255,11 @@ function diagnosticsFileTime_(value) {
   return Utilities.formatDate(date, timezone, 'yyyy-MM-dd_HH-mm-ss');
 }
 
-function diagnosticsSessionFileSuffix_(sessionHash, part) {
-  return '-' + String(sessionHash).slice(0, 8) + (part > 1 ? '-czesc-' + part : '') + '.json';
+function diagnosticsSessionFileSuffix_(sessionHash) {
+  return '-' + String(sessionHash).slice(0, 8) + '.json';
 }
 
-function diagnosticsSessionFileName_(archive, sessionHash, part) {
+function diagnosticsSessionFileName_(archive, sessionHash) {
   var events = archive && Array.isArray(archive.events) ? archive.events : [];
   var first = events.length ? events[0] : {};
   var last = events.length ? events[events.length - 1] : first;
@@ -263,7 +268,7 @@ function diagnosticsSessionFileName_(archive, sessionHash, part) {
   var device = safeDiagnosticsFilePart_(archive.deviceLabel, 55);
   var installation = safeDiagnosticsFilePart_(archive.installationId, 8);
   return 'trasy-2.0-' + start + '--' + end + '-' + device + '-' + installation +
-    diagnosticsSessionFileSuffix_(sessionHash, part);
+    diagnosticsSessionFileSuffix_(sessionHash);
 }
 
 function readDiagnosticsSessionArchive_(file, fallback) {
@@ -277,13 +282,13 @@ function readDiagnosticsSessionArchive_(file, fallback) {
   return fallback;
 }
 
-function getDiagnosticsSessionFile_(deviceFolder, properties, stateKey, sessionHash, part) {
+function getDiagnosticsSessionFile_(deviceFolder, properties, stateKey, sessionHash) {
   var state = {};
   try { state = JSON.parse(properties.getProperty(stateKey) || '{}') || {}; } catch (stateError) {}
-  if (Number(state.part) === part && state.fileId) {
+  if (state.fileId) {
     try { return DriveApp.getFileById(String(state.fileId)); } catch (savedFileError) {}
   }
-  var suffix = diagnosticsSessionFileSuffix_(sessionHash, part);
+  var suffix = diagnosticsSessionFileSuffix_(sessionHash);
   var files = deviceFolder.getFiles();
   while (files.hasNext()) {
     var candidate = files.next();
@@ -292,13 +297,25 @@ function getDiagnosticsSessionFile_(deviceFolder, properties, stateKey, sessionH
   return null;
 }
 
+function overwriteDiagnosticsFileContent_(fileId, serialized) {
+  var response = UrlFetchApp.fetch(
+    'https://www.googleapis.com/upload/drive/v3/files/' + encodeURIComponent(fileId) + '?uploadType=media',
+    {
+      method:'patch',
+      headers:{Authorization:'Bearer ' + ScriptApp.getOAuthToken()},
+      contentType:'application/json; charset=utf-8',
+      payload:serialized,
+      muteHttpExceptions:true
+    }
+  );
+  var code = response.getResponseCode();
+  if (code < 200 || code >= 300) throw new Error('DRIVE_CONTENT_UPDATE_FAILED_' + code);
+}
+
 function upsertDiagnosticsSessionFile_(deviceFolder, properties, installationId, deviceLabel, appVersion, sessionId, events) {
   var sessionHash = diagnosticsSessionHash_(installationId, sessionId);
   var stateKey = 'DIAGNOSTICS_SESSION_' + sessionHash;
-  var state = {};
-  try { state = JSON.parse(properties.getProperty(stateKey) || '{}') || {}; } catch (stateError) {}
-  var part = Math.max(1, Number(state.part) || 1);
-  var file = getDiagnosticsSessionFile_(deviceFolder, properties, stateKey, sessionHash, part);
+  var file = getDiagnosticsSessionFile_(deviceFolder, properties, stateKey, sessionHash);
   var archive = readDiagnosticsSessionArchive_(file, newDiagnosticsSessionArchive_(installationId, deviceLabel, sessionId));
   var existingIds = {};
   for (var i = 0; i < archive.events.length; i++) existingIds[String(archive.events[i].id)] = true;
@@ -316,45 +333,25 @@ function upsertDiagnosticsSessionFile_(deviceFolder, properties, installationId,
   archive.deviceLabel = deviceLabel || archive.deviceLabel;
   archive.receivedLastAt = new Date().toISOString();
   var serialized = JSON.stringify(archive);
-  var maxBytes = 8 * 1024 * 1024;
-
-  if (Utilities.newBlob(serialized).getBytes().length > maxBytes && file && archive.events.length > events.length) {
-    part++;
-    file = getDiagnosticsSessionFile_(deviceFolder, properties, stateKey, sessionHash, part);
-    archive = readDiagnosticsSessionArchive_(file, newDiagnosticsSessionArchive_(installationId, deviceLabel, sessionId));
-    existingIds = {};
-    for (var p = 0; p < archive.events.length; p++) existingIds[String(archive.events[p].id)] = true;
-    addedEvents = 0;
-    for (var q = 0; q < events.length; q++) {
-      var nextId = String(events[q].id);
-      if (!existingIds[nextId]) {
-        archive.events.push(events[q]);
-        existingIds[nextId] = true;
-        addedEvents++;
-      }
-    }
-    archive.events.sort(function(a, b) { return Number(a.id) - Number(b.id); });
-    if (archive.appVersions.indexOf(appVersion) < 0) archive.appVersions.push(appVersion);
-    archive.receivedLastAt = new Date().toISOString();
-    serialized = JSON.stringify(archive);
-  }
-  if (Utilities.newBlob(serialized).getBytes().length > maxBytes) throw new Error('SESSION_PART_TOO_LARGE');
+  var sizeBytes = Utilities.newBlob(serialized).getBytes().length;
+  var maxBytes = 45 * 1024 * 1024;
+  if (sizeBytes > maxBytes) throw new Error('SESSION_FILE_TOO_LARGE');
 
   var created = false;
+  var fileName = diagnosticsSessionFileName_(archive, sessionHash);
   if (file) {
-    file.setContent(serialized);
-    file.setName(diagnosticsSessionFileName_(archive, sessionHash, part));
+    if (sizeBytes <= 9 * 1024 * 1024) file.setContent(serialized);
+    else overwriteDiagnosticsFileContent_(file.getId(), serialized);
+    file.setName(fileName);
   }
   else {
-    file = deviceFolder.createFile(
-      Utilities.newBlob(serialized, 'application/json', diagnosticsSessionFileName_(archive, sessionHash, part))
-    );
+    file = deviceFolder.createFile(Utilities.newBlob(serialized, 'application/json', fileName));
     created = true;
   }
-  properties.setProperty(stateKey, JSON.stringify({part:part, fileId:file.getId()}));
+  properties.setProperty(stateKey, JSON.stringify({fileId:file.getId()}));
   return {
     file:file, archive:archive, created:created, addedEvents:addedEvents,
-    indexKey:'session:' + sessionHash + ':' + part
+    indexKey:'session:' + sessionHash
   };
 }
 
@@ -468,7 +465,7 @@ function createTestDiagnosticsSheet_(spreadsheet) {
   var sheet = spreadsheet.insertSheet('DIAGNOSTYKA TESTÓW');
   sheet.getRange(1, 1, 1, 19).setValues([[
     'BATCH_ID','SESSION_ID','INSTALACJA','WERSJA','WYSŁANO','START','KONIEC','TRASA','ZMIANA','KIERUNEK',
-    'ZDARZENIA','GPS','POMINIĘTE','BŁĘDY','PIERWSZE_ZDARZENIE','OSTATNIE_ZDARZENIE','CZĘŚĆ','PLIK_JSON','URZĄDZENIE'
+    'ZDARZENIA','GPS','POMINIĘTE','BŁĘDY','PIERWSZE_ZDARZENIE','OSTATNIE_ZDARZENIE','ZAKRES_ID','PLIK_JSON','URZĄDZENIE'
   ]]);
   sheet.setFrozenRows(1);
   return sheet;
