@@ -28,13 +28,9 @@
     #scheduleBody tr.isActiveStop:not(.gpsNextStop) td{padding:10px 8px!important;font-weight:inherit!important;border-bottom-color:#444!important}
     #scheduleBody tr.isActiveStop:not(.gpsNextStop) td:first-child{padding-left:8px!important;font-size:inherit!important;font-weight:inherit!important}
     #scheduleBody tr.isActiveStop:not(.gpsNextStop) td:first-child::before{display:none!important;content:none!important}
-
-    /* Nawigacja: półprzezroczyste, szare komunikaty z widoczną mapą pod spodem. */
     #routeNavRoot .routeNavInfoShell{background:rgba(68,68,68,.55)!important;border-bottom-color:rgba(255,255,255,.28)!important}
     #routeManeuverBubble{background:transparent!important;border-color:transparent!important;box-shadow:none!important;-webkit-backdrop-filter:none;backdrop-filter:none}
     .routeModeNotice{background:rgba(68,68,68,.55)!important;box-shadow:0 7px 24px #0008!important;-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}
-
-    /* Czytelniejszy nagłówek następnego przystanku. */
     #routeNextStop{max-width:100%!important;font-size:16px!important;line-height:1.24!important}
     #routeNextStop .nextStopLabel{font-size:11px!important;line-height:1.1!important}
     #routeNextStop .nextStopMain{font-size:19px!important;line-height:1.12!important;font-weight:1000!important}
@@ -42,8 +38,6 @@
     #routeNextStop .nextStopStatus{gap:9px!important;margin-top:4px!important;font-size:18px!important;line-height:1.15!important}
     #routeNextStop .nextStopStatus:before{width:18px!important;height:18px!important;flex:0 0 18px!important}
     #routeNextStop .nextStopGuard{font-size:17px!important;line-height:1.15!important}
-
-    /* Jednolity, geometryczny chevron zamiast znaku tekstowego ‹. */
     #routeMapClose,#backFromSchedule{font-size:0!important;line-height:0!important;background:rgba(68,68,68,.62)!important;border-color:rgba(255,255,255,.55)!important;box-shadow:0 2px 8px #0007!important}
     #routeMapClose::before,#backFromSchedule::before{content:"";display:block;width:13px;height:13px;box-sizing:border-box;border-left:3px solid currentColor;border-bottom:3px solid currentColor;border-radius:1px;transform:rotate(45deg);margin-left:4px}
   </style>
@@ -53,7 +47,7 @@
   <title>Trasy 2.0</title>
 </head>
 <body data-test-diagnostics="enabled">
-  <div id="globalTestVersion" data-version="2.0.217">TEST 2.0.217</div>
+  <div id="globalTestVersion" data-version="2.0.218">TEST 2.0.218</div>
   <header class="header"><div class="headerActions"><span id="connectionStatus" class="status">Offline</span></div></header>
   <main class="container">
     <aside id="updateNotice" class="notice updateNotice" hidden><span>Nowa wersja aplikacji jest gotowa.</span><button id="updateAppButton">ODŚWIEŻ</button></aside>
@@ -92,6 +86,7 @@
   <script src="./route-data-service.js?v=5"></script>
   <script src="./gps-hub.js?v=resume-1"></script>
   <script src="./diagnostic-recorder.js?v=9"></script>
+  <script src="./diagnostic-live-upload.js?v=1"></script>
   <script type="module" src="./app.js?v=active-course-1"></script>
   <script src="./wake-style.js?v=navigation-wake-3"></script>
   <script src="./offline-map-cache.js?v=1"></script>
