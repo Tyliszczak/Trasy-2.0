@@ -15,6 +15,8 @@
  *
  * Każda sesja diagnostyczna jest zapisywana w jednym pliku JSON. Kolejne
  * paczki są scalane z tym samym plikiem; backend nie tworzy już części 2, 3 itd.
+ * Każde urządzenie ma osobny folder nazwany etykietą urządzenia. Nazwa pliku
+ * zawiera wyłącznie czas przejazdu i nazwę trasy.
  */
 
 function appendTestDiagnostics_(p) {
@@ -252,23 +254,46 @@ function diagnosticsFileTime_(value) {
   var date = new Date(value);
   if (!value || isNaN(date.getTime())) return 'czas-nieznany';
   var timezone = Session.getScriptTimeZone() || 'Europe/Warsaw';
-  return Utilities.formatDate(date, timezone, 'yyyy-MM-dd_HH-mm-ss');
+  return Utilities.formatDate(date, timezone, 'yyyy-MM-dd_HH-mm');
 }
 
-function diagnosticsSessionFileSuffix_(sessionHash) {
-  return '-' + String(sessionHash).slice(0, 8) + '.json';
+function diagnosticsFileClock_(value) {
+  var date = new Date(value);
+  if (!value || isNaN(date.getTime())) return 'czas-nieznany';
+  var timezone = Session.getScriptTimeZone() || 'Europe/Warsaw';
+  return Utilities.formatDate(date, timezone, 'HH-mm');
 }
 
-function diagnosticsSessionFileName_(archive, sessionHash) {
+function diagnosticsFileDay_(value) {
+  var date = new Date(value);
+  if (!value || isNaN(date.getTime())) return '';
+  var timezone = Session.getScriptTimeZone() || 'Europe/Warsaw';
+  return Utilities.formatDate(date, timezone, 'yyyy-MM-dd');
+}
+
+function diagnosticsSessionRoute_(archive) {
+  var events = archive && Array.isArray(archive.events) ? archive.events : [];
+  var route = '';
+  for (var i = events.length - 1; i >= 0; i--) {
+    var snapshot = events[i] && events[i].snapshot || {};
+    route = String(snapshot.route || '').trim();
+    if (route) break;
+  }
+  var safeRoute = safeDiagnosticsFilePart_(route || 'nieznana', 70);
+  return /^trasa(?:-|\s)/i.test(safeRoute) ? safeRoute : 'Trasa-' + safeRoute;
+}
+
+function diagnosticsSessionFileName_(archive) {
   var events = archive && Array.isArray(archive.events) ? archive.events : [];
   var first = events.length ? events[0] : {};
   var last = events.length ? events[events.length - 1] : first;
-  var start = diagnosticsFileTime_(first.at || archive.receivedFirstAt);
-  var end = diagnosticsFileTime_(last.at || archive.receivedLastAt);
-  var device = safeDiagnosticsFilePart_(archive.deviceLabel, 55);
-  var installation = safeDiagnosticsFilePart_(archive.installationId, 8);
-  return 'trasy-2.0-' + start + '--' + end + '-' + device + '-' + installation +
-    diagnosticsSessionFileSuffix_(sessionHash);
+  var startAt = first.at || archive.receivedFirstAt;
+  var endAt = last.at || archive.receivedLastAt;
+  var start = diagnosticsFileTime_(startAt);
+  var end = diagnosticsFileDay_(startAt) === diagnosticsFileDay_(endAt)
+    ? diagnosticsFileClock_(endAt)
+    : diagnosticsFileTime_(endAt);
+  return start + '--' + end + '-' + diagnosticsSessionRoute_(archive) + '.json';
 }
 
 function readDiagnosticsSessionArchive_(file, fallback) {
@@ -282,17 +307,18 @@ function readDiagnosticsSessionArchive_(file, fallback) {
   return fallback;
 }
 
-function getDiagnosticsSessionFile_(deviceFolder, properties, stateKey, sessionHash) {
+function getDiagnosticsSessionFile_(deviceFolder, properties, stateKey, installationId, sessionId) {
   var state = {};
   try { state = JSON.parse(properties.getProperty(stateKey) || '{}') || {}; } catch (stateError) {}
   if (state.fileId) {
     try { return DriveApp.getFileById(String(state.fileId)); } catch (savedFileError) {}
   }
-  var suffix = diagnosticsSessionFileSuffix_(sessionHash);
   var files = deviceFolder.getFiles();
   while (files.hasNext()) {
     var candidate = files.next();
-    if (String(candidate.getName()).slice(-suffix.length) === suffix) return candidate;
+    var archive = readDiagnosticsSessionArchive_(candidate, null);
+    if (archive && String(archive.installationId || '') === String(installationId) &&
+        String(archive.sessionId || '') === String(sessionId)) return candidate;
   }
   return null;
 }
@@ -315,7 +341,7 @@ function overwriteDiagnosticsFileContent_(fileId, serialized) {
 function upsertDiagnosticsSessionFile_(deviceFolder, properties, installationId, deviceLabel, appVersion, sessionId, events) {
   var sessionHash = diagnosticsSessionHash_(installationId, sessionId);
   var stateKey = 'DIAGNOSTICS_SESSION_' + sessionHash;
-  var file = getDiagnosticsSessionFile_(deviceFolder, properties, stateKey, sessionHash);
+  var file = getDiagnosticsSessionFile_(deviceFolder, properties, stateKey, installationId, sessionId);
   var archive = readDiagnosticsSessionArchive_(file, newDiagnosticsSessionArchive_(installationId, deviceLabel, sessionId));
   var existingIds = {};
   for (var i = 0; i < archive.events.length; i++) existingIds[String(archive.events[i].id)] = true;
@@ -338,7 +364,7 @@ function upsertDiagnosticsSessionFile_(deviceFolder, properties, installationId,
   if (sizeBytes > maxBytes) throw new Error('SESSION_FILE_TOO_LARGE');
 
   var created = false;
-  var fileName = diagnosticsSessionFileName_(archive, sessionHash);
+  var fileName = diagnosticsSessionFileName_(archive);
   if (file) {
     if (sizeBytes <= 9 * 1024 * 1024) file.setContent(serialized);
     else overwriteDiagnosticsFileContent_(file.getId(), serialized);
@@ -399,31 +425,46 @@ function getDiagnosticsJsonRoot_(properties) {
   return jsonFolders.hasNext() ? jsonFolders.next() : appFolder.createFolder('Pliki JSON');
 }
 
+function cleanDiagnosticsDeviceLabel_(deviceLabel) {
+  return String(deviceLabel || 'Urządzenie')
+    .replace(/[\\\/:*?"<>|\u0000-\u001F]/g, ' ')
+    .replace(/\s+/g, ' ').trim().slice(0, 80) || 'Urządzenie';
+}
+
+function markDiagnosticsDeviceFolder_(folder, installationId, cleanLabel) {
+  if (String(folder.getName() || '') !== cleanLabel) folder.setName(cleanLabel);
+  try { folder.setDescription('Trasy 2.0 diagnostyka | urządzenie: ' + installationId); } catch (descriptionError) {}
+  return folder;
+}
+
 function getDiagnosticsDeviceFolder_(rootFolder, properties, installationId, deviceLabel) {
   var propertyKey = 'DIAGNOSTICS_DEVICE_FOLDER_' + installationId;
+  var cleanLabel = cleanDiagnosticsDeviceLabel_(deviceLabel);
   var savedId = String(properties.getProperty(propertyKey) || '');
   if (savedId) {
     try {
-      return DriveApp.getFolderById(savedId);
+      return markDiagnosticsDeviceFolder_(DriveApp.getFolderById(savedId), installationId, cleanLabel);
     } catch (savedFolderError) {}
   }
 
   var shortId = installationId.slice(0, 8);
-  var suffix = ' - ' + shortId;
+  var legacySuffix = ' - ' + shortId;
+  var marker = 'urządzenie: ' + installationId;
   var folders = rootFolder.getFolders();
   while (folders.hasNext()) {
     var existing = folders.next();
     var existingName = String(existing.getName() || '');
-    if (existingName.slice(-suffix.length) === suffix) {
+    var existingDescription = '';
+    try { existingDescription = String(existing.getDescription() || ''); } catch (descriptionError) {}
+    if (existingDescription.indexOf(marker) >= 0 || existingName.slice(-legacySuffix.length) === legacySuffix) {
+      existing = markDiagnosticsDeviceFolder_(existing, installationId, cleanLabel);
       properties.setProperty(propertyKey, existing.getId());
       return existing;
     }
   }
 
-  var cleanLabel = String(deviceLabel || 'Urządzenie')
-    .replace(/[\\\/:*?"<>|\u0000-\u001F]/g, ' ')
-    .replace(/\s+/g, ' ').trim().slice(0, 80) || 'Urządzenie';
-  var created = rootFolder.createFolder(cleanLabel + suffix);
+  var created = rootFolder.createFolder(cleanLabel);
+  created = markDiagnosticsDeviceFolder_(created, installationId, cleanLabel);
   properties.setProperty(propertyKey, created.getId());
   return created;
 }
