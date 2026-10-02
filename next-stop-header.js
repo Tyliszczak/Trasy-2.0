@@ -234,6 +234,15 @@
   function flashHold(){guardEl.classList.remove('flash3');void guardEl.offsetWidth;guardEl.classList.add('flash3')}
   function clearApproach(){if(!activeApproachKey)return;activeApproachKey='';render()}
 
+  window.addEventListener('trasy:gps-status',event=>{
+    if(event.detail?.state==='ready')return;
+    lastStatusDetail=null;
+    lastGuardDetail=null;
+    activeApproachKey='';
+    resetAlerts();
+    render();
+  });
+
   function updateApproach(position){
     const navPanel=document.getElementById('routeMapNav');
     if(navPanel?.hidden!==false||body.dataset.direction==='return'||body.dataset.emptyRun==='1'){clearApproach();return}

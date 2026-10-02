@@ -23,6 +23,12 @@
   };
 
   const EXACT={
+    'Aktualizuję pozycję GPS…':['Updating GPS position…','Оновлення GPS-позиції…'],
+    'Aktualizuję pozycję':['Updating position','Оновлення позиції'],
+    'Słaby sygnał GPS':['Weak GPS signal','Слабкий сигнал GPS'],
+    'Brak świeżej pozycji GPS. Czekam na sygnał.':['No fresh GPS position. Waiting for a signal.','Немає свіжої GPS-позиції. Очікування сигналу.'],
+    'Słaby sygnał GPS. Czekam na dokładniejszą pozycję.':['Weak GPS signal. Waiting for a more accurate position.','Слабкий сигнал GPS. Очікування точнішої позиції.'],
+    'Brak dostępu do lokalizacji. Zezwól na lokalizację w ustawieniach witryny lub aplikacji i telefonu, a następnie spróbuj ponownie.':['Location access is blocked. Allow location in the site or app and phone settings, then try again.','Доступ до геолокації заблоковано. Дозвольте геолокацію в налаштуваннях сайту або застосунку й телефону, потім спробуйте ще раз.'],
     'Język aplikacji':['App language','Мова застосунку'],
     'Wybierz język aplikacji':['Choose app language','Виберіть мову застосунку'],
     'ANULUJ':['CANCEL','СКАСУВАТИ'],

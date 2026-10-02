@@ -16,6 +16,8 @@ export const DEFAULT_STOP_ENGINE_CONFIG=Object.freeze({
   departureFixes:2,
   departureFixesWithoutDirection:3,
   minimumMovingSpeedMps:1.5,
+  fastDepartureMaxAccuracy:20,
+  fastDepartureMinimumMoveMeters:3,
   maximumHeadingToNextDegrees:100,
   initialNearbyMeters:600,
   initialAdvantageMeters:200,
@@ -44,6 +46,7 @@ export function createStopProgressEngine(overrides={}){
   let passFixes=0;
   let closestDistance=Infinity;
   let lastDistance=Infinity;
+  let arrivalPosition=null;
   let reacquireCandidate=null;
   let reacquireFixes=0;
   // Pierwszy cel wybrany bez wiarygodnego kierunku jazdy jest tylko
@@ -70,6 +73,7 @@ export function createStopProgressEngine(overrides={}){
     passFixes=0;
     closestDistance=Infinity;
     lastDistance=Infinity;
+    arrivalPosition=null;
     initialSelectionProvisional=false;
     reacquireLocked=true;
     resetReacquire();
@@ -163,7 +167,7 @@ export function createStopProgressEngine(overrides={}){
     return index+1;
   }
 
-  function update({stops,position,accuracy,speedMps=0,heading=null,headingReliable=false,emptyRun=false,minimumIndex=0}){
+  function update({stops,position,accuracy,speedMps=0,nativeSpeedReliable=false,heading=null,headingReliable=false,emptyRun=false,minimumIndex=0}){
     if(!Array.isArray(stops)||!stops.length||!position)return{...snapshot(),changed:false,reason:'no-stops'};
     const firstIndex=Math.max(0,Math.min(stops.length-1,Math.trunc(Number(minimumIndex)||0)));
     if(emptyRun){
@@ -261,6 +265,7 @@ export function createStopProgressEngine(overrides={}){
       lastDistance=distance;
       if(arrivalFixes>=config.arrivalFixes){
         phase='arrived';
+        arrivalPosition=position.slice();
         departureFixes=0;
         passFixes=0;
         initialSelectionProvisional=false;
@@ -309,13 +314,21 @@ export function createStopProgressEngine(overrides={}){
     const growing=Number.isFinite(lastDistance)&&distance>=lastDistance+config.departureGrowthMeters;
     const moving=Number.isFinite(speedMps)&&speedMps>=config.minimumMovingSpeedMps;
     const towardNext=headingReliable&&Number.isFinite(heading)&&angleDifference(heading,bearingDegrees(position,next.coord))<=config.maximumHeadingToNextDegrees;
+    // After a confirmed stop, genuine native GPS motion is enough to expose
+    // the next maneuver while it is still close. Estimated speed from GPS
+    // drift alone must continue through the conservative departure path.
+    if(speedMps<=config.maximumArrivalSpeedMps&&distance<=arrivalRadius)arrivalPosition=position.slice();
+    const movedFromStop=arrivalPosition?distanceMeters(arrivalPosition,position):0;
+    const fastDeparture=nativeSpeedReliable&&moving&&headingReliable&&Number.isFinite(heading)
+      &&accuracy<=config.fastDepartureMaxAccuracy
+      &&movedFromStop>=Math.max(config.fastDepartureMinimumMoveMeters,accuracy*.5);
 
     if(distance>=departureRadius&&growing&&moving)departureFixes+=1;
     else departureFixes=0;
     lastDistance=distance;
 
     const requiredDepartureFixes=towardNext?config.departureFixes:config.departureFixesWithoutDirection;
-    if(departureFixes>=requiredDepartureFixes){
+    if(fastDeparture||departureFixes>=requiredDepartureFixes){
       const fromIndex=index;
       index+=1;
       phase='approaching';
@@ -327,7 +340,8 @@ export function createStopProgressEngine(overrides={}){
       initialSelectionProvisional=false;
       reacquireLocked=true;
       resetReacquire();
-      return{...snapshot(),changed:true,reason:'confirmed-departure',fromIndex,distance,arrivalRadius,departureRadius};
+      arrivalPosition=null;
+      return{...snapshot(),changed:true,reason:'confirmed-departure',departureEvidence:fastDeparture?'initial-motion':'outside-stop',fromIndex,distance,arrivalRadius,departureRadius};
     }
     return{...snapshot(),changed:false,reason:'arrived',distance,arrivalRadius,departureRadius};
   }

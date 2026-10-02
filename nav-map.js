@@ -405,7 +405,6 @@
   function posOnce(){
     const cached=cachedPosition(MAX_ROUTE_GPS_AGE_MS);
     if(cached){
-      window.__trasyGps?.refresh?.({restartWatch:false}).catch(()=>{});
       return Promise.resolve(cached);
     }
 
@@ -592,7 +591,7 @@
      ========================================================= */
 
   function liveFirstLegSeconds(){
-    if(!legDurations.length)return null;
+    if(!legDurations.length||!legStartAt||!hasFreshGps())return null;
 
     const elapsed=
       Math.max(
@@ -602,7 +601,7 @@
 
     return Math.max(
       0,
-      Number(legDurations[0]||0)-elapsed
+      Number(legDurations[0]||0)-(currentSpeedMps>=1.2?Math.min(elapsed,3):0)
     );
   }
 
@@ -653,21 +652,30 @@
 
   function dispatchEta(){
     const p=punctuality();
+    const detail={etaSeconds:p.seconds,kind:p.kind,diffSeconds:p.diff};
+    // The live engine replaces the fallback before consumers see the event.
+    body.dispatchEvent(new CustomEvent('nav-eta-update',{bubbles:true,detail}));
+    setVehicleStatus(hasFreshGps()?detail.kind:'neutral');
+  }
 
-    setVehicleStatus(p.kind);
+  function hasFreshGps(){
+    return document.visibilityState==='visible'&&window.__trasyGps?.getStatus?.().state==='ready'&&Boolean(window.__trasyGps?.current?.());
+  }
 
-    if(Number.isFinite(p.seconds)){
-      body.dispatchEvent(
-        new CustomEvent('nav-eta-update',{
-          bubbles:true,
-          detail:{
-            etaSeconds:p.seconds,
-            kind:p.kind,
-            diffSeconds:p.diff
-          }
-        })
-      );
-    }
+  function invalidateNavigationPosition(){
+    routeRequestGeneration+=1;
+    routeAbortController?.abort();
+    routeAbortController=null;
+    routeBuildInFlight=false;
+    legStartAt=0;
+    legDurations=[];
+    lastGpsAt=0;
+    lastGpsPoint=null;
+    routingHeadingAt=0;
+    currentSpeedMps=0;
+    offRouteFixes=0;
+    if(rerouteTimer){clearTimeout(rerouteTimer);rerouteTimer=0}
+    setVehicleStatus('neutral');
   }
 
 
@@ -1129,7 +1137,7 @@
   async function buildRoute(origin,stops){
     if(!stops.length)return;
     const gpsAge=Date.now()-Number(lastGpsAt||0);
-    if(document.visibilityState!=='visible'||!lastGpsAt||gpsAge<0||gpsAge>MAX_ROUTE_GPS_AGE_MS){
+    if(!hasFreshGps()||!lastGpsAt||gpsAge<0||gpsAge>MAX_ROUTE_GPS_AGE_MS){
       const error=new Error('Czekam na świeżą pozycję GPS przed wyznaczeniem trasy.');
       error.name='StaleGpsPositionError';
       throw error;
@@ -1190,6 +1198,7 @@
         if(requestId!==routeRequestGeneration||controller.signal.aborted)return;
         data=window.__trasyNormalizeRouteResponse?.(rawData)||rawData;
       }
+      if(!hasFreshGps())return;
       window.__trasyCaptureRoute?.(routeUrl,data);
       const route=data.routes?.[0];
 
@@ -1207,11 +1216,12 @@
 
       steps=
         (route.legs||[])
-          .flatMap(l=>l.steps||[]);
+          .flatMap((leg,index)=>(leg.steps||[]).map(step=>({...step,stopKey:stops[index]?.key})));
 
       legDurations=
         (route.legs||[])
           .map(l=>l.duration||0);
+      legStartAt=Date.now();
 
       progressIndex=0;
       offRouteFixes=0;
@@ -1280,6 +1290,10 @@
       );
 
     if(oldIndex>0){
+      const completedKeys=new Set(currentStops.slice(0,oldIndex).map(stop=>stop.key));
+      steps=steps.filter(step=>!completedKeys.has(step.stopKey));
+      mapStepsToProgress();
+      lastSpoken='';
       if(routeBuildInFlight&&lastGpsPoint){
         currentStops=remaining;
         legDurations=[];
@@ -1306,6 +1320,7 @@
       );
 
       dispatchEta();
+      if(lastGpsPoint&&hasFreshGps())updateGuidance(lastGpsPoint);
 
     }else if(oldIndex<0){
       currentStops=remaining;
@@ -1431,6 +1446,7 @@
   }
 
   function applyNavigationPosition(position){
+    if(!globalThis.__trasyGpsQuality?.evaluate(position).usable||!hasFreshGps())return;
     const ll=[Number(position?.coords?.latitude),Number(position?.coords?.longitude)];
     if(!Number.isFinite(ll[0])||!Number.isFinite(ll[1])||panel.hidden)return;
     const instant=resumeInstant;
@@ -1469,11 +1485,13 @@
 
   async function recoverNavigation(){
     if(panel.hidden||document.visibilityState!=='visible'||resumePromise)return resumePromise;
+    if(window.__trasyGps?.getStatus?.().state==='denied')return null;
     resumeInstant=true;
     const previousStatus=status.textContent;
     status.textContent='Aktualizuję pozycję po wznowieniu…';
     resumePromise=window.__trasyGps.refresh()
       .then(async position=>{
+        if(panel.hidden||!hasFreshGps()||!globalThis.__trasyGpsQuality?.evaluate(position).usable)return null;
         const origin=[Number(position.coords.latitude),Number(position.coords.longitude)];
         updateNavigationMotion(position,origin);
         const remaining=remainingStopsFromGps();
@@ -1680,6 +1698,7 @@
   };
 
   function closeMapNav(){
+    invalidateNavigationPosition();
     window.__routeCameraController?.startGuidance();
     window.__trasyWakeLock?.setNavigation(false);
 
@@ -1787,12 +1806,20 @@
   document.addEventListener('visibilitychange',()=>{
     if(document.visibilityState==='hidden'){
       hiddenAt=Date.now();
+      invalidateNavigationPosition();
       return;
     }
     if(!panel.hidden&&hiddenAt&&Date.now()-hiddenAt>=3000)recoverNavigation();
   });
   window.addEventListener('pageshow',event=>{
     if(event.persisted&&!panel.hidden)recoverNavigation();
+  });
+  window.addEventListener('trasy:gps-status',event=>{
+    if(event.detail?.state==='ready')return;
+    invalidateNavigationPosition();
+    if(!panel.hidden){
+      gpsStatus.textContent=event.detail?.state==='poor'?'Słaby sygnał GPS':'Czekam na świeżą pozycję GPS…';
+    }
   });
 
   setInterval(()=>{

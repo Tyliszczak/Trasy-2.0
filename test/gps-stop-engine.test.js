@@ -19,6 +19,7 @@ function fix(engine,meters,options={}){
     position,
     accuracy:options.accuracy??10,
     speedMps:options.speedMps??0,
+    nativeSpeedReliable:options.nativeSpeedReliable??false,
     heading:options.heading??bearingDegrees(position,next),
     headingReliable:options.headingReliable??false,
     emptyRun:options.emptyRun??false
@@ -282,6 +283,30 @@ test('zmiana celu po postoju wymaga potwierdzonego odjazdu',()=>{
   const confirmed=fix(engine,105,{speedMps:8,headingReliable:true});
   assert.equal(confirmed.index,1);
   assert.equal(confirmed.reason,'confirmed-departure');
+});
+
+test('pierwszy wiarygodny ruch po postoju przełącza cel przed bliskim skrętem',()=>{
+  const engine=createStopProgressEngine();confirmStop(engine,0);
+  const result=fix(engine,4,{accuracy:4,speedMps:1.8,nativeSpeedReliable:true,headingReliable:true});
+  assert.equal(result.index,1);assert.equal(result.reason,'confirmed-departure');
+  assert.equal(result.departureEvidence,'initial-motion');assert.equal(result.justSkipped,undefined);
+});
+
+test('szybki odjazd działa kiedy skręt prowadzi chwilowo od następnego przystanku',()=>{
+  const engine=createStopProgressEngine();confirmStop(engine,0);
+  const result=fix(engine,4,{accuracy:4,speedMps:2,nativeSpeedReliable:true,heading:180,headingReliable:true});
+  assert.equal(result.index,1);
+});
+
+test('dryf, słaby GPS albo brak postoju nie uruchamia szybkiego odjazdu',()=>{
+  for(const options of [
+    {speedMps:0,nativeSpeedReliable:true,headingReliable:true},
+    {speedMps:3,nativeSpeedReliable:false,headingReliable:true},
+    {speedMps:3,nativeSpeedReliable:true,headingReliable:true,accuracy:50},
+    {speedMps:3,nativeSpeedReliable:true,headingReliable:false}
+  ]){const engine=createStopProgressEngine();confirmStop(engine,0);assert.equal(fix(engine,15,options).index,0)}
+  const engine=createStopProgressEngine();engine.setIndex(0);
+  assert.equal(fix(engine,4,{accuracy:4,speedMps:2,nativeSpeedReliable:true,headingReliable:true}).index,0);
 });
 
 test('po potwierdzonym postoju zakręt nie blokuje przejścia do następnego celu',()=>{

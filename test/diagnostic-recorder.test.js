@@ -34,16 +34,46 @@ test('aktywna diagnostyka automatycznie wysyła kolejkowane paczki przez Cloudfl
   assert.match(source,/application-use-ended/);
   assert.match(source,/finishUse\('hidden'\)/);
   assert.match(source,/pendingSessionEvents/);
-  assert.match(source,/UPLOAD_WINDOW_KEY/);
-  assert.match(source,/dueUploadWindow/);
-  assert.match(source,/getHours\(\)>=12/);
-  assert.match(source,/getHours\(\)>=18/);
+  const interval=source.match(/const UPLOAD_CHECK_INTERVAL_MS=([^;]+);/)?.[1];
+  assert.ok(interval,'Rejestrator określa odstęp automatycznej wysyłki');
+  assert.equal(vm.runInNewContext(interval),5*60*1000);
+  assert.match(source,/flush\(\)\.then\(\(\)=>sendPendingSoon\(0\)\)/);
+  assert.doesNotMatch(source,/function dueUploadWindow/);
   assert.match(source,/deviceLabel:deviceLabel\(\)/);
   assert.match(source,/DEVICE_NAME_KEY/);
   assert.match(source,/id="diagnosticDeviceName"/);
   assert.match(source,/runScheduledUpload\(\)/);
   assert.doesNotMatch(source,/UPLOAD_INTERVAL_MS=60000/);
   assert.doesNotMatch(source,/DIAGNOSTICS_SHARED_SECRET/);
+});
+
+test('automatyczna wysyłka wymaga zgody, połączenia i oczekujących danych, bez czekania na południe',async()=>{
+  const source=read('diagnostic-recorder.js');
+  const scheduled=source.match(/async function runScheduledUpload\(\)\{[\s\S]*?\n  \}/)?.[0];
+  assert.ok(scheduled);
+  let approved=false,pending=[],sent=0;
+  const context={
+    navigator:{onLine:true},
+    CONSENT_KEY:'consent',
+    localStorage:{getItem:()=>approved?'approved':null},
+    pendingEvents:async()=>pending,
+    uploadPending:async()=>{sent++;return{complete:true}}
+  };
+  vm.runInNewContext(scheduled,context);
+  pending=[{at:'2026-10-01T06:00:00.000Z'}];
+  await context.runScheduledUpload();
+  assert.equal(sent,0,'Brak zgody blokuje wysyłkę');
+  approved=true;
+  context.navigator.onLine=false;
+  await context.runScheduledUpload();
+  assert.equal(sent,0,'Brak połączenia zachowuje kolejkę');
+  context.navigator.onLine=true;
+  pending=[];
+  await context.runScheduledUpload();
+  assert.equal(sent,0,'Pusta kolejka nie uruchamia wysyłki');
+  pending=[{at:'2026-10-01T06:00:00.000Z'}];
+  await context.runScheduledUpload();
+  assert.equal(sent,1,'Oczekujące dane są wysyłane przy najbliższej próbie');
 });
 
 test('okno zgody wyjaśnia cel i nie pokazuje ręcznej wysyłki ani zapisu pliku',()=>{
@@ -61,7 +91,7 @@ test('okno zgody wyjaśnia cel i nie pokazuje ręcznej wysyłki ani zapisu pliku
 test('skrypt diagnostyczny jest częścią powłoki offline PWA',()=>{
   const html=read('index.html');
   const sw=read('sw.js');
-  assert.match(html,/src="\.\/diagnostic-recorder\.js\?v=9"/);
+  assert.match(html,/src="\.\/diagnostic-recorder\.js\?v=[^"\s]+"/);
   assert.match(sw,/'\.\/diagnostic-recorder\.js'/);
 });
 
@@ -88,7 +118,8 @@ test('pełne paczki diagnostyczne trafiają do prywatnego folderu, a arkusz prze
   assert.match(backend,/deviceFolder\.createFile\(/);
   assert.match(backend,/trasy-2\.0-test-diagnostics-session/);
   assert.match(backend,/file\.setContent\(serialized\)/);
-  assert.match(backend,/file\.setName\(diagnosticsSessionFileName_/);
+  assert.match(backend,/var fileName = diagnosticsSessionFileName_\(archive\)/);
+  assert.match(backend,/file\.setName\(fileName\)/);
   assert.match(backend,/Utilities\.formatDate/);
   assert.match(backend,/archive\.deviceLabel/);
   assert.match(backend,/isDiagnosticsEventSeen_/);
@@ -112,22 +143,35 @@ test('zakresy wysłanych zdarzeń są scalane i blokują częściowe duplikaty',
   assert.deepEqual(JSON.parse(JSON.stringify(ranges)),[[1,22],[29,30]]);
 });
 
-test('nazwa pliku sesji zawiera czas i czytelną nazwę telefonu',()=>{
+test('nazwa pliku w folderze urządzenia zawiera lokalny zakres czasu i ostatnią znaną trasę',()=>{
   const backend=read('TEST_DIAGNOSTICS_APPS_SCRIPT.gs.txt');
   const context={
     Session:{getScriptTimeZone:()=>'Europe/Warsaw'},
-    Utilities:{formatDate:date=>date.toISOString().slice(0,19).replace('T','_').replaceAll(':','-')}
+    Utilities:{formatDate:(date,timeZone,format)=>{
+      assert.equal(timeZone,'Europe/Warsaw');
+      const parts=Object.fromEntries(new Intl.DateTimeFormat('en-GB',{
+        timeZone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'
+      }).formatToParts(date).map(part=>[part.type,part.value]));
+      const day=`${parts.year}-${parts.month}-${parts.day}`;
+      const clock=`${parts.hour}-${parts.minute}`;
+      return format==='yyyy-MM-dd'?day:format==='HH-mm'?clock:`${day}_${clock}`;
+    }}
   };
   vm.runInNewContext(backend,context);
   const archive={
     installationId:'83592448-5fc1-452c-a22f-94ca7ff54789',
     deviceLabel:'Telefon Krzysztofa',
-    events:[{at:'2026-09-09T06:12:25.000Z'},{at:'2026-09-09T08:31:34.000Z'}]
+    events:[
+      {at:'2026-09-09T06:12:25.000Z',snapshot:{route:'Trasa 1'}},
+      {at:'2026-09-09T08:31:34.000Z',snapshot:{route:'Trasa 7'}}
+    ]
   };
   assert.equal(
-    context.diagnosticsSessionFileName_(archive,'1234567890abcdef',1),
-    'trasy-2.0-2026-09-09_06-12-25--2026-09-09_08-31-34-Telefon-Krzysztofa-83592448-12345678.json'
+    context.diagnosticsSessionFileName_(archive),
+    '2026-09-09_08-12--10-31-Trasa-7.json'
   );
+  archive.events.push({at:'2026-09-10T05:03:00.000Z',snapshot:{route:''}});
+  assert.equal(context.diagnosticsSessionFileName_(archive),'2026-09-09_08-12--2026-09-10_07-03-Trasa-7.json');
 });
 
 test('diagnostyka ogranicza powtarzalne statusy i zachowuje dane pozycji po wznowieniu',()=>{

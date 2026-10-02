@@ -537,7 +537,11 @@
       heading:Number(position.coords.heading),
       altitude:Number(position.coords.altitude)
     });
-  },error=>record('gps-error',{code:error?.code,message:error?.message}));
+  },error=>record('gps-error',{code:error?.code,message:error?.message}),{includeUnreliable:true});
+  window.addEventListener('trasy:gps-status',event=>{
+    const state=event.detail;
+    record('gps-quality-change',{state:state?.state,reason:state?.reason,ageMs:state?.ageMs,accuracy:state?.accuracy});
+  });
 
   document.getElementById('diagnosticButton')?.addEventListener('click',()=>{
     const dialog=makeDialog();updateUi();dialog.showModal();

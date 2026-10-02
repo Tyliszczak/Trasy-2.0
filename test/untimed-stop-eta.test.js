@@ -33,13 +33,14 @@ test('moduł ETA nie używa MutationObservera, który może zapętlić render na
   assert.match(source,/function queueRender\(\)\{if\(queued\)return;queued=true;queueMicrotask\(render\)\}/);
 });
 
-test('wersja z poprawką zamrożenia ładuje świeży moduł ETA',()=>{
+test('bieżąca wersja ładuje moduł ETA i udostępnia go offline',()=>{
   const html=read('index.html');
   const sw=read('sw.js');
-  assert.match(html,/data-version="2\.0\.217"/);
+  const pageVersion=html.match(/id="globalTestVersion"\s+data-version="([^"]+)"/)?.[1];
+  const workerVersion=sw.match(/const APP_VERSION='([^']+)'/)?.[1];
+  assert.ok(pageVersion);
+  assert.equal(workerVersion,pageVersion);
   assert.match(html,/time-core\.js\?v=4/);
-  assert.match(html,/untimed-stop-eta-ui\.js\?v=3/);
-  assert.match(sw,/APP_VERSION='2\.0\.217'/);
-  assert.match(sw,/CACHE_NAME='trasy-2\.0-v250'/);
+  assert.match(html,/untimed-stop-eta-ui\.js\?v=4/);
   assert.match(sw,/'\.\/untimed-stop-eta-ui\.js'/);
 });

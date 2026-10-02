@@ -6,6 +6,7 @@ import{
 import{planDateForRow,rowPlanText}from'./schedule-time.js';
 import{stopGuardState}from'./stop-alert-core.js';
 import{canAutoAdvanceBySchedule,manualSkipTargetIndex,shouldApplySchedulePriority}from'./stop-target-policy.js';
+import'./gps-quality.js';
 
 (()=>{
   const body=document.getElementById('scheduleBody');
@@ -24,6 +25,8 @@ import{canAutoAdvanceBySchedule,manualSkipTargetIndex,shouldApplySchedulePriorit
   let watch=null;
   let lastPos=null;
   let lastPosAt=0;
+  let lastGpsPosition=null;
+  let gpsNotBefore=0;
   let headingAnchor=null;
   let heading=null;
   let headingAt=0;
@@ -34,6 +37,17 @@ import{canAutoAdvanceBySchedule,manualSkipTargetIndex,shouldApplySchedulePriorit
   let missedStopWarningTimer=null;
 
   const coord=value=>geo.parseCoordinate(value);
+
+  function hasFreshPosition(){
+    return document.visibilityState==='visible'&&Boolean(lastGpsPosition)&&
+      globalThis.__trasyGpsQuality.evaluate(lastGpsPosition,{notBefore:gpsNotBefore}).usable;
+  }
+
+  function invalidatePosition(){
+    lastGpsPosition=null;lastPos=null;lastPosAt=0;gpsNotBefore=Date.now();
+    headingAnchor=null;heading=null;headingAt=0;
+    updateStopGuard();
+  }
 
   function rows(){
     return[...body.querySelectorAll('tr')].filter(row=>coord(row.dataset.coordinate));
@@ -86,6 +100,7 @@ import{canAutoAdvanceBySchedule,manualSkipTargetIndex,shouldApplySchedulePriorit
     currentIndex=null;
     lastPos=null;
     lastPosAt=0;
+    lastGpsPosition=null;
     headingAnchor=null;
     heading=null;
     headingAt=0;
@@ -186,7 +201,7 @@ import{canAutoAdvanceBySchedule,manualSkipTargetIndex,shouldApplySchedulePriorit
       emitGuard('','',0,null,'',Infinity);
       return;
     }
-    if(currentIndex===null||!routeRows[currentIndex]||!lastPos){
+    if(currentIndex===null||!routeRows[currentIndex]||!lastPos||!hasFreshPosition()){
       emitGuard('','',0,currentIndex,'',Infinity);
       return;
     }
@@ -226,7 +241,7 @@ import{canAutoAdvanceBySchedule,manualSkipTargetIndex,shouldApplySchedulePriorit
   }
 
   function chooseAndApply(motion={}){
-    if(view.hidden||!lastPos)return;
+    if(view.hidden||!lastPos||!hasFreshPosition())return;
     if(returnOriginLocked()){
       currentIndex=null;
       engine.reset();
@@ -262,6 +277,7 @@ import{canAutoAdvanceBySchedule,manualSkipTargetIndex,shouldApplySchedulePriorit
       position:lastPos,
       accuracy:Number(window.__navAcc||999),
       speedMps:Number(motion.speedMps||0),
+      nativeSpeedReliable:Boolean(motion.nativeSpeedReliable),
       heading,
       headingReliable:Boolean(motion.headingReliable),
       emptyRun:body.dataset.emptyRun==='1',
@@ -342,13 +358,17 @@ import{canAutoAdvanceBySchedule,manualSkipTargetIndex,shouldApplySchedulePriorit
   }
 
   function onPos(position){
-    const accuracy=Number(position.coords.accuracy||999);
-    if(accuracy>MAX_ACCURACY)return;
+    const quality=globalThis.__trasyGpsQuality.evaluate(position,{notBefore:gpsNotBefore});
+    if(document.visibilityState!=='visible'||!quality.usable||quality.accuracy>MAX_ACCURACY){invalidatePosition();return}
+    const accuracy=quality.accuracy;
+    lastGpsPosition=position;
     window.__navAcc=accuracy;
 
     const here=[position.coords.latitude,position.coords.longitude];
     const now=Number(position.timestamp)||Date.now();
-    let speed=Number(position.coords.speed);
+    const rawSpeed=position.coords.speed;
+    const nativeSpeedReliable=rawSpeed!==null&&rawSpeed!==undefined&&Number.isFinite(Number(rawSpeed))&&Number(rawSpeed)>=0;
+    let speed=nativeSpeedReliable?Number(rawSpeed):NaN;
     if(!Number.isFinite(speed)||speed<0){
       if(lastPos&&lastPosAt&&now>lastPosAt)speed=distanceMeters(lastPos,here)/((now-lastPosAt)/1000);
       else speed=0;
@@ -378,12 +398,12 @@ import{canAutoAdvanceBySchedule,manualSkipTargetIndex,shouldApplySchedulePriorit
 
     lastPos=here;
     lastPosAt=now;
-    chooseAndApply({speedMps:speed,headingReliable});
+    chooseAndApply({speedMps:speed,nativeSpeedReliable,headingReliable});
   }
 
   function start(){
     if(watch!==null)return;
-    watch=window.__trasyGps.subscribe(onPos,()=>{});
+    watch=window.__trasyGps.subscribe(onPos,invalidatePosition);
   }
 
   function setManualIndex(index,source){
@@ -452,6 +472,8 @@ import{canAutoAdvanceBySchedule,manualSkipTargetIndex,shouldApplySchedulePriorit
   body.addEventListener('gps-skip-stop',event=>setManualIndex(Number(event.detail?.index),event.detail?.source));
   body.addEventListener('gps-skip-current-stop',event=>skipCurrentStopManually(Number(event.detail?.expectedIndex)));
   setInterval(updateStopGuard,1000);
-  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')start()});
+  window.addEventListener('trasy:gps-status',event=>{if(event.detail?.state&&event.detail.state!=='ready')invalidatePosition()});
+  document.addEventListener('visibilitychange',()=>{invalidatePosition();if(document.visibilityState==='visible')start()});
+  window.addEventListener('pageshow',event=>{if(event.persisted)invalidatePosition()});
   start();
 })();

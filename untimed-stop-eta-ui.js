@@ -67,9 +67,13 @@
     if(plan.dataset.etaOnly!=='1')plan.dataset.etaOnly='1';
   }
   function queueRender(){if(queued)return;queued=true;queueMicrotask(render)}
+  function etaValue(value){
+    if(value===null||value===undefined||value==='')return null;
+    const seconds=Number(value);
+    return Number.isFinite(seconds)&&seconds>=0?seconds:null;
+  }
   function acceptEta(detail){
-    const seconds=Number(detail?.etaSeconds);
-    if(Number.isFinite(seconds)&&seconds>=0)latestEtaSeconds=seconds;
+    latestEtaSeconds=etaValue(detail?.etaSeconds);
     if(isUntimed())queueRender();
   }
   function reset(){latestEtaSeconds=null;queueRender()}
@@ -80,8 +84,9 @@
   body.addEventListener('route-direction-change',reset);
   body.addEventListener('route-mode-change',reset);
   body.addEventListener('schedule-rendered',reset);
+  window.addEventListener('trasy:gps-status',event=>{if(event.detail?.state&&event.detail.state!=='ready')reset()});
+  document.addEventListener('visibilitychange',reset);
 
-  const initial=Number(body.dataset.etaSeconds);
-  if(Number.isFinite(initial)&&initial>=0)latestEtaSeconds=initial;
+  latestEtaSeconds=etaValue(body.dataset.etaSeconds);
   render();
 })();

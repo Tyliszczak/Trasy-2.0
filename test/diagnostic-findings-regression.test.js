@@ -9,7 +9,7 @@ const read=file=>readFileSync(join(root,file),'utf8');
 test('trasa nie jest przeliczana z pozycji GPS sprzed wybudzenia',()=>{
   const source=read('nav-map.js');
   assert.match(source,/MAX_ROUTE_GPS_AGE_MS=5000/);
-  assert.match(source,/document\.visibilityState!=='visible'\|\|!lastGpsAt\|\|gpsAge<0\|\|gpsAge>MAX_ROUTE_GPS_AGE_MS/);
+  assert.match(source,/!hasFreshGps\(\)\|\|!lastGpsAt\|\|gpsAge<0\|\|gpsAge>MAX_ROUTE_GPS_AGE_MS/);
   assert.match(source,/cachedPosition\(MAX_ROUTE_GPS_AGE_MS\)/);
   assert.match(source,/Date\.now\(\)-lastGpsAt>MAX_ROUTE_GPS_AGE_MS/);
 });
@@ -28,5 +28,5 @@ test('wersja testowa ładuje jawnie poprawki z analizy przejazdu',()=>{
   assert.match(html,/app\.js\?v=active-course-1/);
   assert.match(html,/return-route\.js\?v=pinned-course-1/);
   assert.match(html,/google-routes-provider\.js\?v=handled-fallback-1/);
-  assert.match(html,/nav-map\.js\?v=fresh-resume-1/);
+  assert.match(html,/nav-map\.js\?v=quality-resume-2/);
 });
