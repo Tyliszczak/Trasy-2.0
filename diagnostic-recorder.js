@@ -31,6 +31,7 @@
   let active=localStorage.getItem(ACTIVE_KEY)==='1';
   let sessionId=localStorage.getItem(SESSION_KEY)||'';
   let sessionCourseKey=localStorage.getItem(SESSION_COURSE_KEY)||'';
+  let courseReady=false;
   let uploadTimer=0,uploadInFlight=null,lastSyncMessage='';
   let useEndRecorded=false;
   const eventPolicyState=new Map();
@@ -94,6 +95,7 @@
   function clearCurrentSession(){
     sessionId='';
     sessionCourseKey='';
+    courseReady=false;
     localStorage.removeItem(SESSION_KEY);
     localStorage.removeItem(SESSION_COURSE_KEY);
   }
@@ -103,15 +105,19 @@
     const course=currentCourse();
     if(!course)return false;
     const key=courseSessionKey(course);
-    if(validSessionId(sessionId)&&sessionCourseKey===key)return false;
+    if(validSessionId(sessionId)&&sessionCourseKey===key){
+      courseReady=true;
+      useEndRecorded=false;
+      return false;
+    }
     if(validSessionId(sessionId)){
-      record('course-session-ended',{reason:'course-changed',nextRoute:course.route,nextShift:course.shift});
-      flush().then(()=>sendPendingSoon(100)).catch(error=>console.warn('Zamknięcie sesji diagnostycznej:',error));
+      flush().then(()=>sendPendingSoon(100)).catch(error=>console.warn('Zamknięcie poprzedniej sesji diagnostycznej:',error));
     }
     sessionId=newSessionId();
     sessionCourseKey=key;
     localStorage.setItem(SESSION_KEY,sessionId);
     localStorage.setItem(SESSION_COURSE_KEY,sessionCourseKey);
+    courseReady=true;
     eventPolicyState.clear();
     useEndRecorded=false;
     record('course-session-started',{reason,route:course.route,shift:course.shift,day:localDayKey()});
@@ -227,7 +233,7 @@
   }
 
   function record(type,detail={}){
-    if(!active||!validSessionId(sessionId))return;
+    if(!active||!courseReady||!validSessionId(sessionId))return;
     const now=Date.now();
     if(!shouldRecord(type,detail,now))return;
     queue.push({
@@ -552,7 +558,7 @@
 
   function detailListener(type){return event=>record(type,event.detail||{})}
   function finishUse(reason){
-    if(!active||!validSessionId(sessionId)||useEndRecorded)return;
+    if(!active||!courseReady||!validSessionId(sessionId)||useEndRecorded)return;
     useEndRecorded=true;
     record('application-use-ended',{reason});
     flush().then(()=>sendPendingSoon(0)).catch(error=>console.warn('Końcowy zapis diagnostyki:',error));
