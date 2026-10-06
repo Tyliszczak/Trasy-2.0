@@ -8,6 +8,7 @@
   const STORE='events';
   const ACTIVE_KEY='trasy2.diagnostics.active';
   const SESSION_KEY='trasy2.diagnostics.session';
+  const SESSION_COURSE_KEY='trasy2.diagnostics.sessionCourse.v1';
   const INSTALLATION_KEY='trasy2.diagnostics.installation';
   const DEVICE_NAME_KEY='trasy2.diagnostics.deviceName.v1';
   const LEGACY_LAST_UPLOADED_KEY='trasy2.diagnostics.lastUploadedId';
@@ -29,6 +30,7 @@
   let lastGpsAt=0;
   let active=localStorage.getItem(ACTIVE_KEY)==='1';
   let sessionId=localStorage.getItem(SESSION_KEY)||'';
+  let sessionCourseKey=localStorage.getItem(SESSION_COURSE_KEY)||'';
   let uploadTimer=0,uploadInFlight=null,lastSyncMessage='';
   let useEndRecorded=false;
   const eventPolicyState=new Map();
@@ -73,6 +75,57 @@
 
   function validSessionId(value){
     return /^[A-Za-z0-9:._-]{16,180}$/.test(String(value||''));
+  }
+
+  function localDayKey(date=new Date()){
+    return [date.getFullYear(),String(date.getMonth()+1).padStart(2,'0'),String(date.getDate()).padStart(2,'0')].join('-');
+  }
+
+  function currentCourse(){
+    const route=document.getElementById('scheduleRouteName')?.textContent?.trim()||'';
+    const shift=document.getElementById('scheduleTimeSelect')?.value||'';
+    return route&&shift?{route,shift}:null;
+  }
+
+  function courseSessionKey(course,date=new Date()){
+    return course?`${localDayKey(date)}|${course.route}|${course.shift}`:'';
+  }
+
+  function clearCurrentSession(){
+    sessionId='';
+    sessionCourseKey='';
+    localStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem(SESSION_COURSE_KEY);
+  }
+
+  function beginCourseSession(reason='schedule-rendered'){
+    if(!active)return false;
+    const course=currentCourse();
+    if(!course)return false;
+    const key=courseSessionKey(course);
+    if(validSessionId(sessionId)&&sessionCourseKey===key)return false;
+    if(validSessionId(sessionId)){
+      record('course-session-ended',{reason:'course-changed',nextRoute:course.route,nextShift:course.shift});
+      flush().then(()=>sendPendingSoon(100)).catch(error=>console.warn('Zamknięcie sesji diagnostycznej:',error));
+    }
+    sessionId=newSessionId();
+    sessionCourseKey=key;
+    localStorage.setItem(SESSION_KEY,sessionId);
+    localStorage.setItem(SESSION_COURSE_KEY,sessionCourseKey);
+    eventPolicyState.clear();
+    useEndRecorded=false;
+    record('course-session-started',{reason,route:course.route,shift:course.shift,day:localDayKey()});
+    return true;
+  }
+
+  function endCourseSession(reason='course-ended'){
+    if(!validSessionId(sessionId))return;
+    const course=currentCourse();
+    record('course-session-ended',{reason,route:course?.route||'',shift:course?.shift||''});
+    flush().then(()=>sendPendingSoon(100)).catch(error=>console.warn('Końcowy zapis sesji diagnostycznej:',error));
+    clearCurrentSession();
+    eventPolicyState.clear();
+    useEndRecorded=false;
   }
 
   function openDb(){
@@ -174,7 +227,7 @@
   }
 
   function record(type,detail={}){
-    if(!active)return;
+    if(!active||!validSessionId(sessionId))return;
     const now=Date.now();
     if(!shouldRecord(type,detail,now))return;
     queue.push({
@@ -400,29 +453,35 @@
   }
 
   function setActive(next){
-    active=Boolean(next);
-    if(active){
+    const nextActive=Boolean(next);
+    if(nextActive){
+      active=true;
       eventPolicyState.clear();
-      sessionId=newSessionId();
+      clearCurrentSession();
       localStorage.setItem(ACTIVE_KEY,'1');
-      localStorage.setItem(SESSION_KEY,sessionId);
       localStorage.setItem(CONSENT_KEY,'approved');
       localStorage.setItem(FIRST_USE_PROMPT_KEY,'shown');
       useEndRecorded=false;
-      record('recording-started',{
-        appVersion:version?.dataset.version||'',
-        userAgent:navigator.userAgent,
-        language:navigator.language,
-        screen:{width:screen.width,height:screen.height,pixelRatio:devicePixelRatio}
-      });
+      const started=beginCourseSession('recording-enabled');
+      if(started){
+        record('recording-started',{
+          appVersion:version?.dataset.version||'',
+          userAgent:navigator.userAgent,
+          language:navigator.language,
+          screen:{width:screen.width,height:screen.height,pixelRatio:devicePixelRatio}
+        });
+      }
     }else{
-      record('recording-stopped');
+      if(validSessionId(sessionId))record('recording-stopped');
+      endCourseSession('recording-disabled');
       active=false;
       localStorage.removeItem(ACTIVE_KEY);
       flush().then(()=>sendPendingSoon(100)).catch(error=>console.warn('Końcowy zapis diagnostyki:',error));
     }
     root.classList.toggle('diagnosticRecording',active);
-    updateUi(active?'Rejestrowanie jest włączone. Wykonaj przejazd testowy.':'Rejestrowanie zostało zatrzymane. Trwa wysyłanie ostatniej paczki.');
+    updateUi(active
+      ?(validSessionId(sessionId)?'Rejestrowanie jest włączone dla bieżącego kursu.':'Rejestrowanie jest włączone. Wybierz trasę i kurs — wtedy rozpocznie się nowy plik.')
+      :'Rejestrowanie zostało zatrzymane. Trwa wysyłanie ostatniej paczki.');
   }
 
   function makeDialog(){
@@ -434,11 +493,11 @@
     dialog.innerHTML=`<form method="dialog">
       <div class="diagnosticDialogHead"><span aria-hidden="true">●</span><h2 id="diagnosticTitle">Zgoda na diagnostykę</h2></div>
       <p class="diagnosticPrivacy">Dane pomagają wykrywać i naprawiać błędy harmonogramu, prowadzenia do przystanków oraz GPS podczas rzeczywistych przejazdów.</p>
-      <p class="diagnosticPrivacy diagnosticConsentInfo">Po wyrażeniu zgody aplikacja będzie zapisywać sposób działania i dokładną lokalizację. Dane są automatycznie wysyłane do prywatnego folderu diagnostycznego w małych paczkach co kilka minut i scalane w jeden plik sesji. Rejestrowanie można później wyłączyć.</p>
+      <p class="diagnosticPrivacy diagnosticConsentInfo">Po wyrażeniu zgody aplikacja będzie zapisywać sposób działania i dokładną lokalizację. Dane są automatycznie wysyłane co kilka minut. Każdy konkretny kurs (data + trasa + godzina) jest scalany w jeden osobny plik. Rejestrowanie można później wyłączyć.</p>
       <label class="diagnosticDeviceLabel" for="diagnosticDeviceName">Nazwa telefonu (opcjonalnie)
         <input id="diagnosticDeviceName" type="text" maxlength="80" autocomplete="off" placeholder="np. Telefon Krzysztofa">
       </label>
-      <small class="diagnosticDeviceHint">Ułatwia rozpoznanie plików z różnych urządzeń.</small>
+      <small class="diagnosticDeviceHint">Nazwa urządzenia będzie używana jako nazwa jego folderu diagnostycznego.</small>
       <p id="diagnosticState" class="diagnosticState"></p>
       <p id="diagnosticSync" class="diagnosticSync"></p>
       <div class="diagnosticActions">
@@ -493,7 +552,7 @@
 
   function detailListener(type){return event=>record(type,event.detail||{})}
   function finishUse(reason){
-    if(!active||useEndRecorded)return;
+    if(!active||!validSessionId(sessionId)||useEndRecorded)return;
     useEndRecorded=true;
     record('application-use-ended',{reason});
     flush().then(()=>sendPendingSoon(0)).catch(error=>console.warn('Końcowy zapis diagnostyki:',error));
@@ -502,8 +561,16 @@
     'trasy:stop-transition','trasy:route-build','trasy:navigation-resumed',
     'trasy:gps-speed','gps-next-stop-change','gps-stop-skipped','gps-stop-arrival',
     'stop-guard-change','nav-eta-update','eta-status-change','route-direction-change',
-    'route-mode-change','return-origin-change','schedule-rendered'
+    'route-mode-change','return-origin-change'
   ].forEach(type=>(type.startsWith('trasy:')?document:document.getElementById('scheduleBody'))?.addEventListener(type,detailListener(type)));
+
+  const scheduleBody=document.getElementById('scheduleBody');
+  scheduleBody?.addEventListener('schedule-rendered',event=>{
+    const started=beginCourseSession('schedule-rendered');
+    record('schedule-rendered',event.detail||{});
+    if(started)sendPendingSoon(100);
+  });
+  document.getElementById('backFromSchedule')?.addEventListener('click',()=>endCourseSession('back-to-route-selection'));
 
   window.addEventListener('error',event=>record('window-error',{message:event.message,filename:event.filename,line:event.lineno,column:event.colno,error:event.error}));
   window.addEventListener('unhandledrejection',event=>record('unhandled-rejection',{reason:event.reason}));
@@ -552,11 +619,10 @@
   root.classList.toggle('diagnosticRecording',active);
   localStorage.removeItem(LEGACY_UPLOAD_WINDOW_KEY);
   if(active){
-    if(!validSessionId(sessionId)){
-      sessionId=newSessionId();
-      localStorage.setItem(SESSION_KEY,sessionId);
+    const todayPrefix=localDayKey()+'|';
+    if(!validSessionId(sessionId)||!sessionCourseKey||!sessionCourseKey.startsWith(todayPrefix)){
+      clearCurrentSession();
     }
-    record('recording-restored',{appVersion:version?.dataset.version||''});
   }
   setInterval(()=>{
     if(active)flush();
