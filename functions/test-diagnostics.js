@@ -65,6 +65,7 @@ export async function onRequest({request,env}){
     const deviceLabel=text(input.deviceLabel,80);
     const appVersion=text(input.appVersion,24);
     const sessionId=text(input.sessionId,180);
+    const uploadErrors=Array.isArray(input.uploadErrors)?input.uploadErrors.slice(0,20):[];
     if(!validId(batchId)||!validId(installationId,100)||/[\u0000-\u001F\u007F]/.test(deviceLabel)||!/^2\.0\.\d+$/.test(appVersion)||!validId(sessionId))return json({status:'error',message:'INVALID_METADATA'},400);
     if(!Array.isArray(input.events)||!input.events.length||input.events.length>MAX_EVENTS)return json({status:'error',message:'INVALID_EVENT_COUNT'},400);
     const events=input.events.map(sanitizeEvent);
@@ -81,7 +82,7 @@ export async function onRequest({request,env}){
         body:JSON.stringify({
           action:'appendTestDiagnostics',
           secret:env.DIAGNOSTICS_SHARED_SECRET,
-          batchId,installationId,deviceLabel,appVersion,sessionId,events
+          batchId,installationId,deviceLabel,appVersion,sessionId,uploadErrors,events
         }),
         redirect:'follow',signal:controller.signal
       });

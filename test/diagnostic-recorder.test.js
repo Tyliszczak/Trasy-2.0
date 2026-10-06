@@ -28,7 +28,7 @@ test('aktywna diagnostyka automatycznie wysyła kolejkowane paczki przez Cloudfl
   assert.match(source,/UPLOAD_ENDPOINT='\/test-diagnostics'/);
   assert.match(source,/index\('uploadState'\)/);
   assert.match(source,/markEventsUploaded/);
-  assert.doesNotMatch(source,/keepalive:true/);
+  assert.match(source,/keepalive:true/);
   assert.match(source,/visibilityState==='hidden'/);
   assert.match(source,/window\.addEventListener\('pagehide'/);
   assert.match(source,/application-use-ended/);
@@ -42,6 +42,16 @@ test('aktywna diagnostyka automatycznie wysyła kolejkowane paczki przez Cloudfl
   assert.match(source,/DEVICE_NAME_KEY/);
   assert.match(source,/id="diagnosticDeviceName"/);
   assert.match(source,/runScheduledUpload\(\)/);
+  assert.match(source,/UPLOAD_MAX_ATTEMPTS=3/);
+  assert.match(source,/Błąd wysyłki danych diagnostycznych/);
+  assert.doesNotMatch(source,/new Notification\(/);
+  assert.doesNotMatch(source,/id='diagnosticUploadError'/);
+  assert.doesNotMatch(source,/event\.returnValue/);
+  assert.match(source,/__trasyDiagnosticsClose/);
+  assert.match(source,/uploadErrors/);
+  assert.match(source,/diagnostics-alert/);
+  assert.match(source,/failedReports/);
+  assert.match(source,/courseKey/);
   assert.doesNotMatch(source,/UPLOAD_INTERVAL_MS=60000/);
   assert.doesNotMatch(source,/DIAGNOSTICS_SHARED_SECRET/);
 });
@@ -61,7 +71,7 @@ test('okno zgody wyjaśnia cel i nie pokazuje ręcznej wysyłki ani zapisu pliku
 test('skrypt diagnostyczny jest częścią powłoki offline PWA',()=>{
   const html=read('index.html');
   const sw=read('sw.js');
-  assert.match(html,/src="\.\/diagnostic-recorder\.js\?v=9"/);
+  assert.match(html,/src="\.\/diagnostic-recorder\.js\?v=10"/);
   assert.match(sw,/'\.\/diagnostic-recorder\.js'/);
 });
 

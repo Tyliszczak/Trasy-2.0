@@ -27,6 +27,7 @@ test('endpoint waliduje paczkę i przekazuje sekret wyłącznie do Apps Script',
     assert.equal(forwarded.secret,'server-only-secret');
     assert.equal(forwarded.action,'appendTestDiagnostics');
     assert.equal(forwarded.deviceLabel,'Android Chrome 360x800');
+    assert.deepEqual(forwarded.uploadErrors,[]);
     assert.equal(forwarded.events.length,1);
   }finally{globalThis.fetch=originalFetch}
 });
@@ -40,4 +41,16 @@ test('endpoint nie przyjmuje mieszanych sesji ani zbyt wielu zdarzeń',async()=>
   assert.equal((await onRequest({request:request(invalidDevice),env:{DIAGNOSTICS_SHARED_SECRET:'x'}})).status,400);
   const unordered={...payload,events:[{...event,id:2},{...event,id:1}]};
   assert.equal((await onRequest({request:request(unordered),env:{DIAGNOSTICS_SHARED_SECRET:'x'}})).status,400);
+});
+
+test('endpoint przekazuje zapisane błędy wysyłki do Apps Script',async()=>{
+  const originalFetch=globalThis.fetch;
+  let forwarded=null;
+  globalThis.fetch=async(_url,options)=>{forwarded=JSON.parse(options.body);return new Response(JSON.stringify({status:'success'}),{status:200})};
+  try{
+    const errors=[{batchId:'b1',message:'timeout',attempts:3}];
+    const response=await onRequest({request:request({...payload,uploadErrors:errors}),env:{DIAGNOSTICS_SHARED_SECRET:'x',DIAGNOSTICS_SHEETS_URL:'https://script.google.test/exec'}});
+    assert.equal(response.status,200);
+    assert.deepEqual(forwarded.uploadErrors,errors);
+  }finally{globalThis.fetch=originalFetch}
 });

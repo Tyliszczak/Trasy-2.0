@@ -20,6 +20,9 @@
   const UPLOAD_BATCH_SIZE=500;
   const UPLOAD_MAX_BYTES=460*1024;
   const UPLOAD_MAX_PARTS=32;
+  const UPLOAD_MAX_ATTEMPTS=3;
+  const UPLOAD_FAILURES_KEY='trasy2.diagnostics.uploadFailures.v1';
+  const UPLOAD_ALERT_KEY='trasy2.diagnostics.uploadAlert.v1';
   const MAX_EVENTS=50000;
   const GPS_MIN_INTERVAL_MS=900;
   let dbPromise=null;
@@ -29,7 +32,7 @@
   let lastGpsAt=0;
   let active=localStorage.getItem(ACTIVE_KEY)==='1';
   let sessionId=localStorage.getItem(SESSION_KEY)||'';
-  let uploadTimer=0,uploadInFlight=null,lastSyncMessage='';
+  let uploadTimer=0,uploadInFlight=null,lastSyncMessage='',closeUploadInFlight=null,closeUploadComplete=false;
   let useEndRecorded=false;
   const eventPolicyState=new Map();
   const EVENT_MIN_INTERVAL_MS={
@@ -253,6 +256,36 @@
     });
   }
 
+  function courseKey(event){
+    const snapshot=event?.snapshot||{};
+    const route=String(snapshot.route||'').trim().toLocaleLowerCase('pl-PL');
+    const shift=String(snapshot.shift||'').trim();
+    const key=[route,shift].filter(Boolean).join('|').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9|:_-]+/gi,'-').slice(0,100);
+    return key||'sesja';
+  }
+
+  function uploadSessionId(events){return `${sessionId}--${courseKey(events[0])}`.slice(0,180)}
+  function readUploadFailures(){try{return JSON.parse(localStorage.getItem(UPLOAD_FAILURES_KEY)||'[]')||[]}catch{return[]}}
+  function writeUploadFailures(items){try{localStorage.setItem(UPLOAD_FAILURES_KEY,JSON.stringify(items.slice(-20)))}catch{}}
+  function showUploadFailure(){console.warn('Błąd wysyłki danych diagnostycznych')}
+  function clearUploadFailures(){writeUploadFailures([]);try{localStorage.removeItem(UPLOAD_ALERT_KEY)}catch{}}
+  async function sendFailureAlert(failures){
+    if(failures.length<3)return;
+    let alertState=null;try{alertState=JSON.parse(localStorage.getItem(UPLOAD_ALERT_KEY)||'null')}catch{}
+    if(alertState?.signature===failures.map(item=>item.batchId).join('|'))return;
+    const payload={alertId:`${installationId()}-${Date.now()}`,installationId:installationId(),deviceLabel:deviceLabel(),appVersion:version?.dataset.version||'',sessionId,failedReports:failures.length,latestError:failures[failures.length-1]?.message||''};
+    try{
+      const response=await fetch('/diagnostics-alert',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),keepalive:true});
+      if(!response.ok)throw new Error(`HTTP ${response.status}`);
+      try{localStorage.setItem(UPLOAD_ALERT_KEY,JSON.stringify({signature:failures.map(item=>item.batchId).join('|'),sentAt:new Date().toISOString()}))}catch{}
+    }catch(error){console.warn('Niezależny alert diagnostyki:',error)}
+  }
+  function recordUploadFailure(batchId,error){
+    const failures=readUploadFailures();
+    failures.push({at:new Date().toISOString(),batchId:String(batchId||''),message:String(error?.message||error||'Nieznany błąd').slice(0,240),attempts:UPLOAD_MAX_ATTEMPTS});
+    writeUploadFailures(failures);showUploadFailure();sendFailureAlert(failures);
+  }
+
   async function pendingSessionEvents(targetSessionId,limit=UPLOAD_BATCH_SIZE){
     await flush();
     const db=await openDb();
@@ -313,18 +346,20 @@
 
   function payloadFor(events){
     const first=events[0],last=events[events.length-1];
+    const reportSessionId=uploadSessionId(events);
     return{
       batchId:`${installationId()}:${first.id}-${last.id}`,
       installationId:installationId(),
       deviceLabel:deviceLabel(),
       appVersion:version?.dataset.version||'',
-      sessionId:first.sessionId,
-      events:events.map(({uploadState,...event})=>event)
+      sessionId:reportSessionId,
+      uploadErrors:readUploadFailures(),
+      events:events.map(({uploadState,...event})=>({...event,sessionId:reportSessionId}))
     };
   }
 
   function boundedBatch(events){
-    const sameSession=events.filter(event=>event.sessionId===events[0]?.sessionId);
+    const sameSession=events.filter(event=>event.sessionId===events[0]?.sessionId&&courseKey(event)===courseKey(events[0]));
     while(sameSession.length>1&&new TextEncoder().encode(JSON.stringify(payloadFor(sameSession))).byteLength>UPLOAD_MAX_BYTES)sameSession.pop();
     return sameSession;
   }
@@ -341,7 +376,7 @@
             if(!pending.length)break;
             const events=boundedBatch(pending);
             if(!events.length)throw new Error('Nie można przygotować bieżącej paczki diagnostycznej.');
-            await uploadBatch(events);
+            await uploadBatchWithRetry(events);
             await markEventsUploaded(events);
             sent+=events.length;
           }
@@ -351,7 +386,7 @@
           if(!pending.length)break;
           const events=boundedBatch(pending);
           if(!events.length)throw new Error('Nie można przygotować paczki diagnostycznej.');
-          await uploadBatch(events);
+          await uploadBatchWithRetry(events);
           await markEventsUploaded(events);
           sent+=events.length;
         }
@@ -380,6 +415,23 @@
     const result=await response.json().catch(()=>({}));
     if(!response.ok||result?.status!=='success')throw new Error(result?.message||`HTTP ${response.status}`);
     return result;
+  }
+
+  async function uploadBatchWithRetry(events){
+    const payload=payloadFor(events);
+    let lastError=null;
+    for(let attempt=1;attempt<=UPLOAD_MAX_ATTEMPTS;attempt++){
+      try{
+        const result=await uploadBatch(events);
+        if(readUploadFailures().length)clearUploadFailures();
+        return result;
+      }catch(error){
+        lastError=error;
+        if(attempt<UPLOAD_MAX_ATTEMPTS)await new Promise(resolve=>setTimeout(resolve,Math.min(1500,300*2**(attempt-1))));
+      }
+    }
+    recordUploadFailure(payload.batchId,lastError);
+    throw lastError||new Error('DIAGNOSTICS_UPLOAD_FAILED');
   }
 
   function dueUploadWindow(now=new Date()){
@@ -504,6 +556,19 @@
     record('application-use-ended',{reason});
     flush();
   }
+
+  async function finishBeforeClose(){
+    if(closeUploadInFlight)return closeUploadInFlight;
+    closeUploadInFlight=(async()=>{
+      finishUse('beforeunload');
+      await flush();
+      if(!navigator.onLine)return false;
+      const result=await uploadPending();
+      closeUploadComplete=Boolean(result?.complete);
+      return closeUploadComplete;
+    })().finally(()=>{closeUploadInFlight=null});
+    return closeUploadInFlight;
+  }
   [
     'trasy:stop-transition','trasy:route-build','trasy:navigation-resumed',
     'trasy:gps-speed','gps-next-stop-change','gps-stop-skipped','gps-stop-arrival',
@@ -521,6 +586,11 @@
     else if(useEndRecorded&&active){useEndRecorded=false;record('application-use-resumed')}
   });
   window.addEventListener('pagehide',()=>finishUse('pagehide'));
+  window.__trasyDiagnosticsClose=async()=>{
+    const sent=await finishBeforeClose();
+    if(sent)window.close();
+    return sent;
+  };
   document.addEventListener('click',event=>{
     const control=event.target.closest?.('button,a,select,input');
     if(!control)return;
@@ -561,7 +631,10 @@
     if(active)flush();
     runScheduledUpload().catch(error=>console.warn('Harmonogram wysyłki diagnostyki:',error));
   },UPLOAD_CHECK_INTERVAL_MS);
-  if(navigator.onLine)scheduleUpload(1500);
+  if(navigator.onLine){
+    scheduleUpload(1500);
+    setTimeout(()=>uploadPending().catch(error=>console.warn('Wysyłka zaległej diagnostyki:',error)),1800);
+  }
   if(!active&&localStorage.getItem(FIRST_USE_PROMPT_KEY)!=='shown'){
     setTimeout(()=>{
       const dialog=makeDialog();

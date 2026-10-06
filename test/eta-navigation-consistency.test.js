@@ -31,5 +31,5 @@ test('wersja 2.0.217 ładuje nowe moduły ETA bez starego cache przeglądarki',(
   assert.match(html,/untimed-stop-eta-ui\.js\?v=3/);
   assert.match(html,/navigation-stop-ui-fix\.js\?v=2/);
   assert.match(sw,/APP_VERSION='2\.0\.217'/);
-  assert.match(sw,/CACHE_NAME='trasy-2\.0-v250'/);
+  assert.match(sw,/CACHE_NAME='trasy-2\.0-v251'/);
 });

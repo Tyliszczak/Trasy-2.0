@@ -19,6 +19,7 @@ function appendTestDiagnostics_(p) {
   var expected = String(properties.getProperty('DIAGNOSTICS_SHARED_SECRET') || '');
   var folderId = String(properties.getProperty('DIAGNOSTICS_FOLDER_ID') ||
     properties.getProperty('DIAGNOSTICS_APP_FOLDER_ID') || '');
+  var alertEmail = String(properties.getProperty('DIAGNOSTICS_ALERT_EMAIL') || '').trim();
   var received = String(p && p.secret || '');
   if (!expected || !constantTimeEqualsDiagnostics_(expected, received)) {
     return createJsonResponse({status:'error', message:'UNAUTHORIZED'});
@@ -32,6 +33,7 @@ function appendTestDiagnostics_(p) {
   var deviceLabel = safeDiagnosticsText_(p.deviceLabel, 80);
   var appVersion = safeDiagnosticsText_(p.appVersion, 24);
   var sessionId = safeDiagnosticsText_(p.sessionId, 180);
+  var uploadErrors = Array.isArray(p.uploadErrors) ? p.uploadErrors.slice(0, 20) : [];
   var events = Array.isArray(p.events) ? p.events : [];
   if (!/^[A-Za-z0-9:._-]+$/.test(batchId) ||
       !/^[A-Za-z0-9:._-]+$/.test(installationId) ||
@@ -79,7 +81,7 @@ function appendTestDiagnostics_(p) {
     for (var u = 0; u < normalized.length; u++) {
       if (!isDiagnosticsEventSeen_(seenRanges, Number(normalized[u].id))) newEvents.push(normalized[u]);
     }
-    if (!newEvents.length) {
+    if (!newEvents.length && !uploadErrors.length) {
       return createJsonResponse({
         status:'success', batchId:batchId, duplicate:true,
         acceptedEvents:0, duplicateEvents:normalized.length
@@ -87,7 +89,7 @@ function appendTestDiagnostics_(p) {
     }
 
     var sessionResult = upsertDiagnosticsSessionFile_(
-      deviceFolder, properties, installationId, deviceLabel, appVersion, sessionId, newEvents
+      deviceFolder, properties, installationId, deviceLabel, appVersion, sessionId, newEvents, uploadErrors
     );
     diagnosticFile = sessionResult.file;
     var archive = sessionResult.archive;
@@ -108,6 +110,9 @@ function appendTestDiagnostics_(p) {
     SpreadsheetApp.flush();
     addDiagnosticsSeenEvents_(seenRanges, normalized);
     saveDiagnosticsSeenRanges_(properties, installationId, sessionId, seenRanges);
+    if (uploadErrors.length >= 3 && alertEmail && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(alertEmail)) {
+      sendDiagnosticsFailureAlert_(properties, alertEmail, installationId, deviceLabel, sessionId, uploadErrors);
+    }
     return createJsonResponse({
       status:'success', batchId:batchId, duplicate:sessionResult.addedEvents === 0,
       acceptedEvents:sessionResult.addedEvents,
@@ -137,6 +142,18 @@ function safeDiagnosticsText_(value, max) {
 function safeSheetValue_(value) {
   var text = String(value == null ? '' : value);
   return /^[=+@-]/.test(text) ? "'" + text : text;
+}
+
+function sendDiagnosticsFailureAlert_(properties, email, installationId, deviceLabel, sessionId, uploadErrors) {
+  var key = 'DIAGNOSTICS_ALERT_SENT_' + diagnosticsSessionHash_(installationId, sessionId);
+  if (properties.getProperty(key) === '1') return;
+  var latest = uploadErrors[uploadErrors.length - 1] || {};
+  MailApp.sendEmail({
+    to: email,
+    subject: 'TRASY 2.0 — trzy nieudane wysyłki diagnostyki',
+    body: 'Urządzenie: ' + deviceLabel + '\nSesja/kurs: ' + sessionId + '\nOstatni błąd: ' + String(latest.message || 'nieznany') + '\nLiczba zapisanych błędów: ' + uploadErrors.length + '\nRaport został zapisany po ponownym uruchomieniu aplikacji.'
+  });
+  properties.setProperty(key, '1');
 }
 
 function diagnosticsSessionHash_(installationId, sessionId) {
@@ -233,6 +250,7 @@ function newDiagnosticsSessionArchive_(installationId, deviceLabel, sessionId) {
     receivedFirstAt: now,
     receivedLastAt: now,
     locationDataIncluded: true,
+    uploadErrors: [],
     events: []
   };
 }
@@ -292,7 +310,7 @@ function getDiagnosticsSessionFile_(deviceFolder, properties, stateKey, sessionH
   return null;
 }
 
-function upsertDiagnosticsSessionFile_(deviceFolder, properties, installationId, deviceLabel, appVersion, sessionId, events) {
+function upsertDiagnosticsSessionFile_(deviceFolder, properties, installationId, deviceLabel, appVersion, sessionId, events, uploadErrors) {
   var sessionHash = diagnosticsSessionHash_(installationId, sessionId);
   var stateKey = 'DIAGNOSTICS_SESSION_' + sessionHash;
   var state = {};
@@ -300,6 +318,11 @@ function upsertDiagnosticsSessionFile_(deviceFolder, properties, installationId,
   var part = Math.max(1, Number(state.part) || 1);
   var file = getDiagnosticsSessionFile_(deviceFolder, properties, stateKey, sessionHash, part);
   var archive = readDiagnosticsSessionArchive_(file, newDiagnosticsSessionArchive_(installationId, deviceLabel, sessionId));
+  archive.uploadErrors = Array.isArray(archive.uploadErrors) ? archive.uploadErrors : [];
+  (uploadErrors || []).forEach(function(error) {
+    var signature = JSON.stringify(error || {});
+    if (archive.uploadErrors.map(function(item) { return JSON.stringify(item || {}); }).indexOf(signature) < 0) archive.uploadErrors.push(error);
+  });
   var existingIds = {};
   for (var i = 0; i < archive.events.length; i++) existingIds[String(archive.events[i].id)] = true;
   var addedEvents = 0;

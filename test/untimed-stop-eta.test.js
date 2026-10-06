@@ -40,6 +40,6 @@ test('wersja z poprawką zamrożenia ładuje świeży moduł ETA',()=>{
   assert.match(html,/time-core\.js\?v=4/);
   assert.match(html,/untimed-stop-eta-ui\.js\?v=3/);
   assert.match(sw,/APP_VERSION='2\.0\.217'/);
-  assert.match(sw,/CACHE_NAME='trasy-2\.0-v250'/);
+  assert.match(sw,/CACHE_NAME='trasy-2\.0-v251'/);
   assert.match(sw,/'\.\/untimed-stop-eta-ui\.js'/);
 });
