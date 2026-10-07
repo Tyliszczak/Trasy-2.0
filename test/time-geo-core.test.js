@@ -53,6 +53,14 @@ test('najbliższy kurs przyszły pozostaje dostępny dla innych zastosowań',()=
   assert.equal(nearestFutureTime(['23:50','00:10','05:00'],afterMidnight),'05:00');
 });
 
+test('kurs dokładnie o bieżącej godzinie jest już zakończony i wybierany jest następny',()=>{
+  const atCourseTime=new Date('2026-08-23T14:00:00');
+  assert.equal(nearestFutureTime(['06:00','14:00','16:00','18:00'],atCourseTime),'16:00');
+
+  const afterLastCourse=new Date('2026-08-23T18:00:00');
+  assert.equal(nearestFutureTime(['06:00','14:00','16:00','18:00'],afterLastCourse),'06:00');
+});
+
 test('czytnik planu zachowuje prawdziwą godzinę ukrytą pod etykietą KONIEC TRASY',()=>{
   const final=row('KONIEC TRASY',{routeRolePlan:'05:46'});
   assert.equal(rowPlanText(final),'05:46');
@@ -73,6 +81,15 @@ test('plan kolejnych przystanków zachowuje ciąg kursu po północy',()=>{
   assert.equal(target.getDate(),24);
   assert.equal(target.getHours(),0);
   assert.equal(target.getMinutes(),10);
+});
+
+test('stary poranny kurs przechodzi na następny dzień zamiast pokazywać wielogodzinne spóźnienie',()=>{
+  const rows=[row('05:00')];
+  const evening=new Date('2026-08-23T20:52:00');
+  const target=planDateForRow(rows,rows[0],evening);
+  assert.equal(target.getDate(),24);
+  assert.equal(target.getHours(),5);
+  assert.equal(target.getMinutes(),0);
 });
 
 test('wspólna geometria poprawnie liczy odległość, kierunek i różnicę kątów',()=>{

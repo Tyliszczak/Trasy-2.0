@@ -77,7 +77,11 @@
       const parts=clockParts(normalized);
       if(!parts)continue;
       const courseSeconds=parts.hours*3600+parts.minutes*60;
-      const waitSeconds=(courseSeconds-nowSeconds+DAY_SECONDS)%DAY_SECONDS;
+      // Godzina kursu, która właśnie minęła, należy już do zakończonego
+      // kursu. Wybieramy następny rozkładowy odjazd, także gdy zegar trafia
+      // dokładnie w godzinę kursu.
+      let waitSeconds=(courseSeconds-nowSeconds+DAY_SECONDS)%DAY_SECONDS;
+      if(waitSeconds<1)waitSeconds=DAY_SECONDS;
       if(!best||waitSeconds<best.waitSeconds){
         best={value:original,normalized,waitSeconds};
       }
@@ -136,7 +140,10 @@
 
     if(!target)return null;
     while(target.getTime()-now.getTime()>12*60*60*1000)target=new Date(target.getTime()-DAY_MS);
-    while(now.getTime()-target.getTime()>18*60*60*1000)target=new Date(target.getTime()+DAY_MS);
+    // Po przekroczeniu połowy doby stary kurs nie może być raportowany jako
+    // wielogodzinne spóźnienie. Traktujemy go jako kurs z poprzedniego dnia
+    // i pokazujemy najbliższe wystąpienie następnego dnia.
+    while(now.getTime()-target.getTime()>12*60*60*1000)target=new Date(target.getTime()+DAY_MS);
     return target;
   }
 
