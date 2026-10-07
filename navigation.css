@@ -1,7 +1,7 @@
 /* Trasy 2.0 — jeden arkusz dla UI nawigacji i harmonogramu. */
 
 /* Pasek techniczny / TEST */
-#globalTestVersion{position:fixed;top:4.5px;right:7.5px;z-index:2147483647;padding:2.5px 6.5px;border-radius:5.5px;background:#111e;color:#f2f2f2;font:900 15px/1 Arial,sans-serif;letter-spacing:.02em;pointer-events:none;opacity:.89}
+#globalTestVersion{position:fixed;top:4.5px;right:7.5px;z-index:2147483647;padding:2.5px 6.5px;border:1px solid #000;border-radius:5.5px;background:#fff;color:#000;font:900 15px/1 Arial,sans-serif;letter-spacing:.02em;pointer-events:none;opacity:1}
 html body .header{position:fixed!important;top:0;left:0;right:0;z-index:2147483640;min-height:27px!important;height:27px!important;padding:3px 8px!important}
 html body .headerActions{padding-right:118px!important}
 html body .container{margin-top:33px!important}
