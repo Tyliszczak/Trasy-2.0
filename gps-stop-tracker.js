@@ -34,6 +34,12 @@ import{canAutoAdvanceBySchedule,manualSkipTargetIndex,shouldApplySchedulePriorit
   let missedStopWarningTimer=null;
 
   const coord=value=>geo.parseCoordinate(value);
+  function stopName(row){
+    return row?.querySelector('td:first-child .stopMapButton span:last-child')?.textContent.trim()
+      || row?.querySelector('td:first-child')?.childNodes?.[0]?.textContent?.trim()
+      || row?.querySelector('td:first-child')?.textContent?.trim()
+      || '';
+  }
 
   function rows(){
     return[...body.querySelectorAll('tr')].filter(row=>coord(row.dataset.coordinate));
@@ -152,7 +158,7 @@ import{canAutoAdvanceBySchedule,manualSkipTargetIndex,shouldApplySchedulePriorit
         detail:{
           index,
           previousIndex:Number.isInteger(previous)?previous:null,
-          name:target.children[0]?.innerText.trim()||'',
+          name:stopName(target),
           key,
           coordinate:target.dataset.coordinate||'',
           reason
@@ -299,7 +305,7 @@ import{canAutoAdvanceBySchedule,manualSkipTargetIndex,shouldApplySchedulePriorit
       arrivalDetail={
         index:currentIndex,
         key:row?.dataset.stopId||`${currentIndex}:${row?.dataset.coordinate||''}`,
-        name:row?.children[0]?.innerText.trim()||'',
+        name:stopName(row),
         coordinate:row?.dataset.coordinate||'',
         final:currentIndex===routeRows.length-1,
         direction:body.dataset.direction||'forward',
@@ -323,7 +329,7 @@ import{canAutoAdvanceBySchedule,manualSkipTargetIndex,shouldApplySchedulePriorit
   function emitSkippedStop(routeRows,result){
     if(!Number.isInteger(result.skippedIndex))return;
     const skippedRow=routeRows[result.skippedIndex];
-    const skippedName=skippedRow?.children[0]?.innerText.trim()||'Przystanek';
+    const skippedName=stopName(skippedRow)||'Przystanek';
     reachedBeforeTime=false;
     showMissedStopWarning(skippedName,Boolean(result.manual));
     body.dispatchEvent(new CustomEvent('gps-stop-skipped',{

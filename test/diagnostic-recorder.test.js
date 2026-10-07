@@ -71,7 +71,7 @@ test('okno zgody wyjaśnia cel i nie pokazuje ręcznej wysyłki ani zapisu pliku
 test('skrypt diagnostyczny jest częścią powłoki offline PWA',()=>{
   const html=read('index.html');
   const sw=read('sw.js');
-  assert.match(html,/src="\.\/diagnostic-recorder\.js\?v=10"/);
+  assert.match(html,/src="\.\/diagnostic-recorder\.js\?v=11"/);
   assert.match(sw,/'\.\/diagnostic-recorder\.js'/);
 });
 
@@ -147,4 +147,19 @@ test('diagnostyka ogranicza powtarzalne statusy i zachowuje dane pozycji po wzno
   assert.match(source,/'stop-guard-change':30000/);
   assert.match(source,/type==='trasy:gps-speed'\)return false/);
   assert.match(source,/value\.coords&&Number\.isFinite/);
+});
+
+test('każdy kurs ma pełny, rozdzielny kontekst przystanków',()=>{
+  const recorder=read('diagnostic-recorder.js');
+  const tracker=read('gps-stop-tracker.js');
+  assert.match(recorder,/type:'course-context'/);
+  assert.match(recorder,/courseId/);
+  assert.match(recorder,/routeStops\(\)/);
+  assert.match(recorder,/forwardCoordinate/);
+  assert.match(recorder,/returnCoordinate/);
+  assert.match(recorder,/uploadSessionId\(events\)/);
+  assert.match(tracker,/function stopName\(row\)/);
+  assert.match(tracker,/stopName\(target\)/);
+  assert.match(tracker,/stopName\(skippedRow\)/);
+  assert.doesNotMatch(tracker,/target\.children\[0\]\?\.innerText/);
 });

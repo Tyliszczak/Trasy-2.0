@@ -34,6 +34,7 @@
   let sessionId=localStorage.getItem(SESSION_KEY)||'';
   let uploadTimer=0,uploadInFlight=null,lastSyncMessage='',closeUploadInFlight=null,closeUploadComplete=false;
   let useEndRecorded=false;
+  let courseId='',courseSignature='',lastContextEventId='';
   const eventPolicyState=new Map();
   const EVENT_MIN_INTERVAL_MS={
     'eta-status-change':10000,
@@ -136,22 +137,47 @@
     return String(value);
   }
 
+  function stopName(row){
+    return row?.querySelector('td:first-child .stopMapButton span:last-child')?.textContent.trim()
+      || row?.querySelector('td:first-child')?.childNodes?.[0]?.textContent?.trim()
+      || row?.querySelector('td:first-child')?.textContent?.trim()
+      || '';
+  }
+
+  function routeStops(){
+    const body=document.getElementById('scheduleBody');
+    return [...(body?.querySelectorAll('tr')||[])].map((row,index)=>({
+      index,
+      id:row.dataset.stopId||'',
+      name:stopName(row),
+      coordinate:row.dataset.coordinate||'',
+      forwardCoordinate:row.dataset.forwardCoordinate||'',
+      returnCoordinate:row.dataset.returnCoordinate||'',
+      plan:row.children[1]?.textContent?.trim()||'',
+      hidden:Boolean(row.hidden),
+      active:row.classList.contains('gpsNextStop')
+    }));
+  }
+
   function currentSnapshot(){
     const body=document.getElementById('scheduleBody');
     const row=body?.querySelector('tr.gpsNextStop');
-    return{
+    const base={
       route:document.getElementById('scheduleRouteName')?.textContent?.trim()||'',
       shift:document.getElementById('scheduleTimeSelect')?.value||'',
       direction:body?.dataset.direction||'forward',
       emptyRun:body?.dataset.emptyRun==='1',
       targetIndex:Number.isInteger(Number(body?.dataset.gpsNextStop))?Number(body.dataset.gpsNextStop):null,
       targetKey:body?.dataset.gpsNextStopKey||'',
-      targetName:row?.querySelector('td:first-child')?.childNodes?.[0]?.textContent?.trim()||row?.querySelector('td:first-child')?.textContent?.trim()||'',
+      targetName:stopName(row),
       transitionReason:body?.dataset.gpsTransitionReason||'',
       navigationVisible:document.getElementById('routeMapNav')?.hidden===false,
       visibility:document.visibilityState,
       online:navigator.onLine
     };
+    const signature=[base.route,base.shift,base.direction,String(base.emptyRun),routeStops().map(stop=>`${stop.id}|${stop.coordinate}`).join(';')].join('::');
+    if(signature!==courseSignature){courseSignature=signature;courseId=randomId();}
+    return{...base,courseId};
   }
 
   function eventFingerprint(type,detail){
@@ -171,16 +197,21 @@
     return true;
   }
 
-  function record(type,detail={}){
+  function record(type,detail={},internal=false){
     if(!active)return;
     const now=Date.now();
     if(!shouldRecord(type,detail,now))return;
+    const snapshot=currentSnapshot();
+    if(!internal&&snapshot.courseId!==lastContextEventId){
+      lastContextEventId=snapshot.courseId;
+      queue.push({sessionId,at:new Date().toISOString(),elapsedMs:Math.round(performance.now()),type:'course-context',snapshot,detail:safe({courseId:snapshot.courseId,stops:routeStops()})});
+    }
     queue.push({
       sessionId,
       at:new Date().toISOString(),
       elapsedMs:Math.round(performance.now()),
       type,
-      snapshot:currentSnapshot(),
+      snapshot,
       detail:safe(detail)
     });
     if(queue.length>=20)flush();
@@ -260,7 +291,8 @@
     const snapshot=event?.snapshot||{};
     const route=String(snapshot.route||'').trim().toLocaleLowerCase('pl-PL');
     const shift=String(snapshot.shift||'').trim();
-    const key=[route,shift].filter(Boolean).join('|').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9|:_-]+/gi,'-').slice(0,100);
+    const courseId=String(snapshot.courseId||'').trim();
+    const key=[courseId||route,shift].filter(Boolean).join('-').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9:_-]+/gi,'-').slice(0,100);
     return key||'sesja';
   }
 
