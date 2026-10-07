@@ -71,7 +71,7 @@ test('okno zgody wyjaśnia cel i nie pokazuje ręcznej wysyłki ani zapisu pliku
 test('skrypt diagnostyczny jest częścią powłoki offline PWA',()=>{
   const html=read('index.html');
   const sw=read('sw.js');
-  assert.match(html,/src="\.\/diagnostic-recorder\.js\?v=11"/);
+  assert.match(html,/src="\.\/diagnostic-recorder\.js\?v=12"/);
   assert.match(sw,/'\.\/diagnostic-recorder\.js'/);
 });
 
@@ -147,6 +147,8 @@ test('diagnostyka ogranicza powtarzalne statusy i zachowuje dane pozycji po wzno
   assert.match(source,/'stop-guard-change':30000/);
   assert.match(source,/type==='trasy:gps-speed'\)return false/);
   assert.match(source,/value\.coords&&Number\.isFinite/);
+  assert.match(source,/trasy:gps-stale/);
+  assert.match(source,/trasy:gps-refresh-failed/);
 });
 
 test('każdy kurs ma pełny, rozdzielny kontekst przystanków',()=>{

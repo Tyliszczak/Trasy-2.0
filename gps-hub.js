@@ -5,7 +5,15 @@
   const WATCH_OPTIONS={enableHighAccuracy:true,maximumAge:500,timeout:15000};
   const FRESH_OPTIONS={enableHighAccuracy:true,maximumAge:0,timeout:15000};
   const REPLAY_MAX_AGE_MS=15000;
-  let nativeWatch=null,nextId=1,lastPosition=null,refreshPromise=null;
+  const WATCHDOG_INTERVAL_MS=5000;
+  const MAX_POSITION_AGE_MS=12000;
+  const MIN_RESTART_INTERVAL_MS=10000;
+  let nativeWatch=null,nextId=1,lastPosition=null,refreshPromise=null,watchdogTimer=null,lastWatchdogRestartAt=0;
+
+  function emit(type,detail={}){
+    if(typeof CustomEvent!=='function'||!document?.dispatchEvent)return;
+    document.dispatchEvent(new CustomEvent(type,{detail}));
+  }
 
   function publish(position){
     lastPosition=position;
@@ -23,6 +31,7 @@
   function start(){
     if(nativeWatch!==null||!listeners.size)return;
     nativeWatch=navigator.geolocation.watchPosition(publish,publishError,WATCH_OPTIONS);
+    if(!watchdogTimer&&typeof setInterval==='function')watchdogTimer=setInterval(checkFreshness,WATCHDOG_INTERVAL_MS);
   }
 
   function restart(){
@@ -31,9 +40,19 @@
   }
 
   function stop(){
-    if(nativeWatch===null||listeners.size)return;
-    navigator.geolocation.clearWatch(nativeWatch);
-    nativeWatch=null;
+    if(listeners.size)return;
+    if(nativeWatch!==null){navigator.geolocation.clearWatch(nativeWatch);nativeWatch=null}
+    if(watchdogTimer&&typeof clearInterval==='function'){clearInterval(watchdogTimer);watchdogTimer=null}
+  }
+
+  function checkFreshness(){
+    if(!listeners.size||!lastPosition)return;
+    const age=Math.max(0,Date.now()-Number(lastPosition.timestamp||0));
+    if(age<=MAX_POSITION_AGE_MS||Date.now()-lastWatchdogRestartAt<MIN_RESTART_INTERVAL_MS)return;
+    lastWatchdogRestartAt=Date.now();
+    emit('trasy:gps-stale',{ageMs:age,lastTimestamp:Number(lastPosition.timestamp)||0});
+    restart();
+    refresh({restartWatch:false}).catch(error=>emit('trasy:gps-refresh-failed',{message:error?.message||String(error)}));
   }
 
   function refresh({restartWatch=true}={}){
