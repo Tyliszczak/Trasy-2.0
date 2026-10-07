@@ -138,7 +138,10 @@ export function createStopProgressEngine(overrides={}){
       return null;
     }
 
-    if(hasNearbyAnchor)return{index:nearest,evidence:'nearby-route-anchor'};
+    // Na postoju kolejność trasy jest ważniejsza od samej bliskości GPS.
+    // Dalszy przystanek może być najbliżej, ale nie wolno nim zastępować
+    // pierwszego nieukończonego celu. Korekta do punktu znajdującego się
+    // przed pojazdem następuje dopiero po ruszeniu z wiarygodnym kierunkiem.
     return{index:firstIndex,evidence:'stationary-route-start'};
   }
 

@@ -35,8 +35,24 @@ function confirmStop(engine,meters=0){
 test('czas nie uczestniczy w wyborze następnego przystanku',()=>{
   const engine=createStopProgressEngine();
   const result=fix(engine,510);
-  assert.equal(result.index,1);
+  assert.equal(result.index,0);
   assert.equal(result.reason,'initial-target');
+  assert.equal(result.selectionEvidence,'stationary-route-start');
+});
+
+test('na postoju blisko dalszego punktu pozostaje pierwszy nieukończony cel',()=>{
+  const engine=createStopProgressEngine();
+  const result=engine.update({
+    stops,
+    position:metersNorth(980),
+    accuracy:10,
+    speedMps:0,
+    heading:null,
+    headingReliable:false,
+    minimumIndex:1
+  });
+  assert.equal(result.index,1);
+  assert.equal(result.selectionEvidence,'stationary-route-start');
 });
 
 test('podczas jazdy startowy cel wybierany jest przed autem nawet gdy następny punkt jest dalej niż 600 m',()=>{
