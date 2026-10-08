@@ -132,11 +132,15 @@ test('nazwa pliku sesji zawiera czas i czytelną nazwę telefonu',()=>{
   const archive={
     installationId:'83592448-5fc1-452c-a22f-94ca7ff54789',
     deviceLabel:'Telefon Krzysztofa',
-    events:[{at:'2026-09-09T06:12:25.000Z'},{at:'2026-09-09T08:31:34.000Z'}]
+    channel:'TEST',
+    events:[
+      {at:'2026-09-09T06:12:25.000Z',snapshot:{route:'SAS Sulechów'}},
+      {at:'2026-09-09T08:31:34.000Z',snapshot:{route:'SAS Sulechów'}}
+    ]
   };
   assert.equal(
     context.diagnosticsSessionFileName_(archive,'1234567890abcdef',1),
-    'trasy-2.0-2026-09-09_06-12-25--2026-09-09_08-31-34-Telefon-Krzysztofa-83592448-12345678.json'
+    'SAS-Sulechów_2026-09-09_06-12-25_Telefon-Krzysztofa_TEST.json'
   );
 });
 

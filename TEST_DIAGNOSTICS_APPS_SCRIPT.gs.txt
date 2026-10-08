@@ -32,6 +32,7 @@ function appendTestDiagnostics_(p) {
   var installationId = safeDiagnosticsText_(p.installationId, 100);
   var deviceLabel = safeDiagnosticsText_(p.deviceLabel, 80);
   var appVersion = safeDiagnosticsText_(p.appVersion, 24);
+  var channel = String(p.channel || 'PROD').toUpperCase() === 'TEST' ? 'TEST' : 'PROD';
   var sessionId = safeDiagnosticsText_(p.sessionId, 180);
   var uploadErrors = Array.isArray(p.uploadErrors) ? p.uploadErrors.slice(0, 20) : [];
   var events = Array.isArray(p.events) ? p.events : [];
@@ -89,7 +90,7 @@ function appendTestDiagnostics_(p) {
     }
 
     var sessionResult = upsertDiagnosticsSessionFile_(
-      deviceFolder, properties, installationId, deviceLabel, appVersion, sessionId, newEvents, uploadErrors
+      deviceFolder, properties, installationId, deviceLabel, appVersion, channel, sessionId, newEvents, uploadErrors
     );
     diagnosticFile = sessionResult.file;
     var archive = sessionResult.archive;
@@ -238,13 +239,14 @@ function saveDiagnosticsSeenRanges_(properties, installationId, sessionId, range
   properties.setProperty(diagnosticsSeenKey_(installationId, sessionId), JSON.stringify(ranges));
 }
 
-function newDiagnosticsSessionArchive_(installationId, deviceLabel, sessionId) {
+function newDiagnosticsSessionArchive_(installationId, deviceLabel, sessionId, channel) {
   var now = new Date().toISOString();
   return {
     format: 'trasy-2.0-test-diagnostics-session',
     schemaVersion: 2,
     installationId: installationId,
     deviceLabel: deviceLabel,
+    channel: channel || 'PROD',
     sessionId: sessionId,
     appVersions: [],
     receivedFirstAt: now,
@@ -269,7 +271,7 @@ function diagnosticsFileTime_(value) {
 }
 
 function diagnosticsSessionFileSuffix_(sessionHash, part) {
-  return '-' + String(sessionHash).slice(0, 8) + (part > 1 ? '-czesc-' + part : '') + '.json';
+  return (part > 1 ? '-czesc-' + part : '') + '.json';
 }
 
 function diagnosticsSessionFileName_(archive, sessionHash, part) {
@@ -279,8 +281,9 @@ function diagnosticsSessionFileName_(archive, sessionHash, part) {
   var start = diagnosticsFileTime_(first.at || archive.receivedFirstAt);
   var end = diagnosticsFileTime_(last.at || archive.receivedLastAt);
   var device = safeDiagnosticsFilePart_(archive.deviceLabel, 55);
-  var installation = safeDiagnosticsFilePart_(archive.installationId, 8);
-  return 'trasy-2.0-' + start + '--' + end + '-' + device + '-' + installation +
+  var route = safeDiagnosticsFilePart_((first.snapshot && first.snapshot.route) || (last.snapshot && last.snapshot.route), 45);
+  var channel = archive.channel === 'TEST' ? 'TEST' : 'PROD';
+  return route + '_' + start + '_' + device + '_' + channel +
     diagnosticsSessionFileSuffix_(sessionHash, part);
 }
 
@@ -310,14 +313,15 @@ function getDiagnosticsSessionFile_(deviceFolder, properties, stateKey, sessionH
   return null;
 }
 
-function upsertDiagnosticsSessionFile_(deviceFolder, properties, installationId, deviceLabel, appVersion, sessionId, events, uploadErrors) {
+function upsertDiagnosticsSessionFile_(deviceFolder, properties, installationId, deviceLabel, appVersion, channel, sessionId, events, uploadErrors) {
   var sessionHash = diagnosticsSessionHash_(installationId, sessionId);
   var stateKey = 'DIAGNOSTICS_SESSION_' + sessionHash;
   var state = {};
   try { state = JSON.parse(properties.getProperty(stateKey) || '{}') || {}; } catch (stateError) {}
   var part = Math.max(1, Number(state.part) || 1);
   var file = getDiagnosticsSessionFile_(deviceFolder, properties, stateKey, sessionHash, part);
-  var archive = readDiagnosticsSessionArchive_(file, newDiagnosticsSessionArchive_(installationId, deviceLabel, sessionId));
+  var archive = readDiagnosticsSessionArchive_(file, newDiagnosticsSessionArchive_(installationId, deviceLabel, sessionId, channel));
+  archive.channel = channel || archive.channel || 'PROD';
   archive.uploadErrors = Array.isArray(archive.uploadErrors) ? archive.uploadErrors : [];
   (uploadErrors || []).forEach(function(error) {
     var signature = JSON.stringify(error || {});
@@ -344,7 +348,7 @@ function upsertDiagnosticsSessionFile_(deviceFolder, properties, installationId,
   if (Utilities.newBlob(serialized).getBytes().length > maxBytes && file && archive.events.length > events.length) {
     part++;
     file = getDiagnosticsSessionFile_(deviceFolder, properties, stateKey, sessionHash, part);
-    archive = readDiagnosticsSessionArchive_(file, newDiagnosticsSessionArchive_(installationId, deviceLabel, sessionId));
+    archive = readDiagnosticsSessionArchive_(file, newDiagnosticsSessionArchive_(installationId, deviceLabel, sessionId, channel));
     existingIds = {};
     for (var p = 0; p < archive.events.length; p++) existingIds[String(archive.events[p].id)] = true;
     addedEvents = 0;

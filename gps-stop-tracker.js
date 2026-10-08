@@ -301,6 +301,7 @@ import{canAutoAdvanceBySchedule,manualSkipTargetIndex,shouldApplySchedulePriorit
     if(result.justArrived){
       const row=routeRows[currentIndex];
       const plan=alarmEligible(routeRows,currentIndex,row)?rowPlanDate(row):null;
+      const arrivedAt=new Date();
       reachedBeforeTime=Boolean(plan&&Date.now()<plan.getTime());
       arrivalDetail={
         index:currentIndex,
@@ -309,7 +310,14 @@ import{canAutoAdvanceBySchedule,manualSkipTargetIndex,shouldApplySchedulePriorit
         coordinate:row?.dataset.coordinate||'',
         final:currentIndex===routeRows.length-1,
         direction:body.dataset.direction||'forward',
-        emptyRun:body.dataset.emptyRun==='1'
+        emptyRun:body.dataset.emptyRun==='1',
+        actualAt:arrivedAt.toISOString(),
+        plannedAt:plan&&!isNaN(plan.getTime())?plan.toISOString():'',
+        diffSeconds:plan&&!isNaN(plan.getTime())?Math.round((arrivedAt.getTime()-plan.getTime())/1000):null,
+        punctuality:plan&&!isNaN(plan.getTime())
+          ?(Math.abs(arrivedAt.getTime()-plan.getTime())<=30000?'on-time':arrivedAt<plan?'early':'late')
+          :'unmeasured',
+        punctualityReason:plan&&!isNaN(plan.getTime())?'arrival-confirmed':'no-schedule-time'
       };
     }
     if(result.changed&&result.reason==='confirmed-departure'){

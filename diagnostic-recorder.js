@@ -384,6 +384,7 @@
       installationId:installationId(),
       deviceLabel:deviceLabel(),
       appVersion:version?.dataset.version||'',
+      channel:'TEST',
       sessionId:reportSessionId,
       uploadErrors:readUploadFailures(),
       events:events.map(({uploadState,...event})=>({...event,sessionId:reportSessionId}))
