@@ -2,6 +2,7 @@ const DEFAULT_SHEETS_URL='https://script.google.com/macros/s/AKfycbyQcnU6xvvrUZN
 const ALLOWED_ORIGINS=new Set([
   'https://trasy.tyli.pl',
   'https://trasy-2-0.pages.dev',
+  'https://test.trasy-2-0.pages.dev',
   'https://agent-auto-diagnostics-2-0-2.trasy-2-0.pages.dev'
 ]);
 const MAX_REQUEST_BYTES=512*1024;

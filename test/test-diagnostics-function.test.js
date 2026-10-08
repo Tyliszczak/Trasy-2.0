@@ -13,12 +13,14 @@ test('endpoint diagnostyki odrzuca obce źródło i brak sekretu serwera',async(
   assert.equal((await onRequest({request:request(),env:{}})).status,503);
 });
 
-test('endpoint dopuszcza aktualny adres Preview',async()=>{
-  const previewRequest=request(payload,{Origin:'https://agent-auto-diagnostics-2-0-2.trasy-2-0.pages.dev'});
+test('endpoint dopuszcza adresy Preview i stały adres testowy',async()=>{
   const originalFetch=globalThis.fetch;
   globalThis.fetch=async()=>new Response(JSON.stringify({status:'success'}),{status:200});
   try{
-    assert.equal((await onRequest({request:previewRequest,env:{DIAGNOSTICS_SHARED_SECRET:'x'}})).status,200);
+    for(const source of ['https://agent-auto-diagnostics-2-0-2.trasy-2-0.pages.dev','https://test.trasy-2-0.pages.dev']){
+      const previewRequest=request(payload,{Origin:source});
+      assert.equal((await onRequest({request:previewRequest,env:{DIAGNOSTICS_SHARED_SECRET:'x'}})).status,200);
+    }
   }finally{globalThis.fetch=originalFetch}
 });
 
