@@ -26,7 +26,7 @@ test('wersja aplikacji i service workera jest spójna, a moduły ETA mają nowy 
   const html=read('index.html');
   const sw=read('sw.js');
   assert.match(html,/navigation-live-engine\.js\?v=8/);
-  assert.match(html,/eta-status\.js\?v=resume-quality-1/);
+  assert.match(html,/eta-status\.js\?v=eta-stable-1/);
   assert.match(html,/time-core\.js\?v=4/);
   assert.match(html,/untimed-stop-eta-ui\.js\?v=4/);
   assert.match(html,/navigation-stop-ui-fix\.js\?v=2/);

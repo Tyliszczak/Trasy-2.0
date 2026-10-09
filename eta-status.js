@@ -19,6 +19,7 @@ import'./gps-quality.js';
   let infoEl=null,infoRow=null;
   let gpsPosition=null,gpsNotBefore=0,gpsState='waiting';
   let etaGeneration=0,requestController=null;
+  let lastBroadcastKey='';
 
   function freshPosition(){return document.visibilityState!=='hidden'&&globalThis.__trasyGpsQuality.evaluate(gpsPosition,{notBefore:gpsNotBefore}).usable}
 
@@ -51,6 +52,18 @@ import'./gps-quality.js';
     body.dataset.etaKind=kind;
     body.dataset.etaDiffSeconds=diffSeconds===null||diffSeconds===undefined?'':String(diffSeconds);
     body.dataset.etaSeconds=Number.isFinite(etaSecondsValue)?String(etaSecondsValue):'';
+    // GPS i licznik ETA odświeżają się często, ale pozostałe elementy ekranu
+    // potrzebują wiadomości tylko wtedy, gdy zmienia się to, co użytkownik
+    // widzi. Ponowne emitowanie identycznego stanu powodowało migotanie
+    // komunikatu w nagłówku następnego przystanku.
+    const key=[
+      rowKey(activeRow()),
+      kind,
+      Number.isFinite(diffSeconds)?Math.trunc(Number(diffSeconds)/60):'',
+      Number.isFinite(etaSecondsValue)?Math.floor(Number(etaSecondsValue)/60):''
+    ].join('|');
+    if(key===lastBroadcastKey)return;
+    lastBroadcastKey=key;
     const detail={kind,diffSeconds,etaSeconds:etaSecondsValue,source:'eta-status'};
     body.dispatchEvent(new CustomEvent('eta-status-change',{bubbles:true,detail}));
     body.dispatchEvent(new CustomEvent('nav-eta-update',{bubbles:true,detail}));
@@ -98,7 +111,7 @@ import'./gps-quality.js';
   function resetEta(){
     etaGeneration++;
     requestController?.abort();requestController=null;requesting=false;
-    lastRouteAt=0;lastTarget=null;etaSeconds=null;etaMeasuredAt=0;etaTargetKey='';
+    lastRouteAt=0;lastTarget=null;etaSeconds=null;etaMeasuredAt=0;etaTargetKey='';lastBroadcastKey='';
     clearInfo();broadcastStatus('neutral',null,null);
   }
   function invalidatePosition(state='waiting'){

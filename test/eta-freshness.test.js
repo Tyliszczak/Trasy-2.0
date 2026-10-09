@@ -100,6 +100,13 @@ test('a repeated notification for the visible target preserves the valid ETA whi
   await f.resolve(1,115);assert.equal(Number(f.body.dataset.etaSeconds),115);
 });
 
+test('nie wysyła ponownie identycznego komunikatu ETA przy kolejnym odświeżeniu ekranu',async()=>{
+  const f=await fixture();await f.position();await f.resolve(0,120);
+  const emitted=f.emitted.length;
+  await f.advance(1000);
+  assert.equal(f.emitted.length,emitted);
+});
+
 test('live navigation never accepts a stale fix or exposes stale map fallback after resume',async()=>{
   const f=await fixture({navigation:true,live:true});await f.position();
   const url='https://router.project-osrm.org/route/v1/driving/15.499002,51.942;15.499002,51.96146?overview=full';
