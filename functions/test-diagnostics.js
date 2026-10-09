@@ -5,6 +5,7 @@ const ALLOWED_ORIGINS=new Set([
   'https://test.trasy-2-0.pages.dev',
   'https://agent-auto-diagnostics-2-0-2.trasy-2-0.pages.dev'
 ]);
+const PREVIEW_ORIGIN=/^https:\/\/[a-z0-9-]+\.trasy-2-0\.pages\.dev$/i;
 const MAX_REQUEST_BYTES=512*1024;
 const MAX_UPSTREAM_BYTES=32*1024;
 const MAX_EVENTS=500;
@@ -55,7 +56,7 @@ async function readJsonLimited(response){
 export async function onRequest({request,env}){
   if(request.method!=='POST')return json({status:'error',message:'METHOD_NOT_ALLOWED'},405);
   const origin=request.headers.get('Origin')||'';
-  if(!ALLOWED_ORIGINS.has(origin))return json({status:'error',message:'ORIGIN_NOT_ALLOWED'},403);
+  if(!ALLOWED_ORIGINS.has(origin)&&!PREVIEW_ORIGIN.test(origin))return json({status:'error',message:'ORIGIN_NOT_ALLOWED'},403);
   if(!String(request.headers.get('Content-Type')||'').toLowerCase().startsWith('application/json'))return json({status:'error',message:'CONTENT_TYPE_REQUIRED'},415);
   const declared=Number(request.headers.get('Content-Length')||0);
   if(declared>MAX_REQUEST_BYTES)return json({status:'error',message:'PAYLOAD_TOO_LARGE'},413);

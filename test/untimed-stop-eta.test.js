@@ -36,10 +36,10 @@ test('moduł ETA nie używa MutationObservera, który może zapętlić render na
 test('wersja z poprawką zamrożenia ładuje świeży moduł ETA',()=>{
   const html=read('index.html');
   const sw=read('sw.js');
-  assert.match(html,/data-version="2\.0\.226"/);
+  assert.match(html,/data-version="2\.0\.227"/);
   assert.match(html,/time-core\.js\?v=4/);
   assert.match(html,/untimed-stop-eta-ui\.js\?v=3/);
-  assert.match(sw,/APP_VERSION='2.0.226'/);
-  assert.match(sw,/CACHE_NAME='trasy-2\.0-v252'/);
+  assert.match(sw,/APP_VERSION='2.0.227'/);
+  assert.match(sw,/CACHE_NAME='trasy-2\.0-v253'/);
   assert.match(sw,/'\.\/untimed-stop-eta-ui\.js'/);
 });

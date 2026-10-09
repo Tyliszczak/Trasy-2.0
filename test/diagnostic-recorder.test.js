@@ -71,7 +71,7 @@ test('okno zgody wyjaśnia cel i nie pokazuje ręcznej wysyłki ani zapisu pliku
 test('skrypt diagnostyczny jest częścią powłoki offline PWA',()=>{
   const html=read('index.html');
   const sw=read('sw.js');
-  assert.match(html,/src="\.\/diagnostic-recorder\.js\?v=12"/);
+  assert.match(html,/src="\.\/diagnostic-recorder\.js\?v=13"/);
   assert.match(sw,/'\.\/diagnostic-recorder\.js'/);
 });
 
@@ -153,6 +153,15 @@ test('diagnostyka ogranicza powtarzalne statusy i zachowuje dane pozycji po wzno
   assert.match(source,/value\.coords&&Number\.isFinite/);
   assert.match(source,/trasy:gps-stale/);
   assert.match(source,/trasy:gps-refresh-failed/);
+});
+
+test('wersja testowa ma pełny profil diagnostyczny, ale nie omija zgody użytkownika',()=>{
+  const source=read('diagnostic-recorder.js');
+  assert.match(source,/const FULL_TEST_CAPTURE=true/);
+  assert.match(source,/GPS_MIN_INTERVAL_MS=FULL_TEST_CAPTURE\?0:900/);
+  assert.match(source,/MAX_EVENTS=FULL_TEST_CAPTURE\?200000:50000/);
+  assert.match(source,/FULL_TEST_CAPTURE\?uploadPending\(\):runScheduledUpload\(\)/);
+  assert.match(source,/localStorage\.getItem\(CONSENT_KEY\)!=='approved'/);
 });
 
 test('każdy kurs ma pełny, rozdzielny kontekst przystanków',()=>{

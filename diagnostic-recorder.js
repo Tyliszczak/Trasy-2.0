@@ -16,15 +16,18 @@
   const CONSENT_KEY='trasy2.diagnostics.consent.v1';
   const FIRST_USE_PROMPT_KEY='trasy2.diagnostics.firstUsePrompt.v1';
   const UPLOAD_ENDPOINT='/test-diagnostics';
-  const UPLOAD_CHECK_INTERVAL_MS=15*60*1000;
+  // Pełny profil obowiązuje tylko w kompilacji TEST i dopiero po zgodzie.
+  // Pozwala odtworzyć przejazd oraz zachowanie aplikacji po tle.
+  const FULL_TEST_CAPTURE=true;
+  const UPLOAD_CHECK_INTERVAL_MS=FULL_TEST_CAPTURE?2*60*1000:15*60*1000;
   const UPLOAD_BATCH_SIZE=500;
   const UPLOAD_MAX_BYTES=460*1024;
   const UPLOAD_MAX_PARTS=32;
   const UPLOAD_MAX_ATTEMPTS=3;
   const UPLOAD_FAILURES_KEY='trasy2.diagnostics.uploadFailures.v1';
   const UPLOAD_ALERT_KEY='trasy2.diagnostics.uploadAlert.v1';
-  const MAX_EVENTS=50000;
-  const GPS_MIN_INTERVAL_MS=900;
+  const MAX_EVENTS=FULL_TEST_CAPTURE?200000:50000;
+  const GPS_MIN_INTERVAL_MS=FULL_TEST_CAPTURE?0:900;
   let dbPromise=null;
   let queue=[];
   let flushTimer=0;
@@ -36,7 +39,7 @@
   let useEndRecorded=false;
   let courseId='',courseSignature='',lastContextEventId='';
   const eventPolicyState=new Map();
-  const EVENT_MIN_INTERVAL_MS={
+  const EVENT_MIN_INTERVAL_MS=FULL_TEST_CAPTURE?{}:{
     'eta-status-change':10000,
     'nav-eta-update':10000,
     'stop-guard-change':30000
@@ -372,7 +375,8 @@
     clearTimeout(uploadTimer);
     uploadTimer=setTimeout(()=>{
       uploadTimer=0;
-      runScheduledUpload().catch(error=>console.warn('Harmonogram wysyłki diagnostyki:',error));
+      const operation=FULL_TEST_CAPTURE?uploadPending():runScheduledUpload();
+      operation.catch(error=>console.warn('Harmonogram wysyłki diagnostyki:',error));
     },delay);
   }
 
@@ -525,7 +529,7 @@
     dialog.innerHTML=`<form method="dialog">
       <div class="diagnosticDialogHead"><span aria-hidden="true">●</span><h2 id="diagnosticTitle">Zgoda na diagnostykę</h2></div>
       <p class="diagnosticPrivacy">Dane pomagają wykrywać i naprawiać błędy harmonogramu, prowadzenia do przystanków oraz GPS podczas rzeczywistych przejazdów.</p>
-      <p class="diagnosticPrivacy diagnosticConsentInfo">Po wyrażeniu zgody aplikacja będzie zapisywać sposób działania i dokładną lokalizację. Dane zostaną automatycznie przesłane do prywatnego folderu diagnostycznego najwyżej dwa razy dziennie. Rejestrowanie można później wyłączyć.</p>
+      <p class="diagnosticPrivacy diagnosticConsentInfo">Po wyrażeniu zgody aplikacja będzie zapisywać pełny przebieg działania i dokładną lokalizację. Dane testowe będą automatycznie przesyłane do prywatnego folderu diagnostycznego w krótkich odstępach. Rejestrowanie można później wyłączyć.</p>
       <label class="diagnosticDeviceLabel" for="diagnosticDeviceName">Nazwa telefonu (opcjonalnie)
         <input id="diagnosticDeviceName" type="text" maxlength="80" autocomplete="off" placeholder="np. Telefon Krzysztofa">
       </label>
@@ -615,7 +619,10 @@
   window.addEventListener('offline',()=>record('network-offline'));
   document.addEventListener('visibilitychange',()=>{
     record('visibility-change',{state:document.visibilityState});
-    if(document.visibilityState==='hidden')finishUse('hidden');
+    if(document.visibilityState==='hidden'){
+      finishUse('hidden');
+      if(FULL_TEST_CAPTURE)uploadPending().catch(error=>console.warn('Wysyłka diagnostyki przy tle:',error));
+    }
     else if(useEndRecorded&&active){useEndRecorded=false;record('application-use-resumed')}
   });
   window.addEventListener('pagehide',()=>finishUse('pagehide'));
