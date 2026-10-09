@@ -471,6 +471,7 @@
           lastSyncMessage=`Wysłano dane. Ocena ${quality.source==='workers-ai'?'AI':'techniczna'}: ${quality.useful?'użyteczne':'wymagają uzupełnienia'} (${quality.score}/100). ${quality.recommendation}`;
         }
         if(readUploadFailures().length)clearUploadFailures();
+        document.dispatchEvent(new CustomEvent('trasy:diagnostics-uploaded',{detail:result}));
         return result;
       }catch(error){
         lastError=error;
@@ -620,7 +621,7 @@
     'trasy:stop-transition','trasy:route-build','trasy:navigation-resumed',
     'trasy:gps-speed','trasy:gps-stale','trasy:gps-refresh-failed','gps-next-stop-change','gps-stop-skipped','gps-stop-arrival',
     'stop-guard-change','nav-eta-update','eta-status-change','route-direction-change',
-    'route-mode-change','return-origin-change','schedule-rendered'
+    'route-mode-change','return-origin-change','schedule-rendered','trasy:ai-resume-decision'
   ].forEach(type=>(type.startsWith('trasy:')?document:document.getElementById('scheduleBody'))?.addEventListener(type,detailListener(type)));
 
   window.addEventListener('error',event=>record('window-error',{message:event.message,filename:event.filename,line:event.lineno,column:event.colno,error:event.error}));
@@ -672,6 +673,10 @@
     const dialog=makeDialog();updateUi();dialog.showModal();
   });
   root.classList.toggle('diagnosticRecording',active);
+  window.__trasyDiagnostics={
+    record:(type,detail)=>record(type,detail),
+    uploadNow:()=>uploadPending()
+  };
   if(active){
     sessionId=newSessionId();
     localStorage.setItem(SESSION_KEY,sessionId);

@@ -46,19 +46,21 @@ test('endpoint waliduje paczkę i przekazuje sekret wyłącznie do Apps Script',
   }finally{globalThis.fetch=originalFetch}
 });
 
-test('AI dostaje wyłącznie podsumowanie techniczne, bez współrzędnych GPS',async()=>{
+test('AI wybiera kandydata po wznowieniu bez otrzymywania współrzędnych GPS ani nazw tras',async()=>{
   const originalFetch=globalThis.fetch;
   let prompt='';
   globalThis.fetch=async()=>new Response(JSON.stringify({status:'success'}),{status:200});
-  const AI={run:async(_model,input)=>{prompt=input.prompt;return{response:'{"useful":true,"score":91,"reasons":["GPS i wznowienie są obecne"],"recommendation":"Można analizować sesję."}'}}};
+  const resumeEvent={id:2,sessionId:'session-1',at:'2026-09-02T10:01:00.000Z',type:'resume-candidates',elapsedMs:60000,snapshot:{},detail:{resumeId:'resume-1',currentIndex:2,inactiveSeconds:420,accuracyMeters:18,speedKmh:38,headingReliable:true,candidates:[{index:2,distanceMeters:850,headingDifference:165},{index:3,distanceMeters:210,headingDifference:15}]}};
+  const AI={run:async(_model,input)=>{prompt=input.prompt;return{response:'{"targetIndex":3,"confidence":91,"rationale":"Pojazd jedzie w kierunku kolejnego kandydata."}'}}};
   try{
-    const response=await onRequest({request:request(),env:{DIAGNOSTICS_SHARED_SECRET:'x',AI}});
+    const response=await onRequest({request:request({...payload,events:[event,resumeEvent]}),env:{DIAGNOSTICS_SHARED_SECRET:'x',AI}});
     const body=await response.json();
-    assert.equal(body.diagnosticsQuality.source,'workers-ai');
-    assert.equal(body.diagnosticsQuality.useful,true);
-    assert.equal(body.diagnosticsQuality.score,91);
+    assert.equal(body.resumeRecommendation.source,'workers-ai');
+    assert.equal(body.resumeRecommendation.targetIndex,3);
+    assert.equal(body.resumeRecommendation.confidence,91);
     assert.doesNotMatch(prompt,/51\.9|15\.5|TopPoint/);
-    assert.match(prompt,/gpsFixCount/);
+    assert.match(prompt,/inactiveSeconds/);
+    assert.match(prompt,/candidates/);
   }finally{globalThis.fetch=originalFetch}
 });
 

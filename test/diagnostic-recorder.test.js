@@ -72,7 +72,9 @@ test('skrypt diagnostyczny jest częścią powłoki offline PWA',()=>{
   const html=read('index.html');
   const sw=read('sw.js');
   assert.match(html,/src="\.\/diagnostic-recorder\.js\?v=14"/);
+  assert.match(html,/src="\.\/resume-stop-ai\.js\?v=2"/);
   assert.match(sw,/'\.\/diagnostic-recorder\.js'/);
+  assert.match(sw,/'\.\/resume-stop-ai\.js'/);
 });
 
 test('pierwsze użycie samo otwiera zgodę, a zatwierdzenie uruchamia rejestrowanie',()=>{
@@ -168,6 +170,15 @@ test('wynik oceny AI zapisuje się jako zdarzenie diagnostyczne i jest widoczny 
   const source=read('diagnostic-recorder.js');
   assert.match(source,/record\('diagnostics-quality',quality,true\)/);
   assert.match(source,/Ocena \$\{quality\.source==='workers-ai'\?'AI':'techniczna'\}/);
+});
+
+test('decyzja AI o wznowieniu jest rejestrowana do późniejszej oceny użyteczności',()=>{
+  const source=read('diagnostic-recorder.js');
+  const resumeAi=read('resume-stop-ai.js');
+  assert.match(source,/trasy:ai-resume-decision/);
+  assert.match(resumeAi,/resume-candidates/);
+  assert.match(resumeAi,/confidence>=85/);
+  assert.match(resumeAi,/source:'ai-resume-undo'/);
 });
 
 test('każdy kurs ma pełny, rozdzielny kontekst przystanków',()=>{

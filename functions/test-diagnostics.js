@@ -70,15 +70,44 @@ function parseAiQuality(value,fallback){
 async function evaluateQuality(env,events){
   const summary=diagnosticsSummary(events);
   const fallback=localQuality(summary);
-  if(!env?.AI?.run)return{...fallback,aiAvailable:false,summary};
+  return{...fallback,aiAvailable:Boolean(env?.AI?.run),summary};
+}
+
+function resumeCandidate(events){
+  const event=[...events].reverse().find(item=>item.type==='resume-candidates');
+  const detail=event?.detail;
+  if(!detail||typeof detail!=='object'||!Array.isArray(detail.candidates))return null;
+  const candidates=detail.candidates
+    .map(item=>({index:Math.trunc(Number(item?.index)),distanceMeters:Math.max(0,Math.round(Number(item?.distanceMeters))),headingDifference:item?.headingDifference===null?null:Math.max(0,Math.min(180,Math.round(Number(item?.headingDifference))))}))
+    .filter(item=>Number.isInteger(item.index)&&Number.isFinite(item.distanceMeters)).slice(0,5);
+  const currentIndex=Math.trunc(Number(detail.currentIndex));
+  const resumeId=text(detail.resumeId,100);
+  if(!resumeId||!Number.isInteger(currentIndex)||!candidates.some(item=>item.index===currentIndex))return null;
+  return{resumeId,currentIndex,inactiveSeconds:Math.max(0,Math.min(86400,Math.round(Number(detail.inactiveSeconds)||0))),accuracyMeters:Math.max(0,Math.min(500,Math.round(Number(detail.accuracyMeters)||0))),speedKmh:Math.max(0,Math.min(160,Math.round(Number(detail.speedKmh)||0))),headingReliable:Boolean(detail.headingReliable),candidates};
+}
+
+function localResumeRecommendation(input){
+  const directed=input.headingReliable?input.candidates.filter(item=>item.headingDifference!==null&&item.headingDifference<=95):[];
+  const best=(directed.length?directed:input.candidates).slice().sort((a,b)=>a.distanceMeters-b.distanceMeters||a.index-b.index)[0];
+  const confidence=best?.index>input.currentIndex&&input.accuracyMeters<=70&&(best.headingDifference===null||best.headingDifference<=70)?72:45;
+  return{resumeId:input.resumeId,targetIndex:best?.index??input.currentIndex,confidence,source:'heuristic',rationale:'Wybór awaryjny oparty na odległości i kierunku.'};
+}
+
+async function evaluateResumeRecommendation(env,events){
+  const input=resumeCandidate(events);if(!input)return null;
+  const fallback=localResumeRecommendation(input);
+  if(!env?.AI?.run)return fallback;
   try{
-    // Model otrzymuje tylko agregaty techniczne — bez nazw przystanków i GPS.
-    const prompt=`Oceń użyteczność sesji diagnostycznej aplikacji nawigacyjnej. Zwróć WYŁĄCZNIE JSON {"useful":boolean,"score":0-100,"reasons":[string],"recommendation":string}. Kryteria: daj wyższą ocenę, gdy są próbki GPS, rozsądna dokładność, przejście przystanków i zdarzenia wznowienia/błędów. Dane: ${JSON.stringify(summary)}`;
+    // Model dostaje wyłącznie względne miary kandydatów, nigdy GPS ani nazw przystanków.
+    const prompt=`Jesteś asystentem wyboru następnego przystanku po wznowieniu nawigacji. Zwróć WYŁĄCZNIE JSON {"targetIndex":number,"confidence":0-100,"rationale":string}. Wybieraj wyłącznie indeks z candidates. Nie cofaj poniżej currentIndex. Wysoką pewność (>=85) dawaj wyłącznie gdy kierunek, odległość i czas nieaktywności jednoznacznie wskazują, że minął co najmniej jeden przystanek. Dane: ${JSON.stringify(input)}`;
     const response=await env.AI.run(AI_MODEL,{prompt});
-    return{...parseAiQuality(response?.response||response?.result?.response,fallback),aiAvailable:true,summary};
+    const parsed=JSON.parse(String(response?.response||response?.result?.response||'').replace(/^```json\s*|```$/g,'').trim());
+    const targetIndex=Math.trunc(Number(parsed?.targetIndex));
+    if(!input.candidates.some(item=>item.index===targetIndex)||targetIndex<input.currentIndex)throw new Error('AI_INVALID_TARGET');
+    return{resumeId:input.resumeId,targetIndex,confidence:Math.max(0,Math.min(100,Math.round(Number(parsed.confidence)||0))),source:'workers-ai',rationale:text(parsed.rationale,240)||'AI wskazało kandydata na podstawie ruchu i czasu przerwy.'};
   }catch(error){
-    console.warn(JSON.stringify({event:'diagnostics-ai-quality-failed',message:String(error?.message||error).slice(0,180)}));
-    return{...fallback,aiAvailable:false,summary};
+    console.warn(JSON.stringify({event:'resume-stop-ai-failed',message:String(error?.message||error).slice(0,180)}));
+    return fallback;
   }
 }
 
@@ -156,11 +185,12 @@ export async function onRequest({request,env}){
       const result=await readJsonLimited(upstream);
       if(result?.status!=='success')return json({status:'error',message:'SHEETS_REJECTED'},502);
       const diagnosticsQuality=await evaluateQuality(env,events);
+      const resumeRecommendation=await evaluateResumeRecommendation(env,events);
       return json({
         status:'success',batchId,duplicate:Boolean(result.duplicate),
         acceptedEvents:Number(result.acceptedEvents)||0,
         duplicateEvents:Number(result.duplicateEvents)||0,
-        diagnosticsQuality
+        diagnosticsQuality,resumeRecommendation
       });
     }finally{clearTimeout(timeout)}
   }catch(error){
