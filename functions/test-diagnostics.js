@@ -9,6 +9,7 @@ const PREVIEW_ORIGIN=/^https:\/\/[a-z0-9-]+\.trasy-2-0\.pages\.dev$/i;
 const MAX_REQUEST_BYTES=512*1024;
 const MAX_UPSTREAM_BYTES=32*1024;
 const MAX_EVENTS=500;
+const AI_MODEL='@cf/meta/llama-3.1-8b-instruct';
 
 function json(body,status=200){
   return new Response(JSON.stringify(body),{status,headers:{
@@ -21,6 +22,65 @@ function json(body,status=200){
 
 function text(value,max=160){return String(value??'').trim().slice(0,max)}
 function validId(value,max=180){return /^[A-Za-z0-9:._-]+$/.test(value)&&value.length<=max}
+
+function diagnosticsSummary(events){
+  const types={};let gps=0;let accuracyTotal=0;let accuracyCount=0;
+  for(const event of events){
+    types[event.type]=(types[event.type]||0)+1;
+    if(event.type==='gps-fix'){
+      gps++;
+      const accuracy=Number(event.detail?.accuracy);
+      if(Number.isFinite(accuracy)){accuracyTotal+=accuracy;accuracyCount++}
+    }
+  }
+  const durationMs=Math.max(0,Number(events.at(-1)?.elapsedMs||0)-Number(events[0]?.elapsedMs||0));
+  return{
+    eventCount:events.length,gpsFixCount:gps,
+    averageGpsAccuracyMeters:accuracyCount?Math.round(accuracyTotal/accuracyCount):null,
+    durationSeconds:Math.round(durationMs/1000),
+    eventTypes:types,
+    hasResume:Boolean(types['application-use-resumed']||types['trasy:navigation-resumed']),
+    hasStopTransition:Boolean(types['trasy:stop-transition']||types['gps-next-stop-change']),
+    hasErrors:Boolean(types['window-error']||types['unhandled-rejection']||types['gps-error']||types['trasy:gps-refresh-failed'])
+  };
+}
+
+function localQuality(summary){
+  const reasons=[];
+  if(summary.gpsFixCount<8)reasons.push('Za mało próbek GPS.');
+  if(summary.averageGpsAccuracyMeters!==null&&summary.averageGpsAccuracyMeters>80)reasons.push('Dokładność GPS jest słaba.');
+  if(!summary.hasResume)reasons.push('Brakuje zdarzenia wznowienia po tle.');
+  if(!summary.hasStopTransition)reasons.push('Brakuje zmiany aktywnego przystanku.');
+  const useful=summary.gpsFixCount>=8&&summary.averageGpsAccuracyMeters!==null&&summary.averageGpsAccuracyMeters<=80;
+  return{source:'heuristic',useful,score:useful?70:35,reasons,recommendation:useful?'Materiał nadaje się do analizy.':'Wykonaj dłuższy przejazd z włączonym GPS i wznowieniem aplikacji.'};
+}
+
+function parseAiQuality(value,fallback){
+  try{
+    const parsed=JSON.parse(String(value||'').replace(/^```json\s*|```$/g,'').trim());
+    if(typeof parsed?.useful!=='boolean')return fallback;
+    return{
+      source:'workers-ai',useful:parsed.useful,score:Math.max(0,Math.min(100,Math.round(Number(parsed.score)||0))),
+      reasons:Array.isArray(parsed.reasons)?parsed.reasons.map(reason=>text(reason,180)).slice(0,4):[],
+      recommendation:text(parsed.recommendation,240)||fallback.recommendation
+    };
+  }catch{return fallback}
+}
+
+async function evaluateQuality(env,events){
+  const summary=diagnosticsSummary(events);
+  const fallback=localQuality(summary);
+  if(!env?.AI?.run)return{...fallback,aiAvailable:false,summary};
+  try{
+    // Model otrzymuje tylko agregaty techniczne — bez nazw przystanków i GPS.
+    const prompt=`Oceń użyteczność sesji diagnostycznej aplikacji nawigacyjnej. Zwróć WYŁĄCZNIE JSON {"useful":boolean,"score":0-100,"reasons":[string],"recommendation":string}. Kryteria: daj wyższą ocenę, gdy są próbki GPS, rozsądna dokładność, przejście przystanków i zdarzenia wznowienia/błędów. Dane: ${JSON.stringify(summary)}`;
+    const response=await env.AI.run(AI_MODEL,{prompt});
+    return{...parseAiQuality(response?.response||response?.result?.response,fallback),aiAvailable:true,summary};
+  }catch(error){
+    console.warn(JSON.stringify({event:'diagnostics-ai-quality-failed',message:String(error?.message||error).slice(0,180)}));
+    return{...fallback,aiAvailable:false,summary};
+  }
+}
 
 function sanitizeEvent(event){
   if(!event||typeof event!=='object'||Array.isArray(event))return null;
@@ -95,10 +155,12 @@ export async function onRequest({request,env}){
       if(!upstream.ok)return json({status:'error',message:'SHEETS_UPSTREAM_ERROR'},502);
       const result=await readJsonLimited(upstream);
       if(result?.status!=='success')return json({status:'error',message:'SHEETS_REJECTED'},502);
+      const diagnosticsQuality=await evaluateQuality(env,events);
       return json({
         status:'success',batchId,duplicate:Boolean(result.duplicate),
         acceptedEvents:Number(result.acceptedEvents)||0,
-        duplicateEvents:Number(result.duplicateEvents)||0
+        duplicateEvents:Number(result.duplicateEvents)||0,
+        diagnosticsQuality
       });
     }finally{clearTimeout(timeout)}
   }catch(error){

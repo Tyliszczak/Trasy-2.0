@@ -71,7 +71,7 @@ test('okno zgody wyjaśnia cel i nie pokazuje ręcznej wysyłki ani zapisu pliku
 test('skrypt diagnostyczny jest częścią powłoki offline PWA',()=>{
   const html=read('index.html');
   const sw=read('sw.js');
-  assert.match(html,/src="\.\/diagnostic-recorder\.js\?v=13"/);
+  assert.match(html,/src="\.\/diagnostic-recorder\.js\?v=14"/);
   assert.match(sw,/'\.\/diagnostic-recorder\.js'/);
 });
 
@@ -162,6 +162,12 @@ test('wersja testowa ma pełny profil diagnostyczny, ale nie omija zgody użytko
   assert.match(source,/MAX_EVENTS=FULL_TEST_CAPTURE\?200000:50000/);
   assert.match(source,/FULL_TEST_CAPTURE\?uploadPending\(\):runScheduledUpload\(\)/);
   assert.match(source,/localStorage\.getItem\(CONSENT_KEY\)!=='approved'/);
+});
+
+test('wynik oceny AI zapisuje się jako zdarzenie diagnostyczne i jest widoczny po wysyłce',()=>{
+  const source=read('diagnostic-recorder.js');
+  assert.match(source,/record\('diagnostics-quality',quality,true\)/);
+  assert.match(source,/Ocena \$\{quality\.source==='workers-ai'\?'AI':'techniczna'\}/);
 });
 
 test('każdy kurs ma pełny, rozdzielny kontekst przystanków',()=>{

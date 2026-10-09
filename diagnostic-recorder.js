@@ -38,6 +38,7 @@
   let uploadTimer=0,uploadInFlight=null,lastSyncMessage='',closeUploadInFlight=null,closeUploadComplete=false;
   let useEndRecorded=false;
   let courseId='',courseSignature='',lastContextEventId='';
+  let lastQualityKey='';
   const eventPolicyState=new Map();
   const EVENT_MIN_INTERVAL_MS=FULL_TEST_CAPTURE?{}:{
     'eta-status-change':10000,
@@ -460,6 +461,15 @@
     for(let attempt=1;attempt<=UPLOAD_MAX_ATTEMPTS;attempt++){
       try{
         const result=await uploadBatch(events);
+        const quality=result?.diagnosticsQuality;
+        if(quality){
+          const key=[quality.score,quality.useful,quality.recommendation].join('|');
+          if(key!==lastQualityKey){
+            lastQualityKey=key;
+            record('diagnostics-quality',quality,true);
+          }
+          lastSyncMessage=`Wysłano dane. Ocena ${quality.source==='workers-ai'?'AI':'techniczna'}: ${quality.useful?'użyteczne':'wymagają uzupełnienia'} (${quality.score}/100). ${quality.recommendation}`;
+        }
         if(readUploadFailures().length)clearUploadFailures();
         return result;
       }catch(error){

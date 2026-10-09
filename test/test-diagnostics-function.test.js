@@ -34,12 +34,31 @@ test('endpoint waliduje paczkę i przekazuje sekret wyłącznie do Apps Script',
   try{
     const response=await onRequest({request:request(),env:{DIAGNOSTICS_SHARED_SECRET:'server-only-secret',DIAGNOSTICS_SHEETS_URL:'https://script.google.test/exec'}});
     assert.equal(response.status,200);
-    assert.equal((await response.json()).status,'success');
+    const body=await response.json();
+    assert.equal(body.status,'success');
+    assert.equal(body.diagnosticsQuality.source,'heuristic');
+    assert.equal(body.diagnosticsQuality.aiAvailable,false);
     assert.equal(forwarded.secret,'server-only-secret');
     assert.equal(forwarded.action,'appendTestDiagnostics');
     assert.equal(forwarded.deviceLabel,'Android Chrome 360x800');
     assert.deepEqual(forwarded.uploadErrors,[]);
     assert.equal(forwarded.events.length,1);
+  }finally{globalThis.fetch=originalFetch}
+});
+
+test('AI dostaje wyłącznie podsumowanie techniczne, bez współrzędnych GPS',async()=>{
+  const originalFetch=globalThis.fetch;
+  let prompt='';
+  globalThis.fetch=async()=>new Response(JSON.stringify({status:'success'}),{status:200});
+  const AI={run:async(_model,input)=>{prompt=input.prompt;return{response:'{"useful":true,"score":91,"reasons":["GPS i wznowienie są obecne"],"recommendation":"Można analizować sesję."}'}}};
+  try{
+    const response=await onRequest({request:request(),env:{DIAGNOSTICS_SHARED_SECRET:'x',AI}});
+    const body=await response.json();
+    assert.equal(body.diagnosticsQuality.source,'workers-ai');
+    assert.equal(body.diagnosticsQuality.useful,true);
+    assert.equal(body.diagnosticsQuality.score,91);
+    assert.doesNotMatch(prompt,/51\.9|15\.5|TopPoint/);
+    assert.match(prompt,/gpsFixCount/);
   }finally{globalThis.fetch=originalFetch}
 });
 
