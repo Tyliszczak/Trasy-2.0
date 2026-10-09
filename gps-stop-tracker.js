@@ -1,7 +1,8 @@
 import{
   bearingDegrees,
   createStopProgressEngine,
-  distanceMeters
+  distanceMeters,
+  recoverStopIndex
 }from'./gps-stop-engine.js';
 import{planDateForRow,rowPlanText}from'./schedule-time.js';
 import{stopGuardState}from'./stop-alert-core.js';
@@ -35,6 +36,9 @@ import'./gps-quality.js';
   let pendingScheduleAdvance=null;
   let earlyWarningTimer=null;
   let missedStopWarningTimer=null;
+  let resumeHiddenAt=0;
+  let resumeRecoveryPending=false;
+  let resumeUndoTimer=null;
 
   const coord=value=>geo.parseCoordinate(value);
 
@@ -139,6 +143,55 @@ import'./gps-quality.js';
     el.hidden=false;
     clearTimeout(missedStopWarningTimer);
     missedStopWarningTimer=setTimeout(()=>{el.hidden=true},MISSED_STOP_WARNING_MS);
+  }
+
+  function showResumeRecovery(previousIndex,index){
+    const target=rows()[index];
+    if(!target)return;
+    let el=document.getElementById('resumeStopRecovery');
+    if(!el){
+      el=document.createElement('div');
+      el.id='resumeStopRecovery';
+      el.setAttribute('role','status');
+      el.setAttribute('aria-live','polite');
+      const text=document.createElement('span');
+      const button=document.createElement('button');
+      button.type='button';
+      button.textContent='COFNIJ';
+      button.addEventListener('click',()=>{
+        setManualIndex(previousIndex,'resume-undo');
+        clearTimeout(resumeUndoTimer);
+        el.hidden=true;
+      });
+      el.append(text,button);
+      document.body.append(el);
+    }
+    el.querySelector('span').textContent=`Wznowiono prowadzenie: ${target.children[0]?.innerText.trim()||'kolejny przystanek'}`;
+    el.hidden=false;
+    clearTimeout(resumeUndoTimer);
+    resumeUndoTimer=setTimeout(()=>{el.hidden=true},12000);
+  }
+
+  function recoverAfterResume(motion={}){
+    if(!resumeRecoveryPending||currentIndex===null||!lastPos||!hasFreshPosition())return false;
+    resumeRecoveryPending=false;
+    const recovered=recoverStopIndex({
+      stops:stops(),position:lastPos,previousIndex:currentIndex,
+      accuracy:Number(window.__navAcc||999),speedMps:Number(motion.speedMps||0),
+      heading,headingReliable:Boolean(motion.headingReliable),emptyRun:body.dataset.emptyRun==='1'
+    });
+    if(!recovered||recovered.index<=currentIndex)return false;
+    const protectSchedule=shouldApplySchedulePriority({direction:body.dataset.direction||'forward',emptyRun:body.dataset.emptyRun==='1'});
+    if(protectSchedule&&!scheduleAllowsAutoAdvance(currentIndex,recovered.index,recovered.reason))return false;
+    const fromIndex=currentIndex;
+    currentIndex=recovered.index;
+    reachedBeforeTime=false;
+    pendingScheduleAdvance=null;
+    engine.setIndex(currentIndex);
+    applyIndex(currentIndex,recovered.reason,recovered);
+    updateStopGuard();
+    showResumeRecovery(fromIndex,currentIndex);
+    return true;
   }
 
   function applyIndex(index,reason='tracking',transition={}){
@@ -398,6 +451,7 @@ import'./gps-quality.js';
 
     lastPos=here;
     lastPosAt=now;
+    if(recoverAfterResume({speedMps:speed,nativeSpeedReliable,headingReliable}))return;
     chooseAndApply({speedMps:speed,nativeSpeedReliable,headingReliable});
   }
 
@@ -473,7 +527,18 @@ import'./gps-quality.js';
   body.addEventListener('gps-skip-current-stop',event=>skipCurrentStopManually(Number(event.detail?.expectedIndex)));
   setInterval(updateStopGuard,1000);
   window.addEventListener('trasy:gps-status',event=>{if(event.detail?.state&&event.detail.state!=='ready')invalidatePosition()});
-  document.addEventListener('visibilitychange',()=>{invalidatePosition();if(document.visibilityState==='visible')start()});
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState==='hidden')resumeHiddenAt=Date.now();
+    else if(resumeHiddenAt&&Date.now()-resumeHiddenAt>=3000){resumeRecoveryPending=true;resumeHiddenAt=0}
+    invalidatePosition();
+    if(document.visibilityState==='visible')start();
+  });
+  document.addEventListener('trasy:navigation-resumed',event=>{
+    const hiddenAt=Number(event.detail?.hiddenAt||0);
+    if(hiddenAt&&Date.now()-hiddenAt>=3000)resumeRecoveryPending=true;
+    const position=event.detail?.position;
+    if(position?.coords)onPos(position);
+  });
   window.addEventListener('pageshow',event=>{if(event.persisted)invalidatePosition()});
   start();
 })();

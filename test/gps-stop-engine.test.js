@@ -2,7 +2,8 @@ import test from'node:test';
 import assert from'node:assert/strict';
 import{
   bearingDegrees,
-  createStopProgressEngine
+  createStopProgressEngine,
+  recoverStopIndex
 }from'../gps-stop-engine.js';
 import{planDateForRow}from'../schedule-time.js';
 import{stopGuardState}from'../stop-alert-core.js';
@@ -153,6 +154,35 @@ test('tracker odzyskuje najwyżej jeden następny cel gdy aktywny przystanek zos
     const held=engine.update({stops,position:metersNorth(meters),accuracy:10,speedMps:10,heading,headingReliable:true});
     assert.equal(held.index,1);
   }
+});
+
+test('po wznowieniu aplikacji korekta może przejść przez kilka pewnie miniętych przystanków',()=>{
+  const resumeStops=[0,500,1000,1500].map((meters,index)=>({key:String(index),coord:metersNorth(meters)}));
+  const position=metersNorth(1000);
+  const recovered=recoverStopIndex({
+    stops:resumeStops,
+    position,
+    previousIndex:0,
+    accuracy:10,
+    speedMps:9,
+    heading:bearingDegrees(position,resumeStops[3].coord),
+    headingReliable:true
+  });
+  assert.equal(recovered?.index,3);
+  assert.equal(recovered?.reason,'resume-recovered');
+});
+
+test('korekta po wznowieniu nie zmienia celu bez ruchu w kierunku dalszej trasy',()=>{
+  const recovered=recoverStopIndex({
+    stops,
+    position:metersNorth(700),
+    previousIndex:0,
+    accuracy:10,
+    speedMps:0,
+    heading:0,
+    headingReliable:false
+  });
+  assert.equal(recovered,null);
 });
 
 test('zwykły objazd nie może pominąć odległego aktywnego przystanku',()=>{

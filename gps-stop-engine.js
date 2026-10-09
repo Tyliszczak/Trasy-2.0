@@ -37,6 +37,52 @@ export const DEFAULT_STOP_ENGINE_CONFIG=Object.freeze({
   reacquireMaximumIndexAdvance:1
 });
 
+// Osobna, jednorazowa decyzja po wznowieniu aplikacji z tła. Zwykły silnik
+// pozostaje celowo konserwatywny (maksymalnie jeden punkt), natomiast po
+// dłuższej przerwie świeża pozycja, ruch i kierunek mogą jednoznacznie
+// potwierdzić, że kierowca minął kilka przystanków bez odczytów GPS.
+export function recoverStopIndex({
+  stops,
+  position,
+  previousIndex=0,
+  accuracy,
+  speedMps=0,
+  heading=null,
+  headingReliable=false,
+  emptyRun=false,
+  config=DEFAULT_STOP_ENGINE_CONFIG
+}={}){
+  if(!Array.isArray(stops)||!stops.length||!position)return null;
+  if(!Number.isFinite(accuracy)||accuracy>config.maxAccuracy)return null;
+  const fromIndex=Math.max(0,Math.min(stops.length-1,Math.trunc(Number(previousIndex)||0)));
+  if(emptyRun)return{index:stops.length-1,fromIndex,reason:'resume-recovered'};
+  if(!headingReliable||!Number.isFinite(heading)||!Number.isFinite(speedMps)||speedMps<config.reacquireMinimumSpeedMps)return null;
+
+  const currentDistance=distanceMeters(position,stops[fromIndex].coord);
+  const currentBearing=bearingDegrees(position,stops[fromIndex].coord);
+  if(currentDistance<config.reacquireDistanceMeters||angleDifference(heading,currentBearing)<config.reacquireCurrentBehindDegrees)return null;
+
+  let candidate=null;
+  let candidateDistance=Infinity;
+  for(let index=fromIndex+1;index<stops.length;index+=1){
+    const distance=distanceMeters(position,stops[index].coord);
+    const direction=angleDifference(heading,bearingDegrees(position,stops[index].coord));
+    if(direction>config.reacquireMaximumHeadingDegrees)continue;
+    if(distance<candidateDistance){candidate=index;candidateDistance=distance}
+  }
+  if(candidate===null)return null;
+
+  // Jeśli świeża pozycja jest już przy wybranym punkcie, ale kierunek prowadzi
+  // dalej, punkt został minięty w tle — celem jest kolejny przystanek.
+  let index=candidate;
+  const passRadius=Math.max(config.passNearMaxMeters,Math.min(250,accuracy*4));
+  if(candidate<stops.length-1&&candidateDistance<=passRadius){
+    const nextDirection=angleDifference(heading,bearingDegrees(position,stops[candidate+1].coord));
+    if(nextDirection<=config.passMaximumHeadingToNextDegrees)index=candidate+1;
+  }
+  return{index,fromIndex,reason:'resume-recovered',distance:candidateDistance};
+}
+
 export function createStopProgressEngine(overrides={}){
   const config={...DEFAULT_STOP_ENGINE_CONFIG,...overrides};
   let index=null;

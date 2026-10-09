@@ -46,7 +46,7 @@ export function canAutoAdvanceBySchedule({
   // bieżącego punktu, chronimy go tylko do tej godziny. Jeśli UI chwilowo nie
   // udostępnia czasu, trzy zgodne odczyty pozycji, ruchu i kierunku są
   // bezpieczniejszym źródłem niż zatrzymanie nawigacji na miniętym punkcie.
-  const physicalTransition=transitionReason==='passed-stop'||transitionReason==='reacquired-target';
+  const physicalTransition=transitionReason==='passed-stop'||transitionReason==='reacquired-target'||transitionReason==='resume-recovered';
   if(physicalTransition){
     if(currentMs===null)return true;
     return nowMs>=currentMs;
