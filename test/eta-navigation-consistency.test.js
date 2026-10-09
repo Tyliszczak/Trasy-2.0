@@ -22,14 +22,17 @@ test('podczas nawigacji eta-status przyjmuje tylko ETA policzone z aktualnego po
   assert.match(source,/if\(navigationOpen\(\)&&source!=='navigation-live-engine'\)return/);
 });
 
-test('wersja 2.0.221 ładuje nowe moduły ETA bez starego cache przeglądarki',()=>{
+test('wersja 2.0.226 ładuje stabilny moduł ETA bez starego cache przeglądarki',()=>{
   const html=read('index.html');
   const sw=read('sw.js');
   assert.match(html,/navigation-live-engine\.js\?v=7/);
-  assert.match(html,/eta-status\.js\?v=untimed-eta-1/);
+  assert.match(html,/eta-status\.js\?v=eta-stable-2/);
   assert.match(html,/time-core\.js\?v=4/);
   assert.match(html,/untimed-stop-eta-ui\.js\?v=3/);
   assert.match(html,/navigation-stop-ui-fix\.js\?v=2/);
-  assert.match(sw,/APP_VERSION='2\.0\.225'/);
-  assert.match(sw,/CACHE_NAME='trasy-2\.0-v251'/);
+  assert.match(sw,/APP_VERSION='2\.0\.226'/);
+  assert.match(sw,/CACHE_NAME='trasy-2\.0-v252'/);
+  const eta=read('eta-status.js');
+  assert.match(eta,/let lastBroadcastKey=''/);
+  assert.match(eta,/if\(key===lastBroadcastKey\)return/);
 });

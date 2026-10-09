@@ -163,13 +163,14 @@
       guardEl.hidden=true;
       guardEl.classList.remove('approach','hold','ready','flash3');
       if(status.text){
-        statusEl.hidden=false;
-        statusEl.className=`nextStopStatus ${status.kind}`;
-        statusEl.textContent=status.text;
+        if(statusEl.hidden)statusEl.hidden=false;
+        const className=`nextStopStatus ${status.kind}`;
+        if(statusEl.className!==className)statusEl.className=className;
+        if(statusEl.textContent!==status.text)statusEl.textContent=status.text;
       }else{
-        statusEl.hidden=true;
-        statusEl.className='nextStopStatus';
-        statusEl.textContent='';
+        if(!statusEl.hidden)statusEl.hidden=true;
+        if(statusEl.className!=='nextStopStatus')statusEl.className='nextStopStatus';
+        if(statusEl.textContent)statusEl.textContent='';
       }
     }
   }

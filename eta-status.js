@@ -17,6 +17,7 @@ import'./geo-core.js';
   let pos=null,watch=null,lastRouteAt=0,lastTarget=null;
   let etaSeconds=null,etaMeasuredAt=0,etaTargetKey='',requesting=false;
   let infoEl=null,infoRow=null;
+  let lastBroadcastKey='';
 
   const coord=value=>geo.parseCoordinate(value);
   function activeRow(){return body.querySelector('tr.gpsNextStop')}
@@ -45,6 +46,16 @@ import'./geo-core.js';
     body.dataset.etaKind=kind;
     body.dataset.etaDiffSeconds=diffSeconds===null||diffSeconds===undefined?'':String(diffSeconds);
     body.dataset.etaSeconds=Number.isFinite(etaSecondsValue)?String(etaSecondsValue):'';
+    // GPS odświeża się często. Przekazujemy stan dalej tylko wtedy, gdy
+    // zmienia się informacja widoczna dla kierowcy, aby nie migał nagłówek.
+    const key=[
+      rowKey(activeRow()),
+      kind,
+      Number.isFinite(diffSeconds)?Math.trunc(Number(diffSeconds)/60):'',
+      Number.isFinite(etaSecondsValue)?Math.floor(Number(etaSecondsValue)/60):''
+    ].join('|');
+    if(key===lastBroadcastKey)return;
+    lastBroadcastKey=key;
     const detail={kind,diffSeconds,etaSeconds:etaSecondsValue,source:'eta-status'};
     body.dispatchEvent(new CustomEvent('eta-status-change',{bubbles:true,detail}));
     body.dispatchEvent(new CustomEvent('nav-eta-update',{bubbles:true,detail}));
@@ -89,7 +100,7 @@ import'./geo-core.js';
     if(info)setInfo(info,'etaPunctuality neutral','');
   }
   function clearInfo(){if(infoEl?.isConnected)infoEl.remove();infoEl=null;infoRow=null}
-  function resetEta(){lastTarget=null;etaSeconds=null;etaMeasuredAt=0;etaTargetKey='';clearInfo();publishStatusKind('neutral')}
+  function resetEta(){lastTarget=null;etaSeconds=null;etaMeasuredAt=0;etaTargetKey='';lastBroadcastKey='';clearInfo();publishStatusKind('neutral')}
 
   async function refreshEta(force=false){
     if(returnOriginLocked()){resetEta();return}
