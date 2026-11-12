@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
   <meta name="theme-color" content="#1a1a1a">
   <link rel="manifest" href="./manifest.json">
-  <link rel="stylesheet" href="./style.css?v=i18n-1">
+  <link rel="stylesheet" href="./style.css?v=visible-routes-1">
   <link rel="stylesheet" href="./navigation.css?v=4">
   <style>
     #routeMapCanvas .maplibregl-marker[style*="clip-path"]{border:0!important;width:39px!important;height:39px!important;filter:drop-shadow(0 0 1.8px #000) drop-shadow(0 0 1.4px #000) drop-shadow(0 2px 5px #000b)!important}
@@ -53,15 +53,15 @@
   <title>Trasy 2.0</title>
 </head>
 <body data-test-diagnostics="enabled">
-  <div id="globalTestVersion" data-version="2.0.231">TEST 2.0.231</div>
+  <div id="globalTestVersion" data-version="2.0.232">TEST 2.0.232</div>
   <header class="header"><div class="headerActions"><span id="connectionStatus" class="status">Offline</span></div></header>
   <main class="container">
     <aside id="updateNotice" class="notice updateNotice" hidden><span>Nowa wersja aplikacji jest gotowa.</span><button id="updateAppButton">ODŚWIEŻ</button></aside>
     <aside id="staleWarning" class="notice staleWarning" hidden>Sprawdź działanie programu. Nie masz połączenia z bazą danych od ponad 3 dni.</aside>
     <section id="selectionView" class="panel view">
       <h1>Wybierz trasę</h1>
-      <label>Trasa</label>
-      <select id="routeSelect"><option value="">Wybierz trasę</option></select>
+      <div id="routeList" class="routeList" role="group" aria-label="Trasy"></div>
+      <select id="routeSelect" hidden aria-hidden="true"><option value="">Wybierz trasę</option></select>
       <button id="showSchedule" class="primary">POKAŻ HARMONOGRAM</button>
       <p id="formMessage" class="message" role="status"></p>
       <button id="retryRoutes" type="button" hidden>PONÓW POBIERANIE</button>
@@ -93,7 +93,7 @@
   <script src="./route-data-service.js?v=test-sheet-2"></script>
   <script src="./gps-hub.js?v=resume-1"></script>
   <script src="./diagnostic-recorder.js?v=14"></script>
-  <script type="module" src="./app.js?v=test-sheet-retry-1"></script>
+  <script type="module" src="./app.js?v=visible-routes-1"></script>
   <script src="./wake-style.js?v=navigation-wake-3"></script>
   <script src="./offline-map-cache.js?v=1"></script>
   <script src="./offline-route-cache.js?v=1"></script>

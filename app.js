@@ -56,7 +56,29 @@ async function syncRoutes(){
   }finally{syncing=false;updateStatus()}
 }
 function loadCached(){try{return JSON.parse(localStorage.getItem(DATA_KEY))}catch{return null}}
-function renderRoutes(){const old=routeSelect.value;routeSelect.replaceChildren(new Option('Wybierz trasę',''));routes.filter(valid).forEach(r=>routeSelect.add(new Option(r.name,r.name)));if(routes.some(r=>valid(r)&&r.name===old))routeSelect.value=old;routeSelect.disabled=!routes.length;$('#showSchedule').disabled=!routes.length}
+function renderRoutes(){
+  const available=routes.filter(valid);
+  const old=routeSelect.value;
+  routeSelect.replaceChildren(new Option('Wybierz trasę',''));
+  available.forEach(r=>routeSelect.add(new Option(r.name,r.name)));
+  if(available.some(r=>r.name===old))routeSelect.value=old;
+  routeSelect.disabled=!available.length;
+  $('#showSchedule').disabled=!available.length;
+  const list=$('#routeList');
+  list.replaceChildren(...available.map(r=>{
+    const button=document.createElement('button');
+    button.type='button';
+    button.className='routeChoice';
+    button.textContent=r.name;
+    button.setAttribute('aria-pressed',String(routeSelect.value===r.name));
+    button.onclick=()=>{
+      routeSelect.value=r.name;
+      routeSelect.dispatchEvent(new Event('change',{bubbles:true}));
+      list.querySelectorAll('.routeChoice').forEach(choice=>choice.setAttribute('aria-pressed',String(choice===button)));
+    };
+    return button;
+  }));
+}
 function updateStatus(){connectionStatus.hidden=!offline&&!syncing;connectionStatus.textContent=syncing?'Pobieranie tras…':'Offline';$('#retryRoutes').hidden=!offline||syncing;const ref=+localStorage.getItem(SYNC_KEY)||+localStorage.getItem(FAIL_KEY)||0;staleWarning.hidden=!offline||!ref||Date.now()-ref<THREE_DAYS}
 function routeIcon(){const span=document.createElement('span');span.className='stopRouteIcon';span.setAttribute('aria-hidden','true');span.innerHTML='<svg viewBox="0 0 32 26"><path d="M7 4c-2.5 0-4.5 2-4.5 4.5C2.5 12 7 16 7 16s4.5-4 4.5-7.5C11.5 6 9.5 4 7 4Z"/><circle cx="7" cy="8.5" r="1.5"/><path d="M9.5 16.5c3.5 2.5 6.5-2.5 9.5 0s4.5 1.5 5.5-.5"/><path d="M25 10c-2.5 0-4.5 2-4.5 4.5C20.5 18 25 22 25 22s4.5-4 4.5-7.5C29.5 12 27.5 10 25 10Z"/><circle cx="25" cy="14.5" r="1.5"/></svg>';return span}
 function stopRow(s){const tr=document.createElement('tr');tr.dataset.coordinate=s.coordinates||'';tr.dataset.returnCoordinate=s.returnCoordinates||s.coordinates||'';tr.dataset.stopId=String(s.id??'');for(const v of [s.name,s.time??'Koniec trasy']){const td=document.createElement('td');td.textContent=v;tr.append(td)}const td=document.createElement('td'),u=mapUrl(s.coordinates);if(u){const a=document.createElement('a');a.href=u;a.className='routeLink routeIconLink';a.title='Pokaż trasę';a.setAttribute('role','button');a.setAttribute('aria-label',`Uruchom nawigację od przystanku ${s.name}`);a.append(routeIcon());td.append(a)}tr.append(td);return tr}
