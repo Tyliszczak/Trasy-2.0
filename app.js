@@ -1,8 +1,8 @@
-import { ROUTES as FALLBACK_ROUTES } from './routes.js';
+const FALLBACK_ROUTES=[];
 import { getRoute,getSchedule,mapUrl } from './schedule.js';
 import { normalizeClockTime,nearestClockTime,nearestFutureTime } from './schedule-time.js';
 
-const DATA_KEY='trasy2.routes',SYNC_KEY='trasy2.lastSuccessfulSync',FAIL_KEY='trasy2.firstFailedSync',ACTIVE_COURSE_KEY='trasy2.activeCourse',THREE_DAYS=259200000,ACTIVE_COURSE_MAX_AGE=18*60*60*1000;
+const DATA_KEY='trasy2.test.routes',SYNC_KEY='trasy2.test.lastSuccessfulSync',FAIL_KEY='trasy2.test.firstFailedSync',ACTIVE_COURSE_KEY='trasy2.test.activeCourse',THREE_DAYS=259200000,ACTIVE_COURSE_MAX_AGE=18*60*60*1000;
 const $=s=>document.querySelector(s);
 const routeSelect=$('#routeSelect'),message=$('#formMessage'),connectionStatus=$('#connectionStatus'),staleWarning=$('#staleWarning');
 let routes=[],syncing=false,offline=true;

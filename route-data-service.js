@@ -1,11 +1,10 @@
 (()=>{
   if(window.__trasyRouteDataService)return;
 
-  // Upstream arkusza Trasy 2.0 za proxy Cloudflare:
-  // https://script.google.com/macros/s/AKfycbyQcnU6xvvrUZNVUJRhQ293L47hZwlvsc6i3n9s9hiYqhLUAoKSqGbPohe_lSB0apfUcw/exec
+  // Dane testowe pobiera funkcja Cloudflare wyłącznie z testowego mostu.
   const SOURCE_URL='/trasy-data';
-  const STORAGE_KEY='trasy2.sheetRawRouteData.v2';
-  const REQUIRED_SHEETS=['SAS Sulechów','APT - Krężoły','SAS Świebodzin','TopPoint','POJAZDY'];
+  const STORAGE_KEY='trasy2.sheetRawRouteData.test.v1';
+  const REQUIRED_SHEETS=['SAS Sulechów','APT - Krężoły','SAS Świebodzin','TopPoint','POJAZDY','PARKINGI'];
   let cached=null,inflight=null;
 
   function readStored(){try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||'null')}catch{return null}}
