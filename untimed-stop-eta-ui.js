@@ -5,7 +5,7 @@
   if(!body||!header)return;
 
   const style=document.createElement('style');
-  style.textContent=`#scheduleBody .etaPunctuality.etaOnly{color:#ccff33!important}#scheduleBody .etaPunctuality.etaOnly:before{display:none!important;content:none!important}#routeNextStop .nextStopPlan[data-eta-only="1"]{color:#ccff33!important;font-weight:900!important}`;
+  style.textContent=`#scheduleBody .etaPunctuality.etaOnly{color:#ccff33!important}#scheduleBody .etaPunctuality.etaOnly:before{display:none!important;content:none!important}#routeNextStop .nextStopPlan[data-eta-only="1"]{color:#ccff33!important;font-weight:900!important;transition:none!important;animation:none!important;opacity:1!important;visibility:visible!important}#routeNextStop .nextStopStatus{transition:none!important;animation:none!important}`;
   document.head.appendChild(style);
 
   let latestEtaSeconds=null;
