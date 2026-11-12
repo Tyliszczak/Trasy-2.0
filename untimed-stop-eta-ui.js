@@ -58,8 +58,8 @@
     }
     if(Number.isFinite(latestEtaSeconds)&&latestEtaSeconds>=0){
       const value=`Dojazd ${arrivalClock(latestEtaSeconds)}`;
-      const scheduleInfo=row.querySelector('.etaPunctuality.etaOnly');
-      if(scheduleInfo&&scheduleInfo.textContent!==value)scheduleInfo.textContent=value;
+      // eta-status.js jest jedynym właścicielem treści ETA w komórce harmonogramu.
+      // Ten moduł aktualizuje tylko nagłówek nawigacji, żeby oba napisy się nie przełączały.
       if(plan.textContent!==value)plan.textContent=value;
     }else if(plan.textContent){
       plan.textContent='';
