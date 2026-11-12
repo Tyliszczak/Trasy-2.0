@@ -50,6 +50,7 @@
   let audioContext=null;
   let cachedPlanRow=null;
   let cachedPlan='';
+  let displayedRow=null;
 
   function rows(){return[...body.querySelectorAll('tr')].filter(row=>row.dataset.coordinate)}
   function activeRow(){
@@ -81,11 +82,13 @@
   }
   const coord=value=>geo.parseCoordinate(value);
 
-  function setStopText(data){
+  function setStopText(data,row=null){
     const name=data?.name||'';
     const plan=data?.plan||'';
     if(mainEl.textContent!==name)mainEl.textContent=name;
-    if(planEl.textContent!==plan)planEl.textContent=plan;
+    const keepUntimedEta=!plan&&row&&row===displayedRow&&planEl.dataset.etaOnly==='1';
+    if(!keepUntimedEta&&planEl.textContent!==plan)planEl.textContent=plan;
+    displayedRow=row;
   }
 
   function renderReturnStart(){
@@ -129,10 +132,11 @@
   function render(){
     if(renderReturnStart())return;
     labelEl.textContent='Następny przystanek';
-    const data=dataFromRow(activeRow());
-    if(!data){setStopText(null);statusEl.hidden=true;guardEl.hidden=true;return}
+    const row=activeRow();
+    const data=dataFromRow(row);
+    if(!data){setStopText(null,null);statusEl.hidden=true;guardEl.hidden=true;return}
 
-    setStopText(data);
+    setStopText(data,row);
 
     if(body.dataset.direction==='return'){
       statusEl.hidden=true;
