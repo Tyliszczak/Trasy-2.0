@@ -36,7 +36,7 @@ test('każdy lokalny skrypt uruchamiany przez index znajduje się w cache PWA',a
   const shell=new Set(shellEntries(sw));
   const missing=localScripts(html).filter(script=>!shell.has(script));
   assert.deepEqual(missing,[],'Skrypt z index.html nie jest objęty APP_SHELL');
-  assert.match(sw,/const CACHE_NAME='trasy-2\.0-v\d+'/);
+  assert.match(sw,/const CACHE_NAME='trasy-2\.0-test-v\d+'/);
 });
 
 test('kierowca może przełączyć polski, angielski i ukraiński na ekranie wyboru trasy',async()=>{
@@ -78,11 +78,14 @@ test('blokadą wygaszania zarządza tylko wake-style',async()=>{
   assert.match(wake,/wakeLock\.request\('screen'\)/);
 });
 
-test('dane tras są pobierane wyłącznie z arkusza Trasy 2.0',async()=>{
-  const [service,app,returnRoute]=await Promise.all([
-    readSource('route-data-service.js'),readSource('app.js'),readSource('return-route.js')
+test('dane testowe są pobierane tylko z testowego mostu',async()=>{
+  const [service,app,returnRoute,proxy]=await Promise.all([
+    readSource('route-data-service.js'),readSource('app.js'),readSource('return-route.js'),readSource('functions/trasy-data.js')
   ]);
-  assert.match(service,/AKfycbyQcnU6xvvrUZNVUJRhQ293L47hZwlvsc6i3n9s9hiYqhLUAoKSqGbPohe_lSB0apfUcw/);
+  assert.match(service,/trasy2\.sheetRawRouteData\.test\.v1/);
+  assert.match(proxy,/TRASY_TEST_API_URL/);
+  assert.match(proxy,/TRASY_TEST_BRIDGE_SECRET/);
+  assert.doesNotMatch(proxy,/AKfycbyQcnU6xvvrUZNVUJRhQ293L47hZwlvsc6i3n9s9hiYqhLUAoKSqGbPohe_lSB0apfUcw/);
   for(const name of ['SAS Sulechów','APT - Krężoły','SAS Świebodzin','TopPoint','POJAZDY'])assert.match(service,new RegExp(name));
   assert.match(service,/fetch\(url\.href/);
   assert.doesNotMatch(service,/KURSY_DRIVER_API|driverRoutes/);
@@ -228,8 +231,8 @@ test('zgłoszenia kierowcy trafiają przez bezpieczny kontrakt do panelu i zacho
   assert.doesNotMatch(feedback,/driverSessionToken|refreshToken|activationToken|latitude|longitude/);
 });
 
-test('dane zapasowe tworzą kompletny harmonogram każdej zmiany',()=>{
-  assert.ok(ROUTES.length>0);
+test('podgląd nie używa produkcyjnych danych zapasowych',()=>{
+  assert.equal(ROUTES.length,0);
   for(const route of ROUTES){
     assert.equal(getRoute(ROUTES,route.name),route);
     assert.ok(route.times.length>0,`${route.name}: brak oznaczeń zmian`);
