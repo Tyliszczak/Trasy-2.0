@@ -23,7 +23,7 @@
 
   async function request(){
     const controller=new AbortController();
-    const timer=setTimeout(()=>controller.abort(),12000);
+    const timer=setTimeout(()=>controller.abort(),45000);
     try{
       const url=new URL(SOURCE_URL,location.origin);
       url.searchParams.set('_',String(Date.now()));

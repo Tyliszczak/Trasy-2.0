@@ -53,7 +53,7 @@
   <title>Trasy 2.0</title>
 </head>
 <body data-test-diagnostics="enabled">
-  <div id="globalTestVersion" data-version="2.0.230">TEST 2.0.230</div>
+  <div id="globalTestVersion" data-version="2.0.231">TEST 2.0.230</div>
   <header class="header"><div class="headerActions"><span id="connectionStatus" class="status">Offline</span></div></header>
   <main class="container">
     <aside id="updateNotice" class="notice updateNotice" hidden><span>Nowa wersja aplikacji jest gotowa.</span><button id="updateAppButton">ODŚWIEŻ</button></aside>
@@ -63,7 +63,8 @@
       <label>Trasa</label>
       <select id="routeSelect"><option value="">Wybierz trasę</option></select>
       <button id="showSchedule" class="primary">POKAŻ HARMONOGRAM</button>
-      <p id="formMessage" class="message"></p>
+      <p id="formMessage" class="message" role="status"></p>
+      <button id="retryRoutes" type="button" hidden>PONÓW POBIERANIE</button>
       <button id="languageButton" class="languageButton" type="button" aria-label="Język aplikacji"><span class="languageButtonIcon" aria-hidden="true">🌐</span><span>Język aplikacji</span></button>
       <button id="diagnosticButton" class="diagnosticButton" type="button"><span aria-hidden="true">●</span><span>DIAGNOSTYKA TESTÓW</span></button>
     </section>
@@ -89,10 +90,10 @@
   <script src="./time-core.js?v=4"></script>
   <script src="./geo-core.js?v=1"></script>
   <script src="./eta-core.js?v=3"></script>
-  <script src="./route-data-service.js?v=test-sheet-1"></script>
+  <script src="./route-data-service.js?v=test-sheet-2"></script>
   <script src="./gps-hub.js?v=resume-1"></script>
   <script src="./diagnostic-recorder.js?v=14"></script>
-  <script type="module" src="./app.js?v=active-course-1"></script>
+  <script type="module" src="./app.js?v=test-sheet-retry-1"></script>
   <script src="./wake-style.js?v=navigation-wake-3"></script>
   <script src="./offline-map-cache.js?v=1"></script>
   <script src="./offline-route-cache.js?v=1"></script>
