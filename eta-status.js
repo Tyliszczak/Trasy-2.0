@@ -153,7 +153,7 @@ import'./geo-core.js';
     const plan=planSeconds(row);
     if(plan===null){
       row.style.setProperty('--gps-status-color','#078df0');
-      setInfo(info,'etaPunctuality etaOnly',`ETA ${arrivalClock(etaSecondsLive)}`);
+      setInfo(info,'etaPunctuality etaOnly',`Dojazd ${arrivalClock(etaSecondsLive)}`);
       broadcastStatus('neutral',null,etaSecondsLive);
       return;
     }
