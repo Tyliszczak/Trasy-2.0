@@ -98,7 +98,7 @@ test('pojazdy są pobierane z karty POJAZDY tego samego arkusza',async()=>{
     readSource('app.js'),readSource('vehicles.js'),readSource('route-data-service.js'),readSource('google-routes-provider.js')
   ]);
   assert.match(app,/routes=FALLBACK_ROUTES\.filter\(valid\);renderRoutes\(\)/);
-  assert.match(app,/Tryb testowy/);
+  assert.match(app,/Pobieram trasy z arkusza testowego/);
   assert.match(vehicles,/__trasyRouteDataService/);
   assert.match(vehicles,/data\?\.POJAZDY/);
   assert.doesNotMatch(vehicles,/KURSY_DRIVER_API|standaloneTestVehicle/);
