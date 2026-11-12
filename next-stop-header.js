@@ -143,6 +143,18 @@
       return;
     }
 
+    // Przystanek bez godziny ma własne ETA; nie pokazuj dla niego
+    // statusu opartego na poprzednim, zapamiętanym kursie.
+    if(!data.plan){
+      statusEl.hidden=true;
+      statusEl.className='nextStopStatus';
+      statusEl.textContent='';
+      guardEl.hidden=true;
+      guardEl.textContent='';
+      guardEl.classList.remove('approach','hold','ready','flash3');
+      return;
+    }
+
     const guard=guardData();
     const status=etaCore.statusFromDiff(lastStatusDetail?.diffSeconds);
 
