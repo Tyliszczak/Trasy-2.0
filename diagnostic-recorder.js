@@ -1,7 +1,7 @@
 (()=>{
   const root=document.body;
   const version=document.getElementById('globalTestVersion');
-  if(!root||root.dataset.testDiagnostics!=='enabled'||!/^TEST\b/i.test(version?.textContent||''))return;
+  if(!root||root.dataset.testDiagnostics!=='enabled'||!/^(?:PROD|TEST)\b/i.test(version?.textContent||''))return;
 
   const DB_NAME='trasy2-test-diagnostics';
   const DB_VERSION=2;
